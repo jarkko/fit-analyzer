@@ -144,7 +144,9 @@ class TestStrengthTrainingAggregation:
 
         # Sport should not be "unknown" for valid strength training files
         # Check first workout's data
-        first_activity_data = df_summary[df_summary["activity_id"] == df_summary["activity_id"].iloc[0]]
+        first_activity_data = df_summary[
+            df_summary["activity_id"] == df_summary["activity_id"].iloc[0]
+        ]
         assert first_activity_data["sport"].iloc[0] != "unknown"
         assert first_activity_data["sport"].iloc[0] == "training"
         assert first_activity_data["sub_sport"].iloc[0] == "strength_training"
