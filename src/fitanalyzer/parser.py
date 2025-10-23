@@ -9,24 +9,152 @@ import argparse
 from dataclasses import dataclass
 from datetime import timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 from dateutil import tz
 from fitparse import FitFile
 
-# Apply monkey patch to fix fitparse deprecation warnings
-# This import is only for its side-effect (patching fitparse)
-from . import fitparse_fix  # noqa: F401 pylint: disable=unused-import
-from .constants import (
+from fitanalyzer.constants import (
     DEFAULT_FTP,
-    DEFAULT_HR_MAX,
     DEFAULT_HR_REST,
+    DEFAULT_HR_MAX,
     DEFAULT_TIMEZONE,
     SPORT_MAPPING,
     SUB_SPORT_MAPPING,
+    EXERCISE_CATEGORY_MAPPING,
 )
+# Apply monkey patch to fix fitparse deprecation warnings
+# This import is only for its side-effect (patching fitparse)
+from . import fitparse_fix  # noqa: F401 pylint: disable=unused-import
+
+
+class _GarminProfileLoader:
+    """Singleton loader for Garmin FIT SDK Profile (lazy loading)"""
+    _instance = None
+    _profile = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def get_profile(self):
+        """Get the Garmin Profile, loading it on first access"""
+        if self._profile is None:
+            try:
+                from garmin_fit_sdk import Profile  # pylint: disable=import-outside-toplevel
+                self._profile = Profile
+            except ImportError:
+                self._profile = {}  # Fallback if SDK not installed
+        return self._profile
+
+
+# Global instance of the loader
+_profile_loader = _GarminProfileLoader()
+
+
+def _load_exercise_sets_from_json(fit_file_path: str) -> Optional[Dict[str, Any]]:
+    """Load exercise sets data from JSON file (wrapper to avoid circular import).
+
+    Args:
+        fit_file_path: Path to the FIT file
+
+    Returns:
+        Exercise sets data, or None if file doesn't exist
+    """
+    # pylint: disable=import-outside-toplevel
+    from fitanalyzer.sync import load_exercise_sets_from_json
+    return load_exercise_sets_from_json(fit_file_path)
+
+
+def _get_garmin_profile():
+    """Lazy-load Garmin FIT SDK Profile"""
+    return _profile_loader.get_profile()
+
+
+def get_specific_exercise_name(category_id: int, subtype_id: int) -> str:
+    """Get specific exercise name from category and subtype IDs
+
+    Uses the Garmin FIT SDK to look up detailed exercise names like
+    "Barbell Power Clean" instead of just "Olympic Lift".
+
+    Args:
+        category_id: Exercise category ID (e.g., 18 for Olympic Lift)
+        subtype_id: Exercise subtype ID (e.g., 2 for Barbell Power Clean)
+
+    Returns:
+        str: Specific exercise name, or None if not found
+    """
+    profile = _get_garmin_profile()
+    if not profile or "types" not in profile:
+        return None
+
+    # Get the category name to find the right exercise_name type
+    category_types = profile["types"].get("exercise_category", {})
+    category_name = category_types.get(str(category_id))
+
+    if not category_name or category_name == "unknown":
+        return None
+
+    # Map category name to its exercise_name type
+    type_name = f"{category_name}_exercise_name"
+    exercise_types = profile["types"].get(type_name, {})
+
+    exercise_name = exercise_types.get(str(subtype_id))
+    if exercise_name and exercise_name != "unknown":
+        # Convert snake_case to Title Case
+        return " ".join(word.capitalize() for word in exercise_name.split("_"))
+
+    return None
+
+
+def merge_api_exercise_names(
+    fit_df: pd.DataFrame, api_data: Optional[Dict[str, Any]]
+) -> pd.DataFrame:
+    """Merge exercise names from Garmin API into FIT DataFrame.
+
+    Matches sets by message_index and replaces exercise_name with API data.
+    API names are more accurate as they reflect manual corrections in Garmin Connect.
+
+    Args:
+        fit_df: DataFrame with FIT file data including message_index and exercise_name
+        api_data: Exercise sets data from Garmin API (or None)
+
+    Returns:
+        DataFrame with updated exercise names where API data is available
+    """
+    if api_data is None or not api_data.get('exerciseSets'):
+        return fit_df
+
+    # Create a copy to avoid modifying original
+    result_df = fit_df.copy()
+
+    # Build a mapping from messageIndex to exercise name
+    api_exercise_map = {}
+    for ex_set in api_data['exerciseSets']:
+        message_index = ex_set.get('messageIndex')
+        exercises = ex_set.get('exercises', [])
+
+        if message_index is not None and exercises:
+            # Take the first exercise (highest probability)
+            exercise_name = exercises[0].get('name', '')
+            if exercise_name:
+                # Convert from UPPER_SNAKE_CASE to Title Case
+                formatted_name = " ".join(
+                    word.capitalize() for word in exercise_name.split("_")
+                )
+                api_exercise_map[message_index] = formatted_name
+
+    # Update exercise names in DataFrame where we have API data
+    for msg_idx, api_name in api_exercise_map.items():
+        mask = result_df['message_index'] == msg_idx
+        if mask.any():
+            result_df.loc[mask, 'exercise_name'] = api_name
+
+    return result_df
+
 
 __all__ = [
     "AnalysisConfig",
@@ -34,6 +162,7 @@ __all__ = [
     "trimp_from_hr",
     "summarize_fit_sessions",
     "summarize_fit_original",
+    "merge_api_exercise_names",
     "parse_arguments",
     "main",
 ]
@@ -309,13 +438,224 @@ def _extract_records_from_fit(ff):
     return df
 
 
-def _extract_sets_from_fit(ff):
-    """Extract strength training sets from FIT file"""
+def _extract_sets_from_fit(ff, fit_file_path: Optional[str] = None):  # noqa: C901
+    """Extract strength training sets from FIT file and add exercise names
+
+    Exercise names are extracted using a two-level system:
+    1. Category (e.g., 18 = "Olympic Lift", 13 = "Hyperextension")
+    2. Category subtype (e.g., category 18, subtype 2 = "Barbell Power Clean")
+
+    If API exercise data is available (from Garmin Connect), those names are
+    preferred as they reflect manual corrections. Otherwise, we use the
+    category/subtype mapping from the FIT file.
+
+    Args:
+        ff: FitFile object
+        fit_file_path: Optional path to FIT file (to load API exercise data)
+    """
     sets = []
     for m in ff.get_messages("set"):
         d = {d.name: d.value for d in m}
         sets.append(d)
-    return pd.DataFrame(sets)
+
+    if not sets:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(sets)
+
+    # Helper functions for exercise name extraction
+    def _extract_valid_value(value, invalid_value=65534):
+        """Extract first valid value from tuple or return single value."""
+        if pd.isna(value) or value is None:
+            return None
+        if isinstance(value, tuple):
+            for v in value:
+                if v is not None and v != invalid_value:
+                    return v
+            return None
+        return value if value != invalid_value else None
+
+    def _get_specific_name(cat_val, category_subtype):
+        """Try to get specific exercise name from subtype."""
+        sub_val = _extract_valid_value(category_subtype)
+        if sub_val is not None:
+            specific_name = get_specific_exercise_name(cat_val, sub_val)
+            if specific_name:
+                return specific_name
+        return None
+
+    def get_exercise_name(row):
+        """Convert category and category_subtype to exercise name
+
+        Args:
+            row: DataFrame row with 'category' and 'category_subtype' columns
+
+        Returns:
+            str: Human-readable exercise name
+        """
+        cat_val = _extract_valid_value(row.get("category"))
+        if cat_val is None:
+            return "Unknown"
+
+        # Try specific exercise name from subtype
+        specific_name = _get_specific_name(cat_val, row.get("category_subtype"))
+        if specific_name:
+            return specific_name
+
+        # Fall back to category-level name
+        return EXERCISE_CATEGORY_MAPPING.get(cat_val, f"Exercise {cat_val}")
+
+    df["exercise_name"] = df.apply(get_exercise_name, axis=1)
+
+    # Merge API exercise names if available
+    if fit_file_path:
+        api_data = _load_exercise_sets_from_json(fit_file_path)
+        if api_data:
+            df = merge_api_exercise_names(df, api_data)
+
+    return df
+
+
+# Aggregate strength sets from multiple files
+def _get_session_info(fit_file, *, ftp, hr_rest, hr_max, tz_name, multisport):
+    """Extract session info and sets from a FIT file.
+
+    Auto-detects multisport activities by checking session count.
+
+    Returns:
+        Tuple of (df_sessions, df_sets)
+    """
+    # Auto-detect multisport: check if file has multiple sessions
+    ff = FitFile(fit_file)
+    sessions = list(ff.get_messages("session"))
+    is_multisport = len(sessions) > 1
+
+    if is_multisport or multisport:
+        result = summarize_fit_sessions(
+            fit_file, ftp=ftp, hr_rest=hr_rest, hr_max=hr_max, tz_name=tz_name
+        )
+        df_sessions, df_sets = result
+        # multisport mode doesn't extract sets, fall back to original
+        if not df_sets or (isinstance(df_sets, list) and not df_sets):
+            _, df_sets = summarize_fit_original(
+                fit_file, ftp=ftp, hr_rest=hr_rest, hr_max=hr_max, tz_name=tz_name
+            )
+            # For multisport files, find the strength training session
+            if isinstance(df_sessions, list):
+                strength_sessions = [
+                    s for s in df_sessions if s.get("sub_sport") == "strength_training"
+                ]
+                if strength_sessions:
+                    df_sessions = strength_sessions
+    else:
+        summary_dict, df_sets = summarize_fit_original(
+            fit_file, ftp=ftp, hr_rest=hr_rest, hr_max=hr_max, tz_name=tz_name
+        )
+        # Convert dict to list for consistency
+        df_sessions = [summary_dict] if summary_dict else []
+
+    return df_sessions, df_sets
+
+
+def _extract_first_session_metadata(df_sessions):
+    """Extract sport, sub_sport, and date from first session.
+
+    Returns:
+        Tuple of (sport, sub_sport, date)
+    """
+    sport = "unknown"
+    sub_sport = "unknown"
+    date = None
+
+    first_session = None
+    if isinstance(df_sessions, list) and df_sessions:
+        first_session = df_sessions[0]
+    # isinstance checks type - false positive from pylint
+    elif isinstance(df_sessions, pd.DataFrame) and not df_sessions.empty:
+        first_session = df_sessions.iloc[0]
+
+    if first_session:
+        sport = first_session.get("sport", "unknown")
+        sub_sport = first_session.get("sub_sport", "unknown")
+        date = first_session.get("date", None)
+
+    return sport, sub_sport, date
+
+
+def _create_set_record(row, idx, *, activity_id, file_name, date, sport, sub_sport):
+    """Create a set record dictionary from a row."""
+    return {
+        "activity_id": activity_id,
+        "file": file_name,
+        "date": date,
+        "sport": sport,
+        "sub_sport": sub_sport,
+        "set_number": idx,
+        "set_type": row.get("set_type"),
+        "exercise_name": row.get("exercise_name", "Unknown"),
+        "category": row.get("category"),
+        "category_subtype": row.get("category_subtype"),
+        "repetitions": row.get("repetitions"),
+        "weight": row.get("weight"),
+        "duration": row.get("duration"),
+        "timestamp": row.get("timestamp"),
+    }
+
+
+def _aggregate_strength_sets(
+    fit_files, *, ftp, hr_rest, hr_max, tz_name, multisport=False
+):
+    """
+    Aggregate strength training sets from multiple FIT files into a single DataFrame.
+
+    Args:
+        fit_files: List of FIT file paths to process
+        ftp: Functional Threshold Power
+        hr_rest: Resting heart rate
+        hr_max: Maximum heart rate
+        tz_name: Timezone name
+        multisport: Whether to use multisport processing
+
+    Returns:
+        DataFrame with columns: activity_id, file, date, sport, sub_sport, set_number,
+        set_type, category, category_subtype, repetitions, weight, duration, timestamp
+    """
+    all_strength_data = []
+
+    for fit_file in fit_files:
+        # Extract session info and sets
+        df_sessions, df_sets = _get_session_info(
+            fit_file, ftp=ftp, hr_rest=hr_rest, hr_max=hr_max,
+            tz_name=tz_name, multisport=multisport
+        )
+
+        # Skip if no strength sets found
+        if df_sets is None or (isinstance(df_sets, pd.DataFrame) and df_sets.empty):
+            continue
+
+        # Get activity info
+        activity_id = Path(fit_file).stem.replace("_ACTIVITY", "")
+        file_name = Path(fit_file).name
+        sport, sub_sport, date = _extract_first_session_metadata(df_sessions)
+
+        # Add metadata to each active set
+        for idx, row in df_sets.iterrows():
+            if row.get("set_type") == "active":
+                set_data = _create_set_record(
+                    row, idx, activity_id=activity_id, file_name=file_name,
+                    date=date, sport=sport, sub_sport=sub_sport
+                )
+                all_strength_data.append(set_data)
+
+    if not all_strength_data:
+        return None
+
+    df_summary = pd.DataFrame(all_strength_data)
+
+    # Sort by date and timestamp
+    df_summary = df_summary.sort_values(["date", "timestamp"], na_position="last")
+
+    return df_summary
 
 
 def _prepare_timezone_aware_index(df):
@@ -387,8 +727,8 @@ def summarize_fit_original(path, ftp=300, hr_rest=50, hr_max=190, tz_name="Europ
     # Extract aerobic data records
     df = _extract_records_from_fit(ff)
 
-    # Extract strength training sets
-    df_sets = _extract_sets_from_fit(ff)
+    # Extract strength training sets (passing path for API data)
+    df_sets = _extract_sets_from_fit(ff, fit_file_path=path)
 
     out_summary = None
     if not df.empty:
@@ -436,10 +776,13 @@ def parse_arguments(args=None):
     ap.add_argument("--hrmax", type=int, default=190)
     ap.add_argument("--tz", type=str, default="Europe/Helsinki")
     ap.add_argument(
-        "--dump-sets", action="store_true", help="Tallenna strength-sarjat CSV:ksi jos löytyy"
+        "--dump-sets", action="store_true", help="Save strength training sets to CSV"
     )
     ap.add_argument(
         "--multisport", action="store_true", help="Process multisport activities by session"
+    )
+    ap.add_argument(
+        "--output-dir", type=str, default="data", help="Directory for output CSV files"
     )
     return ap.parse_args(args)
 
@@ -506,16 +849,11 @@ def main_with_args(args):
             new_rows = _process_single_file(fit_file, args)
             rows.extend(new_rows)
 
-        # Handle strength sets if requested
-        if args.dump_sets:
-            _, df_sets = (
-                summarize_fit_sessions(
-                    fit_file, ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
-                )
-                if args.multisport
-                else summarize_fit_original(
-                    fit_file, ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
-                )
+        # Handle strength sets if requested (only for single-sport files)
+        # For multisport, use the consolidated summary instead
+        if args.dump_sets and not args.multisport:
+            _, df_sets = summarize_fit_original(
+                fit_file, ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
             )
             _save_strength_sets(fit_file, df_sets, all_sets)
 
@@ -524,15 +862,41 @@ def main_with_args(args):
         # Remove internal columns before saving
         columns_to_remove = [col for col in out.columns if col.startswith("_")]
         out_clean = out.drop(columns=columns_to_remove)
-        out_clean.to_csv("workout_summary_from_fit.csv", index=False)
-        print("\n[VALMIS] workout_summary_from_fit.csv luotu.")
+        csv_path = Path(args.output_dir) / "workout_summary_from_fit.csv"
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        out_clean.to_csv(csv_path, index=False)
+        print(f"\n✅ Created: {csv_path}")
         print(out_clean.to_string(index=False))
         if all_sets:
-            print("[SETIT] Strength-setit tallennettu tiedostoihin:")
+            print("\n📋 Strength training sets saved to:")
             for p in all_sets:
                 print(" -", p)
     else:
-        print("Ei dataa tulosteeseen.")
+        print("No data to output.")
+
+    # Generate consolidated strength training summary if requested
+    if args.dump_sets:
+        df_strength_summary = _aggregate_strength_sets(
+            args.fit_files,
+            ftp=args.ftp,
+            hr_rest=args.hrrest,
+            hr_max=args.hrmax,
+            tz_name=args.tz,
+            multisport=args.multisport,
+        )
+
+        if df_strength_summary is not None and not df_strength_summary.empty:
+            csv_path = Path(args.output_dir) / "strength_training_summary.csv"
+            csv_path.parent.mkdir(parents=True, exist_ok=True)
+            df_strength_summary.to_csv(csv_path, index=False)
+            print(f"\n✅ Created: {csv_path}")
+            print(
+                f"Total: {len(df_strength_summary)} strength training sets "
+                f"from {len(df_strength_summary['activity_id'].unique())} workouts."
+            )
+            print(df_strength_summary.to_string(index=False))
+        else:
+            print("\nEi strength training settejä löytynyt.")
 
     return 0
 

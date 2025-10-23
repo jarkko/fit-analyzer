@@ -109,13 +109,16 @@ dmypy.json
 *.fit
 *.tcx
 *.zip
-workout_summary_from_fit.csv
+*_exercises.json
 *_strength_sets.csv
+data/workout_summary_from_fit.csv
+data/strength_training_summary.csv
 .garth
 
 # Keep test fixtures
 !tests/fixtures/*.fit
 !tests/fixtures/**/*.fit
+!tests/fixtures/**/*_exercises.json
 
 # Temporary files
 tmp/
