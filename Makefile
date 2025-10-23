@@ -3,10 +3,15 @@
 
 .PHONY: help install install-dev test test-fast test-unit test-integration lint format type-check clean coverage docs build install-editable
 
-# Python interpreter
-PYTHON := .venv/bin/python3
+# Python interpreter - use venv if available, otherwise system python
+PYTHON := $(shell command -v .venv/bin/python3 2>/dev/null || echo python3)
 PIP := $(PYTHON) -m pip
-PYTEST := .venv/bin/pytest
+PYTEST := $(shell command -v .venv/bin/pytest 2>/dev/null || echo pytest)
+FLAKE8 := $(shell command -v .venv/bin/flake8 2>/dev/null || echo flake8)
+PYLINT := $(shell command -v .venv/bin/pylint 2>/dev/null || echo pylint)
+BLACK := $(shell command -v .venv/bin/black 2>/dev/null || echo black)
+ISORT := $(shell command -v .venv/bin/isort 2>/dev/null || echo isort)
+MYPY := $(shell command -v .venv/bin/mypy 2>/dev/null || echo mypy)
 
 help:
 	@echo "FIT Analyzer - Professional Python Library"
@@ -67,25 +72,25 @@ coverage:
 
 lint:
 	@echo "Running flake8..."
-	@.venv/bin/flake8 src/fitanalyzer --max-line-length=100
+	@$(FLAKE8) src/fitanalyzer --max-line-length=100
 	@echo ""
 	@echo "Running pylint..."
-	@.venv/bin/pylint src/fitanalyzer --disable=C0111,C0103,R0913,R0914
+	@$(PYLINT) src/fitanalyzer --disable=C0111,C0103,R0913,R0914
 	@echo ""
 	@echo "✅ Lint checks complete!"
 
 format:
 	@echo "Running black..."
-	.venv/bin/black --line-length 100 src/fitanalyzer tests/
+	$(BLACK) --line-length 100 src/fitanalyzer tests/
 	@echo ""
 	@echo "Running isort..."
-	.venv/bin/isort --profile black --line-length 100 src/fitanalyzer tests/
+	$(ISORT) --profile black --line-length 100 src/fitanalyzer tests/
 	@echo ""
 	@echo "✅ Code formatted!"
 
 type-check:
 	@echo "Running mypy..."
-	.venv/bin/mypy src/fitanalyzer --ignore-missing-imports || true
+	$(MYPY) src/fitanalyzer --ignore-missing-imports || true
 
 build:
 	$(PYTHON) -m build
