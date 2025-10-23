@@ -1,5 +1,11 @@
 # FIT Analyzer
 
+[![CI](https://github.com/jarkko/fit-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/jarkko/fit-analyzer/actions/workflows/ci.yml)
+[![Coverage](https://github.com/jarkko/fit-analyzer/actions/workflows/coverage.yml/badge.svg)](https://github.com/jarkko/fit-analyzer/actions/workflows/coverage.yml)
+[![Python Version](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/downloads/)
+[![Code style: pylint](https://img.shields.io/badge/code%20quality-10.00%2F10-brightgreen)](https://pylint.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A professional Python library for analyzing Garmin FIT files and calculating training metrics.
 
 ## Features
