@@ -52,12 +52,15 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.13'
+        continue-on-error: true
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
           flags: unittests
           name: codecov-umbrella
           fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Archive coverage results
         if: matrix.python-version == '3.13'
