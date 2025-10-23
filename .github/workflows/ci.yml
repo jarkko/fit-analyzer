@@ -29,16 +29,37 @@ jobs:
           pip install -e .
           pip install -r requirements-dev.txt
 
-      - name: Run tests
+      - name: Run tests with coverage (Python 3.13)
+        if: matrix.python-version == '3.13'
         run: |
-          make test
+          make coverage
+
+      - name: Run fast tests (Python 3.10-3.12)
+        if: matrix.python-version != '3.13'
+        run: |
+          make test-fast
+
+      - name: Generate coverage report
+        if: matrix.python-version == '3.13'
+        run: |
+          coverage xml
+          coverage html
 
       - name: Upload coverage to Codecov
         if: matrix.python-version == '3.13'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
           fail_ci_if_error: false
+
+      - name: Archive coverage results
+        if: matrix.python-version == '3.13'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
 
   lint:
     name: Code Quality
