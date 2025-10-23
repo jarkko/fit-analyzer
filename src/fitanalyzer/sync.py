@@ -15,7 +15,7 @@ import sys
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple
 
 from .constants import DEFAULT_FTP, DEFAULT_HR_MAX, DEFAULT_HR_REST, DEFAULT_SYNC_DAYS
 
@@ -77,8 +77,51 @@ def check_and_install_garth() -> bool:
     return False
 
 
-def authenticate_garmin(email=None, password=None, token_store="~/.garth"):
-    """Authenticate with Garmin Connect"""
+def authenticate_garmin(
+    email: Optional[str] = None,
+    password: Optional[str] = None,
+    token_store: str = "~/.garth"
+) -> bool:
+    """Authenticate with Garmin Connect and manage session tokens.
+
+    Handles authentication to Garmin Connect using the garth library, with support
+    for session token caching to avoid repeated logins. Attempts to resume an
+    existing session first, and only prompts for credentials if needed.
+
+    Args:
+        email: Garmin Connect account email. If None, tries GARMIN_EMAIL env var,
+               then prompts user for input.
+        password: Garmin Connect account password. If None, tries GARMIN_PASSWORD
+                  env var, then prompts securely using getpass.
+        token_store: Path to store authentication tokens for session persistence.
+                     Supports tilde (~) expansion for home directory.
+                     Default: "~/.garth"
+
+    Returns:
+        bool: True if authentication successful (new or resumed session),
+              False if authentication failed.
+
+    Raises:
+        ImportError: If garth library is not installed or not available.
+
+    Example:
+        >>> # Auto-authenticate using environment variables
+        >>> authenticate_garmin()
+        ✅ Resumed existing Garmin Connect session
+        True
+
+        >>> # Force new authentication with credentials
+        >>> authenticate_garmin(email="user@example.com", password="secret")
+        🔐 Authenticating with Garmin Connect...
+        ✅ Authentication successful! Session saved.
+        True
+
+    Notes:
+        - Session tokens are saved to avoid repeated MFA prompts
+        - For MFA-enabled accounts, consider using app-specific passwords
+        - Credentials are never stored, only session tokens
+        - Failed authentications provide helpful troubleshooting hints
+    """
     if garth is None:
         raise ImportError("garth library not available")
 
@@ -126,7 +169,7 @@ def authenticate_garmin(email=None, password=None, token_store="~/.garth"):
         return False
 
 
-def get_existing_activity_ids(directory="."):
+def get_existing_activity_ids(directory: str = ".") -> Dict[str, float]:
     """Get set of activity IDs and their file modification times.
 
     Returns:
@@ -151,7 +194,7 @@ def get_existing_activity_ids(directory="."):
     return existing_activities
 
 
-def _parse_activity_date(activity):
+def _parse_activity_date(activity: Dict[str, Any]) -> datetime:
     """Parse activity date and ensure it's timezone-aware"""
     activity_date_str = activity["startTimeLocal"].replace("Z", "+00:00")
     activity_date = datetime.fromisoformat(activity_date_str)
@@ -163,7 +206,7 @@ def _parse_activity_date(activity):
     return activity_date
 
 
-def _filter_recent_activities(activities, days):
+def _filter_recent_activities(activities: List[Dict[str, Any]], days: int) -> List[Dict[str, Any]]:
     """Filter activities by date range"""
     cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
     recent_activities = []
@@ -176,7 +219,7 @@ def _filter_recent_activities(activities, days):
     return recent_activities
 
 
-def _extract_fit_from_zip(fit_data):
+def _extract_fit_from_zip(fit_data: bytes) -> Optional[bytes]:
     """Extract FIT file from ZIP if needed"""
     # Check if it's a ZIP file
     if fit_data[:2] != b"PK":  # Not a ZIP file
@@ -192,7 +235,10 @@ def _extract_fit_from_zip(fit_data):
     return None
 
 
-def _should_download_activity(activity, existing_activities):
+def _should_download_activity(
+    activity: Dict[str, Any],
+    existing_activities: Dict[str, float]
+) -> Tuple[bool, bool, bool]:
     """Check if activity should be downloaded based on update timestamp.
 
     Args:
@@ -229,7 +275,7 @@ def _should_download_activity(activity, existing_activities):
     return (False, False, True)
 
 
-def _exercise_names_differ(existing_sets, fresh_sets):
+def _exercise_names_differ(existing_sets: List[Dict], fresh_sets: List[Dict]) -> bool:
     """Check if exercise names differ between two sets."""
     for ex_set, fr_set in zip(existing_sets, fresh_sets):
         ex_exercises = ex_set.get('exercises', [{}])
@@ -241,7 +287,7 @@ def _exercise_names_differ(existing_sets, fresh_sets):
     return False
 
 
-def _check_and_update_api_data(activity_id, directory):
+def _check_and_update_api_data(activity_id: str, directory: str) -> bool:
     """Check if API exercise data needs updating and update if necessary.
 
     Args:
@@ -289,7 +335,12 @@ def _check_and_update_api_data(activity_id, directory):
         return False
 
 
-def _download_single_activity(activity_id, activity_name, activity_date, directory):
+def _download_single_activity(
+    activity_id: str,
+    activity_name: str,
+    activity_date: str,
+    directory: str
+) -> bool:
     """Download a single activity and save to file"""
     try:
         print(f"   ⬇️  Downloading: {activity_name} ({activity_date}) [ID: {activity_id}]")
@@ -362,13 +413,64 @@ def _get_child_activity_ids(activity_details: Dict[str, Any]) -> list:
 def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
     """Fetch exercise sets from Garmin Connect API for an activity.
 
-    Handles both regular activities and multisport activities (fetches from child activities).
+    Retrieves detailed strength training exercise data from Garmin Connect,
+    including manually edited exercise names, set counts, reps, and weight.
+    This data is more accurate than FIT file data because it reflects user
+    corrections made in the Garmin Connect interface.
+
+    Handles both regular activities and multisport activities by checking
+    child activity IDs. For multisport activities (e.g., triathlon), it
+    searches child activities first since strength exercises are typically
+    in a child segment.
 
     Args:
-        activity_id: Garmin activity ID
+        activity_id: Garmin Connect activity ID (numeric identifier).
+                     Can be found in the FIT filename or activity URL.
 
     Returns:
-        Dict with activityId and exerciseSets array, or None if no exercise sets found
+        Dictionary containing exercise sets data with structure:
+        {
+            "activityId": int,
+            "exerciseSets": [
+                {
+                    "messageIndex": int,
+                    "exercises": [
+                        {
+                            "name": str,  # e.g., "BARBELL_SQUAT"
+                            "category": str,
+                            "exerciseName": str
+                        }
+                    ],
+                    "setCount": int,
+                    "reps": float,
+                    "weight": float,
+                    ...
+                }
+            ]
+        }
+        Returns None if:
+        - garth library is not available
+        - Activity has no exercise sets (not a strength workout)
+        - API returns an error
+        - Network request fails
+
+    Raises:
+        Does not raise exceptions - errors are caught and logged to stderr.
+        Returns None on any error condition.
+
+    Example:
+        >>> exercise_data = fetch_exercise_sets_from_api(20753039222)
+        >>> if exercise_data:
+        ...     num_sets = len(exercise_data['exerciseSets'])
+        ...     print(f"Found {num_sets} exercise sets")
+        Found 15 exercise sets
+
+    Notes:
+        - Requires active Garmin Connect authentication
+        - For multisport activities, checks child activities first
+        - Exercise names use Garmin's UPPER_SNAKE_CASE format
+        - messageIndex links exercises to FIT file set records
+        - Weight values in kilograms, reps as floating point
     """
     if garth is None:
         return None
@@ -431,7 +533,12 @@ def load_exercise_sets_from_json(fit_file_path: str) -> Optional[Dict[str, Any]]
         return None
 
 
-def _process_activity(activity, existing_activities, directory, counters):
+def _process_activity(
+    activity: Dict[str, Any],
+    existing_activities: Dict[str, float],
+    directory: str,
+    counters: Dict[str, int]
+) -> None:
     """Process a single activity (download, update, or skip).
 
     Args:
@@ -475,19 +582,68 @@ def download_new_activities(
     directory: str = ".",
     force: bool = False,
 ) -> int:
-    """Download new activities from Garmin Connect.
+    """Download new and updated activities from Garmin Connect.
+
+    Fetches activities from the specified time range and downloads FIT files
+    that are new or have been updated since the last sync. Intelligently skips
+    unchanged files to minimize API calls and bandwidth usage.
+
+    The function performs smart synchronization:
+    1. Checks existing FIT files and their modification times
+    2. Compares with Garmin's updateDate to detect changes
+    3. Downloads only new or modified activities
+    4. Updates exercise data (strength training sets) when edited in Garmin Connect
+    5. Skips files that are already up-to-date
 
     Args:
-        days: Number of days of activities to fetch
-        limit: Maximum number of activities to download
-        directory: Directory to save FIT files to
-        force: If True, re-download even if FIT file already exists
+        days: Number of days to look back when fetching activities.
+              For example, days=30 fetches all activities from the last 30 days.
+              Default is DEFAULT_SYNC_DAYS from constants (typically 30).
+        limit: Maximum number of activities to download in this sync.
+               If None, downloads all activities in the date range (up to API limit).
+               Useful for testing or rate limiting.
+        directory: Directory path where FIT files will be saved.
+                   Files are named as "{activity_id}_ACTIVITY.fit".
+                   Exercise data saved as "{activity_id}_ACTIVITY_exercises.json".
+                   Default is current directory (".").
+        force: If True, re-downloads all activities regardless of modification time.
+               Useful for recovery or fixing corrupted files.
+               Default is False (smart sync mode).
 
     Returns:
-        Number of activities downloaded
+        int: Total number of activities successfully downloaded (new + updated).
+             Does not include API-only updates or skipped activities.
 
     Raises:
-        ImportError: If garth library is not available
+        ImportError: If garth library is not installed or not available.
+                     Call check_and_install_garth() before this function.
+        GarthHTTPError: If Garmin Connect API returns an error (network issues,
+                        authentication expired, rate limiting).
+        OSError: If directory cannot be created or files cannot be written.
+
+    Example:
+        >>> # Download last 7 days of activities
+        >>> count = download_new_activities(days=7, directory="./fit_files")
+        📥 Fetching activities from last 7 days...
+           Found 5 existing FIT files
+        ⬇️  Downloading: Morning Run (2025-10-20) [ID: 12345]
+           ✅ Saved exercise data (15 sets)
+        📊 Summary: 2 new, 1 updated, 3 skipped (6 total)
+        2
+
+        >>> # Force re-download all activities from last month
+        >>> count = download_new_activities(days=30, force=True)
+        Force mode: will re-download all activities
+        ...
+        15
+
+    Notes:
+        - Requires active Garmin Connect session (call authenticate_garmin() first)
+        - Automatically extracts FIT files from ZIP archives
+        - Exercise data fetched separately via API (includes user edits)
+        - Handles multisport activities by checking child activity IDs
+        - Prints detailed progress with emoji indicators for status
+        - Creates directory structure automatically if needed
     """
     if garth is None:
         raise ImportError("garth library not available")
@@ -601,6 +757,7 @@ def run_analysis(
 
 
 def main():
+    """Main entry point for the sync command-line tool."""
     parser = argparse.ArgumentParser(
         description="Sync activities from Garmin Connect and analyze them"
     )

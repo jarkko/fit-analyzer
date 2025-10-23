@@ -4,8 +4,8 @@
 
 ### Linting and Style
 - **Never disable linting rules without explicit permission**
-- Always refactor code to fix linting warnings properly instead of suppressing them
-- Maintain 10.00/10 pylint score
+- Always refactor code to fix linting warnings properly instead of suppressing them. You must not come up with excuses for why some suppression is fine.
+- Maintain 10.00/10 pylint score. Nothing below that is fine, not even 9.99.
 - Follow PEP 8 and all configured flake8 rules
 - Run `make lint` before considering work complete
 
@@ -31,6 +31,7 @@
 - Current test count: 90 tests - maintain or increase
 - Use pytest for all testing
 - Run `make test` to verify all tests pass
+- We must always keep 100 % code coverage for committed code
 
 ### Test Quality
 - Tests should be clear, focused, and well-named

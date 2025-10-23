@@ -85,16 +85,19 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install safety bandit
+          pip install -e .
+          pip install bandit[toml] safety
 
-      - name: Run safety check
+      - name: Run safety check on dependencies
         run: |
-          safety check --json || true
+          echo "🔍 Scanning dependencies for known security vulnerabilities..."
+          safety check --output=text || echo "⚠️ Safety check found some issues (non-blocking)"
         continue-on-error: true
 
-      - name: Run bandit security scan
+      - name: Run bandit security scan on code
         run: |
-          bandit -r src/ -f json || true
+          echo "🔍 Scanning source code for security issues..."
+          bandit -r src/ -ll -f screen || echo "⚠️ Bandit found some issues (non-blocking)"
         continue-on-error: true
 
   build:

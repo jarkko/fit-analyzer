@@ -23,137 +23,17 @@ from fitanalyzer.constants import (
     DEFAULT_TIMEZONE,
     SPORT_MAPPING,
     SUB_SPORT_MAPPING,
-    EXERCISE_CATEGORY_MAPPING,
 )
+from fitanalyzer.metrics import np_power, trimp_from_hr
+from fitanalyzer.strength import (
+    merge_api_exercise_names,
+    extract_sets_from_fit,
+    save_strength_sets_csv,
+)
+
 # Apply monkey patch to fix fitparse deprecation warnings
 # This import is only for its side-effect (patching fitparse)
 from . import fitparse_fix  # noqa: F401 pylint: disable=unused-import
-
-
-class _GarminProfileLoader:
-    """Singleton loader for Garmin FIT SDK Profile (lazy loading)"""
-    _instance = None
-    _profile = None
-
-    def __new__(cls):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
-    def get_profile(self):
-        """Get the Garmin Profile, loading it on first access"""
-        if self._profile is None:
-            try:
-                from garmin_fit_sdk import Profile  # pylint: disable=import-outside-toplevel
-                self._profile = Profile
-            except ImportError:
-                self._profile = {}  # Fallback if SDK not installed
-        return self._profile
-
-
-# Global instance of the loader
-_profile_loader = _GarminProfileLoader()
-
-
-def _load_exercise_sets_from_json(fit_file_path: str) -> Optional[Dict[str, Any]]:
-    """Load exercise sets data from JSON file (wrapper to avoid circular import).
-
-    Args:
-        fit_file_path: Path to the FIT file
-
-    Returns:
-        Exercise sets data, or None if file doesn't exist
-    """
-    # pylint: disable=import-outside-toplevel
-    from fitanalyzer.sync import load_exercise_sets_from_json
-    return load_exercise_sets_from_json(fit_file_path)
-
-
-def _get_garmin_profile():
-    """Lazy-load Garmin FIT SDK Profile"""
-    return _profile_loader.get_profile()
-
-
-def get_specific_exercise_name(category_id: int, subtype_id: int) -> str:
-    """Get specific exercise name from category and subtype IDs
-
-    Uses the Garmin FIT SDK to look up detailed exercise names like
-    "Barbell Power Clean" instead of just "Olympic Lift".
-
-    Args:
-        category_id: Exercise category ID (e.g., 18 for Olympic Lift)
-        subtype_id: Exercise subtype ID (e.g., 2 for Barbell Power Clean)
-
-    Returns:
-        str: Specific exercise name, or None if not found
-    """
-    profile = _get_garmin_profile()
-    if not profile or "types" not in profile:
-        return None
-
-    # Get the category name to find the right exercise_name type
-    category_types = profile["types"].get("exercise_category", {})
-    category_name = category_types.get(str(category_id))
-
-    if not category_name or category_name == "unknown":
-        return None
-
-    # Map category name to its exercise_name type
-    type_name = f"{category_name}_exercise_name"
-    exercise_types = profile["types"].get(type_name, {})
-
-    exercise_name = exercise_types.get(str(subtype_id))
-    if exercise_name and exercise_name != "unknown":
-        # Convert snake_case to Title Case
-        return " ".join(word.capitalize() for word in exercise_name.split("_"))
-
-    return None
-
-
-def merge_api_exercise_names(
-    fit_df: pd.DataFrame, api_data: Optional[Dict[str, Any]]
-) -> pd.DataFrame:
-    """Merge exercise names from Garmin API into FIT DataFrame.
-
-    Matches sets by message_index and replaces exercise_name with API data.
-    API names are more accurate as they reflect manual corrections in Garmin Connect.
-
-    Args:
-        fit_df: DataFrame with FIT file data including message_index and exercise_name
-        api_data: Exercise sets data from Garmin API (or None)
-
-    Returns:
-        DataFrame with updated exercise names where API data is available
-    """
-    if api_data is None or not api_data.get('exerciseSets'):
-        return fit_df
-
-    # Create a copy to avoid modifying original
-    result_df = fit_df.copy()
-
-    # Build a mapping from messageIndex to exercise name
-    api_exercise_map = {}
-    for ex_set in api_data['exerciseSets']:
-        message_index = ex_set.get('messageIndex')
-        exercises = ex_set.get('exercises', [])
-
-        if message_index is not None and exercises:
-            # Take the first exercise (highest probability)
-            exercise_name = exercises[0].get('name', '')
-            if exercise_name:
-                # Convert from UPPER_SNAKE_CASE to Title Case
-                formatted_name = " ".join(
-                    word.capitalize() for word in exercise_name.split("_")
-                )
-                api_exercise_map[message_index] = formatted_name
-
-    # Update exercise names in DataFrame where we have API data
-    for msg_idx, api_name in api_exercise_map.items():
-        mask = result_df['message_index'] == msg_idx
-        if mask.any():
-            result_df.loc[mask, 'exercise_name'] = api_name
-
-    return result_df
 
 
 __all__ = [
@@ -168,16 +48,9 @@ __all__ = [
 ]
 
 
-@dataclass
+@dataclass(frozen=True)
 class AnalysisConfig:
-    """Configuration for session analysis.
-
-    Attributes:
-        ftp: Functional Threshold Power in watts
-        hr_rest: Resting heart rate in bpm
-        hr_max: Maximum heart rate in bpm
-        tz_name: Timezone name (e.g., "Europe/Helsinki")
-    """
+    """Configuration for FIT file analysis."""
 
     ftp: float
     hr_rest: int
@@ -185,126 +58,109 @@ class AnalysisConfig:
     tz_name: str
 
 
-def np_power(power: pd.Series) -> float:
-    """Calculate Normalized Power for cycling power data.
+@dataclass(frozen=True)
+class SetMetadata:
+    """Metadata for strength training set."""
 
-    Args:
-        power: Series of power values in watts
-
-    Returns:
-        Normalized Power value in watts
-    """
-    if len(power) == 0:
-        return np.nan
-    s = pd.Series(power, dtype=float)
-    # Assume 1s timestamps; 30s rolling average
-    ma30 = s.rolling(30, min_periods=1).mean()
-    return float((ma30.pow(4).mean()) ** 0.25)
-
-
-def trimp_from_hr(
-    hr: pd.Series, hr_rest: int = DEFAULT_HR_REST, hr_max: int = DEFAULT_HR_MAX
-) -> float:
-    """Calculate Training Impulse (TRIMP) from heart rate data.
-
-    Args:
-        hr: Series of heart rate values in bpm
-        hr_rest: Resting heart rate in bpm
-        hr_max: Maximum heart rate in bpm
-
-    Returns:
-        TRIMP value representing training load
-    """
-    if len(hr) == 0:
-        return 0.0
-    s = pd.Series(hr, dtype=float).dropna()
-    if s.empty:
-        return 0.0
-    hrr = (s - hr_rest) / max(1, (hr_max - hr_rest))
-    hrr = hrr.clip(lower=0)
-    inst = hrr * 0.64 * np.exp(1.92 * hrr)
-    minutes = len(inst) / 60.0  # Assume 1s intervals
-    return float(inst.mean() * minutes)
+    activity_id: str
+    file_name: str
+    date: str
+    sport: str
+    sub_sport: str
 
 
 def summarize_fit_sessions(
-    path: str,
-    ftp: float = DEFAULT_FTP,
-    hr_rest: int = DEFAULT_HR_REST,
-    hr_max: int = DEFAULT_HR_MAX,
-    tz_name: str = DEFAULT_TIMEZONE,
+    path: str, config: AnalysisConfig = None, **kwargs
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """Process each session in a FIT file separately to handle multisport activities.
+
+    Args:
+        path: Absolute or relative path to the FIT file to process.
+        config: AnalysisConfig object with ftp, hr_rest, hr_max, tz_name.
+        **kwargs: Individual parameters for backwards compatibility.
+
+    Returns:
+        A tuple of two lists: (session_summaries, strength_sets)
     """
-    Process each session in a FIT file separately to handle multisport activities correctly
-    """
+    config = config or AnalysisConfig(
+        ftp=kwargs.get('ftp', DEFAULT_FTP),
+        hr_rest=kwargs.get('hr_rest', DEFAULT_HR_REST),
+        hr_max=kwargs.get('hr_max', DEFAULT_HR_MAX),
+        tz_name=kwargs.get('tz_name', DEFAULT_TIMEZONE),
+    )
+    
     ff = FitFile(path)
-
-    # Get sessions first
-    sessions = []
-    for m in ff.get_messages("session"):
-        d = {d.name: d.value for d in m}
-        sessions.append(d)
-
-    results = []
+    sessions = _extract_sessions_from_fit(ff)
 
     # If no sessions or only one session, fall back to original behavior
     if len(sessions) <= 1:
-        result, _ = summarize_fit_original(path, ftp, hr_rest, hr_max, tz_name)
-        if result:
-            results.append(result)
-        return results, []
+        result, _ = summarize_fit_original(path, config)
+        return ([result] if result else []), []
 
     # Process each session separately
+    results = []
+
     for session_idx, session in enumerate(sessions):
-        session_start = session.get("start_time")
-        session_timer_time = session.get("total_timer_time", 0)  # in seconds
+        if not (session_start := session.get("start_time")):
+            continue
+        if (session_timer_time := session.get("total_timer_time", 0)) <= 0:
+            continue
 
-        if session_start and session_timer_time > 0:
-            session_end = session_start + timedelta(seconds=session_timer_time)
-
-            # Get records for this session time window
-            recs = []
-            for m in ff.get_messages("record"):
-                d = {d.name: d.value for d in m}
-                if "timestamp" in d:
-                    record_time = d["timestamp"]
-                    # Check if record falls within this session's time window
-                    if session_start <= record_time <= session_end:
-                        recs.append(
-                            {
-                                "time": record_time,
-                                "hr": d.get("heart_rate", np.nan),
-                                "power": d.get("power", np.nan),
-                            }
-                        )
-
-            # Process this session's data
-            if recs:
-                df = pd.DataFrame(recs).sort_values("time")
-                config = AnalysisConfig(ftp=ftp, hr_rest=hr_rest, hr_max=hr_max, tz_name=tz_name)
-                session_summary = process_session_data(df, path, session, session_idx, config)
-                if session_summary:
-                    results.append(session_summary)
+        # Process this session's data
+        if (recs := [
+            {"time": d["timestamp"], "hr": d.get("heart_rate", np.nan), "power": d.get("power", np.nan)}
+            for m in ff.get_messages("record")
+            if (d := {d.name: d.value for d in m})
+            and "timestamp" in d
+            and session_start <= d["timestamp"] <= (session_start + timedelta(seconds=session_timer_time))
+        ]) and (session_summary := process_session_data(
+            pd.DataFrame(recs).sort_values("time"), path, session, session_idx, config
+        )):
+            results.append(session_summary)
 
     return results, []
 
 
-def process_session_data(df, path, session, session_idx, config):
-    """Process data for a single session
+def _calculate_metrics(df: pd.DataFrame, dur_hr: float, config: AnalysisConfig) -> Dict[str, float]:
+    """Calculate power and heart rate metrics from session data.
 
     Args:
-        df: DataFrame with time, hr, power columns
-        path: Path to the FIT file
-        session: Session metadata dictionary
-        session_idx: Session index number
-        config: AnalysisConfig with ftp, hr_rest, hr_max, tz_name
+        df: Resampled DataFrame with hr and power columns
+        dur_hr: Duration in hours
+        config: Analysis configuration with ftp, hr_rest, hr_max
+
+    Returns:
+        Dictionary with avg_hr, max_hr, avg_p, max_p, npw, intensity_factor, tss, trimp
     """
-    if df.empty:
-        return None
+    npw = np_power(df["power"].fillna(0)) if df["power"].notna().any() else np.nan
+    intensity_factor = (npw / config.ftp) if np.isfinite(npw) and config.ftp > 0 else np.nan
 
-    local = tz.gettz(config.tz_name)
+    return {
+        "avg_hr": float(df["hr"].mean()) if df["hr"].notna().any() else np.nan,
+        "max_hr": float(df["hr"].max()) if df["hr"].notna().any() else np.nan,
+        "avg_p": float(df["power"].mean()) if df["power"].notna().any() else np.nan,
+        "max_p": float(df["power"].max()) if df["power"].notna().any() else np.nan,
+        "npw": npw,
+        "intensity_factor": intensity_factor,
+        "tss": (
+            ((dur_hr * npw * intensity_factor) / config.ftp * 100)
+            if np.all(np.isfinite([dur_hr, npw, intensity_factor])) and config.ftp > 0
+            else np.nan
+        ),
+        "trimp": (
+            trimp_from_hr(df["hr"].ffill(), hr_rest=config.hr_rest, hr_max=config.hr_max)
+            if df["hr"].notna().any()
+            else 0.0
+        ),
+    }
 
-    # Handle both timezone-aware and naive timestamps
+
+def _process_timestamps(df: pd.DataFrame, tz_name: str) -> Dict[str, Any]:
+    """Extract and convert timestamps from DataFrame.
+
+    Returns dict with start_utc, end_utc, start_local, end_local, dur_sec, dur_hr
+    """
+    local = tz.gettz(tz_name)
     start_time = pd.to_datetime(df["time"].iloc[0])
     end_time = pd.to_datetime(df["time"].iloc[-1])
 
@@ -315,83 +171,140 @@ def process_session_data(df, path, session, session_idx, config):
         start_utc = start_time.tz_convert("UTC") if start_time.tzinfo != tz.UTC else start_time
         end_utc = end_time.tz_convert("UTC") if end_time.tzinfo != tz.UTC else end_time
 
-    start_local = start_utc.astimezone(local)
-    end_local = end_utc.astimezone(local)
     dur_sec = int((end_utc - start_utc).total_seconds()) + 1
-    dur_hr = dur_sec / 3600.0
 
-    # Resample to 1 second for NP calculation
-    time_series = pd.to_datetime(df["time"])
-    if time_series.dt.tz is None:
-        time_index = time_series.dt.tz_localize("UTC")
-    else:
-        time_index = time_series.dt.tz_convert("UTC")
-    df = df.set_index(time_index).sort_index()
-    df = df.resample("1s").ffill()
+    return {
+        "start_utc": start_utc,
+        "end_utc": end_utc,
+        "start_local": start_utc.astimezone(local),
+        "end_local": end_utc.astimezone(local),
+        "dur_sec": dur_sec,
+        "dur_hr": dur_sec / 3600.0,
+    }
 
-    avg_hr = float(df["hr"].mean()) if df["hr"].notna().any() else np.nan
-    max_hr = float(df["hr"].max()) if df["hr"].notna().any() else np.nan
-    avg_p = float(df["power"].mean()) if df["power"].notna().any() else np.nan
-    max_p = float(df["power"].max()) if df["power"].notna().any() else np.nan
-    npw = np_power(df["power"].fillna(0)) if df["power"].notna().any() else np.nan
-    IF = (npw / config.ftp) if np.isfinite(npw) and config.ftp > 0 else np.nan
-    TSS = (
-        ((dur_hr * npw * IF) / config.ftp * 100)
-        if np.all(np.isfinite([dur_hr, npw, IF])) and config.ftp > 0
-        else np.nan
-    )
-    TRIMP = (
-        trimp_from_hr(df["hr"].ffill(), hr_rest=config.hr_rest, hr_max=config.hr_max)
-        if df["hr"].notna().any()
-        else 0.0
-    )
 
-    # Create filename with session info
-    base_name = Path(path).stem
+def _map_sport_names(session: Dict[str, Any]) -> tuple[str, str]:
+    """Map numeric sport codes to human-readable names.
 
-    # Convert numeric sport codes to names
+    Returns tuple of (sport, sub_sport)
+    """
     raw_sport = session.get("sport", "unknown")
     raw_subsport = session.get("sub_sport", "")
 
-    # Map numeric codes to sport names
-    if isinstance(raw_sport, int):
-        session_sport = SPORT_MAPPING.get(raw_sport, str(raw_sport))
-    else:
-        session_sport = raw_sport
+    session_sport = (
+        SPORT_MAPPING.get(raw_sport, str(raw_sport)) if isinstance(raw_sport, int) else raw_sport
+    )
+    session_subsport = (
+        SUB_SPORT_MAPPING.get(raw_subsport, str(raw_subsport))
+        if isinstance(raw_subsport, int)
+        else raw_subsport
+    )
 
-    if isinstance(raw_subsport, int):
-        session_subsport = SUB_SPORT_MAPPING.get(raw_subsport, str(raw_subsport))
-    else:
-        session_subsport = raw_subsport
+    return session_sport, session_subsport
 
-    if session_subsport and session_subsport != "generic":
-        file_display = f"{base_name}_session{session_idx}_{session_sport}_{session_subsport}"
-    else:
-        file_display = f"{base_name}_session{session_idx}_{session_sport}"
+
+def _create_file_display(path: str, session_idx: int, sport: str, subsport: str) -> str:
+    """Create display filename for session."""
+    base_name = Path(path).stem
+    if subsport and subsport != "generic":
+        return f"{base_name}_session{session_idx}_{sport}_{subsport}"
+    return f"{base_name}_session{session_idx}_{sport}"
+
+
+def process_session_data(
+    df: pd.DataFrame, path: str, session: Dict[str, Any], session_idx: int, config: AnalysisConfig
+) -> Optional[Dict[str, Any]]:
+    """Process data for a single session and calculate training metrics.
+
+    Takes raw record-level data for one session and computes comprehensive
+    training metrics including power, heart rate, duration, and sport identification.
+    Handles timezone conversion and data resampling for accurate calculations.
+
+    Args:
+        df: DataFrame with columns 'time' (datetime), 'hr' (heart rate), 'power' (watts).
+            Should contain one row per second of the session.
+        path: Path to the FIT file being processed. Used to construct activity ID
+              and filename references.
+        session: Dictionary of session metadata from FIT file, containing keys like:
+                 'sport', 'sub_sport', 'start_time', 'total_timer_time', etc.
+        session_idx: Zero-based index of this session within a multisport activity.
+                     Used to differentiate sessions in the output filename.
+        config: AnalysisConfig object with attributes:
+                - ftp: Functional Threshold Power (watts)
+                - hr_rest: Resting heart rate (bpm)
+                - hr_max: Maximum heart rate (bpm)
+                - tz_name: Timezone name for local time conversion
+
+    Returns:
+        Dictionary containing processed session summary with keys:
+        - date: ISO format date string
+        - start_time, end_time: UTC and local timestamps
+        - duration_seconds, duration_hours: Session duration
+        - sport, sub_sport: Human-readable sport names
+        - avg_hr, max_hr: Heart rate statistics (bpm)
+        - avg_power, max_power: Power statistics (watts)
+        - normalized_power: Normalized Power (watts)
+        - intensity_factor: Ratio of NP to FTP
+        - TSS: Training Stress Score
+        - TRIMP: Training Impulse
+        - file_id, activity_id: File identifiers
+        Returns None if DataFrame is empty or processing fails.
+
+    Notes:
+        - Resamples data to 1-second intervals using forward-fill
+        - Handles both timezone-aware and naive timestamps
+        - Maps numeric sport codes to human-readable names
+        - Includes session index in multi-sport activities (e.g., "session_1")
+    """
+    if df.empty:
+        return None
+
+    # Extract timestamps and duration
+    times = _process_timestamps(df, config.tz_name)
+
+    # Resample to 1 second for NP calculation
+    time_series = pd.to_datetime(df["time"])
+    time_index = (
+        time_series.dt.tz_localize("UTC")
+        if time_series.dt.tz is None
+        else time_series.dt.tz_convert("UTC")
+    )
+    df = df.set_index(time_index).sort_index().resample("1s").ffill()
+
+    # Calculate all metrics
+    metrics = _calculate_metrics(df, times["dur_hr"], config)
+
+    # Map sport names and create filename
+    sport, subsport = _map_sport_names(session)
+    file_display = _create_file_display(path, session_idx, sport, subsport)
 
     return {
         "file": file_display,
-        "sport": session_sport,
-        "sub_sport": session_subsport,
-        "date": start_local.date().isoformat(),
-        "start_time": start_local.strftime("%Y-%m-%d %H:%M:%S"),
-        "end_time": end_local.strftime("%Y-%m-%d %H:%M:%S"),
-        "duration_min": round(dur_sec / 60.0, 1),
-        "avg_hr": round(avg_hr, 1) if np.isfinite(avg_hr) else "",
-        "max_hr": int(max_hr) if np.isfinite(max_hr) else "",
-        "avg_power_w": round(avg_p, 1) if np.isfinite(avg_p) else "",
-        "max_power_w": round(max_p, 1) if np.isfinite(max_p) else "",
-        "np_w": round(npw, 1) if np.isfinite(npw) else "",
-        "IF": round(IF, 3) if np.isfinite(IF) else "",
-        "TSS": round(TSS, 1) if np.isfinite(TSS) else "",
-        "TRIMP": round(TRIMP, 1),
+        "sport": sport,
+        "sub_sport": subsport,
+        "date": times["start_local"].date().isoformat(),
+        "start_time": times["start_local"].strftime("%Y-%m-%d %H:%M:%S"),
+        "end_time": times["end_local"].strftime("%Y-%m-%d %H:%M:%S"),
+        "duration_min": round(times["dur_sec"] / 60.0, 1),
+        "avg_hr": round(metrics["avg_hr"], 1) if np.isfinite(metrics["avg_hr"]) else "",
+        "max_hr": int(metrics["max_hr"]) if np.isfinite(metrics["max_hr"]) else "",
+        "avg_power_w": round(metrics["avg_p"], 1) if np.isfinite(metrics["avg_p"]) else "",
+        "max_power_w": round(metrics["max_p"], 1) if np.isfinite(metrics["max_p"]) else "",
+        "np_w": round(metrics["npw"], 1) if np.isfinite(metrics["npw"]) else "",
+        "IF": (
+            round(metrics["intensity_factor"], 3)
+            if np.isfinite(metrics["intensity_factor"])
+            else ""
+        ),
+        "TSS": round(metrics["tss"], 1) if np.isfinite(metrics["tss"]) else "",
+        "TRIMP": round(metrics["trimp"], 1),
         # Keep these for deduplication logic
         "_original_file": path,
         "_session_index": session_idx,
     }
 
 
-def _extract_sessions_from_fit(ff):
+def _extract_sessions_from_fit(ff: FitFile) -> List[Dict[str, Any]]:
     """Extract session info from FIT file"""
     sessions = []
     for m in ff.get_messages("session"):
@@ -400,7 +313,7 @@ def _extract_sessions_from_fit(ff):
     return sessions
 
 
-def _get_sport_names(sessions):
+def _get_sport_names(sessions: List[Dict[str, Any]]) -> Tuple[str, str]:
     """Get sport and sub-sport names from sessions"""
     raw_sport = sessions[0].get("sport", "") if sessions else ""
     raw_subsport = sessions[0].get("sub_sport", "") if sessions else ""
@@ -419,7 +332,7 @@ def _get_sport_names(sessions):
     return session_sport, session_subsport
 
 
-def _extract_records_from_fit(ff):
+def _extract_records_from_fit(ff: FitFile) -> pd.DataFrame:
     """Extract aerobic data records from FIT file"""
     recs = []
     for m in ff.get_messages("record"):
@@ -438,86 +351,28 @@ def _extract_records_from_fit(ff):
     return df
 
 
-def _extract_sets_from_fit(ff, fit_file_path: Optional[str] = None):  # noqa: C901
-    """Extract strength training sets from FIT file and add exercise names
-
-    Exercise names are extracted using a two-level system:
-    1. Category (e.g., 18 = "Olympic Lift", 13 = "Hyperextension")
-    2. Category subtype (e.g., category 18, subtype 2 = "Barbell Power Clean")
-
-    If API exercise data is available (from Garmin Connect), those names are
-    preferred as they reflect manual corrections. Otherwise, we use the
-    category/subtype mapping from the FIT file.
+def _extract_valid_value(value: Any, invalid_value: int = 65534) -> Optional[int]:
+    """Extract first valid value from tuple or return single value.
 
     Args:
-        ff: FitFile object
-        fit_file_path: Optional path to FIT file (to load API exercise data)
+        value: Value to extract (int, tuple, or None)
+        invalid_value: Value to treat as invalid (default: 65534)
+
+    Returns:
+        First valid value, or None if all invalid
     """
-    sets = []
-    for m in ff.get_messages("set"):
-        d = {d.name: d.value for d in m}
-        sets.append(d)
-
-    if not sets:
-        return pd.DataFrame()
-
-    df = pd.DataFrame(sets)
-
-    # Helper functions for exercise name extraction
-    def _extract_valid_value(value, invalid_value=65534):
-        """Extract first valid value from tuple or return single value."""
-        if pd.isna(value) or value is None:
-            return None
-        if isinstance(value, tuple):
-            for v in value:
-                if v is not None and v != invalid_value:
-                    return v
-            return None
-        return value if value != invalid_value else None
-
-    def _get_specific_name(cat_val, category_subtype):
-        """Try to get specific exercise name from subtype."""
-        sub_val = _extract_valid_value(category_subtype)
-        if sub_val is not None:
-            specific_name = get_specific_exercise_name(cat_val, sub_val)
-            if specific_name:
-                return specific_name
+    if pd.isna(value) or value is None:
         return None
-
-    def get_exercise_name(row):
-        """Convert category and category_subtype to exercise name
-
-        Args:
-            row: DataFrame row with 'category' and 'category_subtype' columns
-
-        Returns:
-            str: Human-readable exercise name
-        """
-        cat_val = _extract_valid_value(row.get("category"))
-        if cat_val is None:
-            return "Unknown"
-
-        # Try specific exercise name from subtype
-        specific_name = _get_specific_name(cat_val, row.get("category_subtype"))
-        if specific_name:
-            return specific_name
-
-        # Fall back to category-level name
-        return EXERCISE_CATEGORY_MAPPING.get(cat_val, f"Exercise {cat_val}")
-
-    df["exercise_name"] = df.apply(get_exercise_name, axis=1)
-
-    # Merge API exercise names if available
-    if fit_file_path:
-        api_data = _load_exercise_sets_from_json(fit_file_path)
-        if api_data:
-            df = merge_api_exercise_names(df, api_data)
-
-    return df
+    if isinstance(value, tuple):
+        for v in value:
+            if v is not None and v != invalid_value:
+                return v
+        return None
+    return value if value != invalid_value else None
 
 
 # Aggregate strength sets from multiple files
-def _get_session_info(fit_file, *, ftp, hr_rest, hr_max, tz_name, multisport):
+def _get_session_info(fit_file: str, config: AnalysisConfig, multisport: bool):
     """Extract session info and sets from a FIT file.
 
     Auto-detects multisport activities by checking session count.
@@ -532,13 +387,21 @@ def _get_session_info(fit_file, *, ftp, hr_rest, hr_max, tz_name, multisport):
 
     if is_multisport or multisport:
         result = summarize_fit_sessions(
-            fit_file, ftp=ftp, hr_rest=hr_rest, hr_max=hr_max, tz_name=tz_name
+            fit_file,
+            ftp=config.ftp,
+            hr_rest=config.hr_rest,
+            hr_max=config.hr_max,
+            tz_name=config.tz_name,
         )
         df_sessions, df_sets = result
         # multisport mode doesn't extract sets, fall back to original
         if not df_sets or (isinstance(df_sets, list) and not df_sets):
             _, df_sets = summarize_fit_original(
-                fit_file, ftp=ftp, hr_rest=hr_rest, hr_max=hr_max, tz_name=tz_name
+                fit_file,
+                ftp=config.ftp,
+                hr_rest=config.hr_rest,
+                hr_max=config.hr_max,
+                tz_name=config.tz_name,
             )
             # For multisport files, find the strength training session
             if isinstance(df_sessions, list):
@@ -549,7 +412,11 @@ def _get_session_info(fit_file, *, ftp, hr_rest, hr_max, tz_name, multisport):
                     df_sessions = strength_sessions
     else:
         summary_dict, df_sets = summarize_fit_original(
-            fit_file, ftp=ftp, hr_rest=hr_rest, hr_max=hr_max, tz_name=tz_name
+            fit_file,
+            ftp=config.ftp,
+            hr_rest=config.hr_rest,
+            hr_max=config.hr_max,
+            tz_name=config.tz_name,
         )
         # Convert dict to list for consistency
         df_sessions = [summary_dict] if summary_dict else []
@@ -582,14 +449,14 @@ def _extract_first_session_metadata(df_sessions):
     return sport, sub_sport, date
 
 
-def _create_set_record(row, idx, *, activity_id, file_name, date, sport, sub_sport):
+def _create_set_record(row: Dict[str, Any], idx: int, metadata: SetMetadata) -> Dict[str, Any]:
     """Create a set record dictionary from a row."""
     return {
-        "activity_id": activity_id,
-        "file": file_name,
-        "date": date,
-        "sport": sport,
-        "sub_sport": sub_sport,
+        "activity_id": metadata.activity_id,
+        "file": metadata.file_name,
+        "date": metadata.date,
+        "sport": metadata.sport,
+        "sub_sport": metadata.sub_sport,
         "set_number": idx,
         "set_type": row.get("set_type"),
         "exercise_name": row.get("exercise_name", "Unknown"),
@@ -603,17 +470,14 @@ def _create_set_record(row, idx, *, activity_id, file_name, date, sport, sub_spo
 
 
 def _aggregate_strength_sets(
-    fit_files, *, ftp, hr_rest, hr_max, tz_name, multisport=False
+    fit_files: List[str], config: AnalysisConfig, multisport: bool = False
 ):
     """
     Aggregate strength training sets from multiple FIT files into a single DataFrame.
 
     Args:
         fit_files: List of FIT file paths to process
-        ftp: Functional Threshold Power
-        hr_rest: Resting heart rate
-        hr_max: Maximum heart rate
-        tz_name: Timezone name
+        config: Analysis configuration with ftp, hr_rest, hr_max, tz_name
         multisport: Whether to use multisport processing
 
     Returns:
@@ -624,38 +488,34 @@ def _aggregate_strength_sets(
 
     for fit_file in fit_files:
         # Extract session info and sets
-        df_sessions, df_sets = _get_session_info(
-            fit_file, ftp=ftp, hr_rest=hr_rest, hr_max=hr_max,
-            tz_name=tz_name, multisport=multisport
-        )
+        df_sessions, df_sets = _get_session_info(fit_file, config, multisport)
 
         # Skip if no strength sets found
         if df_sets is None or (isinstance(df_sets, pd.DataFrame) and df_sets.empty):
             continue
 
-        # Get activity info
-        activity_id = Path(fit_file).stem.replace("_ACTIVITY", "")
-        file_name = Path(fit_file).name
+        # Process active sets with metadata
         sport, sub_sport, date = _extract_first_session_metadata(df_sessions)
+        metadata = SetMetadata(
+            Path(fit_file).stem.replace("_ACTIVITY", ""),
+            Path(fit_file).name,
+            date,
+            sport,
+            sub_sport,
+        )
 
         # Add metadata to each active set
-        for idx, row in df_sets.iterrows():
-            if row.get("set_type") == "active":
-                set_data = _create_set_record(
-                    row, idx, activity_id=activity_id, file_name=file_name,
-                    date=date, sport=sport, sub_sport=sub_sport
-                )
-                all_strength_data.append(set_data)
+        all_strength_data.extend([
+            _create_set_record(row, idx, metadata)
+            for idx, row in df_sets.iterrows()
+            if row.get("set_type") == "active"
+        ])
 
     if not all_strength_data:
         return None
 
-    df_summary = pd.DataFrame(all_strength_data)
-
-    # Sort by date and timestamp
-    df_summary = df_summary.sort_values(["date", "timestamp"], na_position="last")
-
-    return df_summary
+    # Return sorted dataframe
+    return pd.DataFrame(all_strength_data).sort_values(["date", "timestamp"], na_position="last")
 
 
 def _prepare_timezone_aware_index(df):
@@ -681,90 +541,80 @@ def _prepare_timezone_aware_index(df):
     return start_utc, end_utc, time_index
 
 
-def _calculate_metrics(df, *, ftp, hr_rest, hr_max, start_utc, end_utc):
-    """Calculate all training metrics from dataframe"""
+def _calculate_metrics_original(df, config: AnalysisConfig, start_utc, end_utc):
+    """Calculate all training metrics from dataframe for original function"""
     dur_sec = int((end_utc - start_utc).total_seconds()) + 1
     dur_hr = dur_sec / 3600.0
-
-    avg_hr = float(df["hr"].mean()) if df["hr"].notna().any() else np.nan
-    max_hr = float(df["hr"].max()) if df["hr"].notna().any() else np.nan
-    avg_p = float(df["power"].mean()) if df["power"].notna().any() else np.nan
-    max_p = float(df["power"].max()) if df["power"].notna().any() else np.nan
     npw = np_power(df["power"].fillna(0)) if df["power"].notna().any() else np.nan
-    IF = (npw / ftp) if np.isfinite(npw) and ftp > 0 else np.nan
-    TSS = (
-        ((dur_hr * npw * IF) / ftp * 100)
-        if np.all(np.isfinite([dur_hr, npw, IF])) and ftp > 0
-        else np.nan
-    )
-    TRIMP = (
-        trimp_from_hr(df["hr"].ffill(), hr_rest=hr_rest, hr_max=hr_max)
-        if df["hr"].notna().any()
-        else 0.0
-    )
+    intensity_factor = (npw / config.ftp) if np.isfinite(npw) and config.ftp > 0 else np.nan
 
     return {
         "dur_sec": dur_sec,
-        "avg_hr": avg_hr,
-        "max_hr": max_hr,
-        "avg_p": avg_p,
-        "max_p": max_p,
+        "avg_hr": float(df["hr"].mean()) if df["hr"].notna().any() else np.nan,
+        "max_hr": float(df["hr"].max()) if df["hr"].notna().any() else np.nan,
+        "avg_p": float(df["power"].mean()) if df["power"].notna().any() else np.nan,
+        "max_p": float(df["power"].max()) if df["power"].notna().any() else np.nan,
         "npw": npw,
-        "IF": IF,
-        "TSS": TSS,
-        "TRIMP": TRIMP,
+        "IF": intensity_factor,
+        "TSS": (
+            ((dur_hr * npw * intensity_factor) / config.ftp * 100)
+            if np.all(np.isfinite([dur_hr, npw, intensity_factor])) and config.ftp > 0
+            else np.nan
+        ),
+        "TRIMP": (
+            trimp_from_hr(df["hr"].ffill(), hr_rest=config.hr_rest, hr_max=config.hr_max)
+            if df["hr"].notna().any()
+            else 0.0
+        ),
     }
 
 
-def summarize_fit_original(path, ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"):
-    """Original function for single-session activities"""
+def summarize_fit_original(
+    path: str, config: AnalysisConfig = None, **kwargs
+) -> Tuple[Optional[Dict[str, Any]], pd.DataFrame]:
+    """Original function for single-session activities.
+    
+    Can accept either a config object or individual parameters for backwards compatibility.
+    """
+    config = config or AnalysisConfig(
+        ftp=kwargs.get('ftp', DEFAULT_FTP),
+        hr_rest=kwargs.get('hr_rest', DEFAULT_HR_REST),
+        hr_max=kwargs.get('hr_max', DEFAULT_HR_MAX),
+        tz_name=kwargs.get('tz_name', DEFAULT_TIMEZONE),
+    )
+    
     ff = FitFile(path)
-
-    # Extract session info and sport names
-    sessions = _extract_sessions_from_fit(ff)
-    session_sport, session_subsport = _get_sport_names(sessions)
-
-    # Extract aerobic data records
     df = _extract_records_from_fit(ff)
+    df_sets = extract_sets_from_fit(ff, fit_file_path=path)
 
-    # Extract strength training sets (passing path for API data)
-    df_sets = _extract_sets_from_fit(ff, fit_file_path=path)
+    if df.empty:
+        return None, df_sets
 
-    out_summary = None
-    if not df.empty:
-        # Prepare timezone-aware timestamps and index
-        start_utc, end_utc, time_index = _prepare_timezone_aware_index(df)
-        df = df.set_index(time_index).sort_index()
-        df = df.resample("1s").ffill()
+    start_utc, end_utc, time_index = _prepare_timezone_aware_index(df)
+    metrics = _calculate_metrics_original(
+        df.set_index(time_index).sort_index().resample("1s").ffill(), config, start_utc, end_utc
+    )
+    
+    sport, subsport = _get_sport_names(_extract_sessions_from_fit(ff))
+    start_local = start_utc.astimezone(tz.gettz(config.tz_name))
 
-        # Calculate all metrics
-        metrics = _calculate_metrics(
-            df, ftp=ftp, hr_rest=hr_rest, hr_max=hr_max, start_utc=start_utc, end_utc=end_utc
-        )
-
-        # Convert to local timezone for display
-        local = tz.gettz(tz_name)
-        start_local = start_utc.astimezone(local)
-        end_local = end_utc.astimezone(local)
-
-        out_summary = {
-            "file": path,
-            "sport": session_sport,
-            "sub_sport": session_subsport,
-            "date": start_local.date().isoformat(),
-            "start_time": start_local.strftime("%Y-%m-%d %H:%M:%S"),
-            "end_time": end_local.strftime("%Y-%m-%d %H:%M:%S"),
-            "duration_min": round(metrics["dur_sec"] / 60.0, 1),
-            "avg_hr": round(metrics["avg_hr"], 1) if np.isfinite(metrics["avg_hr"]) else "",
-            "max_hr": int(metrics["max_hr"]) if np.isfinite(metrics["max_hr"]) else "",
-            "avg_power_w": round(metrics["avg_p"], 1) if np.isfinite(metrics["avg_p"]) else "",
-            "max_power_w": round(metrics["max_p"], 1) if np.isfinite(metrics["max_p"]) else "",
-            "np_w": round(metrics["npw"], 1) if np.isfinite(metrics["npw"]) else "",
-            "IF": round(metrics["IF"], 3) if np.isfinite(metrics["IF"]) else "",
-            "TSS": round(metrics["TSS"], 1) if np.isfinite(metrics["TSS"]) else "",
-            "TRIMP": round(metrics["TRIMP"], 1),
-        }
-    return out_summary, df_sets
+    return {
+        "file": path,
+        "sport": sport,
+        "sub_sport": subsport,
+        "date": start_local.date().isoformat(),
+        "start_time": start_local.strftime("%Y-%m-%d %H:%M:%S"),
+        "end_time": end_utc.astimezone(tz.gettz(config.tz_name)).strftime("%Y-%m-%d %H:%M:%S"),
+        "duration_min": round(metrics["dur_sec"] / 60.0, 1),
+        "avg_hr": round(metrics["avg_hr"], 1) if np.isfinite(metrics["avg_hr"]) else "",
+        "max_hr": int(metrics["max_hr"]) if np.isfinite(metrics["max_hr"]) else "",
+        "avg_power_w": round(metrics["avg_p"], 1) if np.isfinite(metrics["avg_p"]) else "",
+        "max_power_w": round(metrics["max_p"], 1) if np.isfinite(metrics["max_p"]) else "",
+        "np_w": round(metrics["npw"], 1) if np.isfinite(metrics["npw"]) else "",
+        "IF": round(metrics["IF"], 3) if np.isfinite(metrics["IF"]) else "",
+        "TSS": round(metrics["TSS"], 1) if np.isfinite(metrics["TSS"]) else "",
+        "TRIMP": round(metrics["TRIMP"], 1),
+    }, df_sets
 
 
 def parse_arguments(args=None):
@@ -775,15 +625,11 @@ def parse_arguments(args=None):
     ap.add_argument("--hrrest", type=int, default=50)
     ap.add_argument("--hrmax", type=int, default=190)
     ap.add_argument("--tz", type=str, default="Europe/Helsinki")
-    ap.add_argument(
-        "--dump-sets", action="store_true", help="Save strength training sets to CSV"
-    )
+    ap.add_argument("--dump-sets", action="store_true", help="Save strength training sets to CSV")
     ap.add_argument(
         "--multisport", action="store_true", help="Process multisport activities by session"
     )
-    ap.add_argument(
-        "--output-dir", type=str, default="data", help="Directory for output CSV files"
-    )
+    ap.add_argument("--output-dir", type=str, default="data", help="Directory for output CSV files")
     return ap.parse_args(args)
 
 
@@ -826,14 +672,6 @@ def _process_single_file(fit_file, args):
     return [summary] if summary else []
 
 
-def _save_strength_sets(fit_file, df_sets, all_sets):
-    """Save strength sets to CSV if present"""
-    if df_sets is not None and not df_sets.empty:
-        filename = Path(fit_file).with_suffix("").name + "_strength_sets.csv"
-        df_sets.to_csv(filename, index=False)
-        all_sets.append(filename)
-
-
 def main_with_args(args):
     """Main function that takes parsed arguments"""
     rows = []
@@ -855,7 +693,9 @@ def main_with_args(args):
             _, df_sets = summarize_fit_original(
                 fit_file, ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
             )
-            _save_strength_sets(fit_file, df_sets, all_sets)
+            csv_file = save_strength_sets_csv(fit_file, df_sets)
+            if csv_file:
+                all_sets.append(csv_file)
 
     if rows:
         out = pd.DataFrame(rows).sort_values(["date", "start_time"])
@@ -876,12 +716,12 @@ def main_with_args(args):
 
     # Generate consolidated strength training summary if requested
     if args.dump_sets:
+        config = AnalysisConfig(
+            ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
+        )
         df_strength_summary = _aggregate_strength_sets(
             args.fit_files,
-            ftp=args.ftp,
-            hr_rest=args.hrrest,
-            hr_max=args.hrmax,
-            tz_name=args.tz,
+            config,
             multisport=args.multisport,
         )
 

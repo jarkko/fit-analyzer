@@ -37,10 +37,12 @@ class TestMultisportStrengthExtraction:
         strength training session, not from the first session (which might be cycling).
         """
 
-        df_summary = _aggregate_strength_sets(
-            [multisport_with_strength],
-            AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=False
+        df_summary = _aggregate_strength_sets([multisport_with_strength],
+            ftp=300,
+            hr_rest=50,
+            hr_max=190,
+            tz_name="Europe/Helsinki"
+            # No multisport flag - should auto-detect!
         )
 
         assert df_summary is not None
@@ -68,10 +70,7 @@ class TestMultisportStrengthExtraction:
     def test_multisport_strength_all_sets_same_sport(self, multisport_with_strength):
         """Test that all extracted sets have consistent sport metadata."""
         df_summary = _aggregate_strength_sets(
-            [multisport_with_strength],
-            AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=False
-        )
+            [multisport_with_strength], AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"), multisport=False)
 
         # All sets should have the same sport/subsport (no mixing)
         assert df_summary["sport"].nunique() == 1, (

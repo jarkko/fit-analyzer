@@ -75,7 +75,7 @@ lint:
 	@$(FLAKE8) src/fitanalyzer --max-line-length=100
 	@echo ""
 	@echo "Running pylint..."
-	@$(PYLINT) src/fitanalyzer --disable=C0111,C0103,R0913,R0914
+	@$(PYLINT) src/fitanalyzer --rcfile=pyproject.toml
 	@echo ""
 	@echo "✅ Lint checks complete!"
 
