@@ -1,0 +1,93 @@
+╔══════════════════════════════════════════════════════════════════╗
+║          🏃 FIT FILE ANALYZER - QUICK REFERENCE                  ║
+╚══════════════════════════════════════════════════════════════════╝
+
+📥 SYNC FROM GARMIN CONNECT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  python garmin_sync.py
+
+  → Downloads new activities from Garmin Connect
+  → Automatically analyzes all FIT files
+  → Updates workout_summary_from_fit.csv
+  → Avoids duplicates automatically ✨
+
+📊 ANALYZE EXISTING FIT FILES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  python fit_to_summary.py --ftp 300 --multisport *.fit
+
+  → Processes all FIT files in current directory
+  → Separates multisport activity sessions
+  → Creates workout_summary_from_fit.csv
+
+⚙️  COMMON OPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  --ftp 280              Your Functional Threshold Power
+  --hrmax 185            Your maximum heart rate
+  --hrrest 55            Your resting heart rate
+  --days 7               Download last 7 days (sync only)
+  --download-only        Download without analyzing
+  --analyze-only         Analyze without downloading
+
+🔐 FIRST-TIME SETUP
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  python setup_credentials.py
+
+  → Securely store your Garmin credentials
+  → Set your FTP and HR zones
+  → Creates .env file (don't commit to git!)
+
+📅 TYPICAL WORKFLOWS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Daily update:
+    python garmin_sync.py --days 7 --ftp 280
+
+  Weekly review:
+    python garmin_sync.py --days 14 --ftp 280
+
+  First time (get everything):
+    python garmin_sync.py --days 90 --ftp 280
+
+📈 OUTPUT METRICS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✓ Date & Time (with timezone)
+  ✓ Duration
+  ✓ Heart Rate (avg, max)
+  ✓ Power (avg, max, normalized)
+  ✓ Intensity Factor (IF)
+  ✓ Training Stress Score (TSS)
+  ✓ TRIMP (heart rate based load)
+  ✓ Sport type (for multisport)
+
+🎯 KEY FEATURES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  ✅ Idempotent - Run multiple times safely
+  ✅ No duplicates - Each activity processed once
+  ✅ Multisport aware - Separates sessions correctly
+  ✅ Auto-sync - Set and forget with cron/launchd
+  ✅ One CSV file - All your data in one place
+
+📁 OUTPUT FILE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  workout_summary_from_fit.csv
+
+  → Always up-to-date
+  → No duplicates
+  → Ready for Excel, Google Sheets, Tableau, etc.
+
+📚 MORE INFO
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  README.md              - Overview and quick start
+  USAGE.md               - Detailed usage examples
+  README_garmin_sync.md  - Garmin API information
+
+💡 TIPS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  • Set GARMIN_EMAIL and GARMIN_PASSWORD env vars
+  • Run daily to keep data current
+  • Update your FTP as fitness improves
+  • Use --multisport flag for triathlons/duathlons
+  • Authentication tokens cached in ~/.garth
+
+╔══════════════════════════════════════════════════════════════════╗
+║  Questions? Check README.md or USAGE.md for detailed help       ║
+╚══════════════════════════════════════════════════════════════════╝

@@ -1,0 +1,16 @@
+# Production Dependencies
+# Install with: pip install -r requirements.txt
+
+# FIT file parsing
+fitparse>=1.2.0
+
+# Data analysis
+pandas>=2.0.0
+numpy>=1.24.0
+
+# Date/time handling
+python-dateutil>=2.8.0
+pytz>=2023.3
+
+# Garmin Connect API
+garth>=0.4.0

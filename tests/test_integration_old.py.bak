@@ -1,0 +1,322 @@
+"""
+Integration tests for the complete FIT file workflow.
+Tests end-to-end scenarios including file processing and CSV generation.
+"""
+
+import unittest
+import tempfile
+import shutil
+from pathlib import Path
+import pandas as pd
+import subprocess
+import sys
+
+
+class TestEndToEndWorkflow(unittest.TestCase):
+    """Integration tests for complete workflow"""
+
+    def setUp(self):
+        """Set up test environment"""
+        self.test_dir = tempfile.mkdtemp()
+        self.original_dir = Path.cwd()
+
+    def tearDown(self):
+        """Clean up test environment"""
+        shutil.rmtree(self.test_dir)
+
+    def test_analyze_existing_fit_files(self):
+        """Test analyzing existing FIT files produces valid CSV"""
+        # Copy actual FIT files if they exist for real integration test
+        source_dir = Path(__file__).parent
+        fit_files = list(source_dir.glob("*_ACTIVITY.fit"))
+
+        if not fit_files:
+            self.skipTest("No FIT files available for integration test")
+
+        # Copy FIT files to test directory
+        for fit_file in fit_files[:3]:  # Test with first 3 files
+            shutil.copy(fit_file, self.test_dir)
+
+        # Copy the analysis script
+        script_src = source_dir / "fit_to_summary.py"
+        if not script_src.exists():
+            self.skipTest("fit_to_summary.py not found")
+
+        script_dst = Path(self.test_dir) / "fit_to_summary.py"
+        shutil.copy(script_src, script_dst)
+
+        # Run analysis
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(script_dst),
+                "--ftp", "300",
+                "--multisport",
+                *[str(f) for f in Path(self.test_dir).glob("*_ACTIVITY.fit")]
+            ],
+            cwd=self.test_dir,
+            capture_output=True,
+            text=True
+        )
+
+        # Check execution succeeded
+        self.assertEqual(result.returncode, 0, f"Script failed: {result.stderr}")
+
+        # Check CSV was created
+        csv_path = Path(self.test_dir) / "workout_summary_from_fit.csv"
+        self.assertTrue(csv_path.exists(), "CSV file not created")
+
+        # Validate CSV content
+        df = pd.read_csv(csv_path)
+        self.assertGreater(len(df), 0, "CSV is empty")
+
+        # Check expected columns
+        expected_cols = [
+            'file', 'date', 'start_time', 'duration_min',
+            'avg_hr', 'max_hr', 'TRIMP'
+        ]
+        for col in expected_cols:
+            self.assertIn(col, df.columns, f"Missing column: {col}")
+
+    def test_idempotent_analysis(self):
+        """Test that running analysis multiple times produces consistent results"""
+        source_dir = Path(__file__).parent
+        fit_files = list(source_dir.glob("*_ACTIVITY.fit"))
+
+        if not fit_files:
+            self.skipTest("No FIT files available for integration test")
+
+        # Copy files
+        for fit_file in fit_files[:2]:
+            shutil.copy(fit_file, self.test_dir)
+
+        script_src = source_dir / "fit_to_summary.py"
+        if not script_src.exists():
+            self.skipTest("fit_to_summary.py not found")
+
+        script_dst = Path(self.test_dir) / "fit_to_summary.py"
+        shutil.copy(script_src, script_dst)
+
+        csv_path = Path(self.test_dir) / "workout_summary_from_fit.csv"
+
+        # Run analysis twice
+        for i in range(2):
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(script_dst),
+                    "--ftp", "300",
+                    "--multisport",
+                    *[str(f) for f in Path(self.test_dir).glob("*_ACTIVITY.fit")]
+                ],
+                cwd=self.test_dir,
+                capture_output=True,
+                text=True
+            )
+
+            # Read CSV after each run
+            df = pd.read_csv(csv_path)
+
+            if i == 0:
+                first_run_len = len(df)
+                first_run_df = df.copy()
+            else:
+                second_run_len = len(df)
+                second_run_df = df.copy()
+
+        # Should have same number of rows
+        self.assertEqual(first_run_len, second_run_len,
+                        "CSV length changed between runs")
+
+        # Data should be identical (accounting for float precision)
+        pd.testing.assert_frame_equal(
+            first_run_df,
+            second_run_df,
+            check_exact=False,
+            rtol=1e-5
+        )
+
+
+class TestCSVOutputValidation(unittest.TestCase):
+    """Test CSV output format and data quality"""
+
+    def test_csv_has_required_columns(self):
+        """Test CSV has all required columns"""
+        required_columns = [
+            'file', 'date', 'start_time', 'end_time', 'duration_min',
+            'avg_hr', 'max_hr', 'avg_power_w', 'max_power_w',
+            'np_w', 'IF', 'TSS', 'TRIMP'
+        ]
+
+        # Create a mock CSV
+        source_dir = Path(__file__).parent
+        csv_path = source_dir / "workout_summary_from_fit.csv"
+
+        if not csv_path.exists():
+            self.skipTest("CSV file not found")
+
+        df = pd.read_csv(csv_path)
+
+        for col in required_columns:
+            self.assertIn(col, df.columns, f"Missing column: {col}")
+
+    def test_csv_data_types(self):
+        """Test CSV columns have appropriate data types"""
+        source_dir = Path(__file__).parent
+        csv_path = source_dir / "workout_summary_from_fit.csv"
+
+        if not csv_path.exists():
+            self.skipTest("CSV file not found")
+
+        df = pd.read_csv(csv_path)
+
+        if len(df) == 0:
+            self.skipTest("CSV is empty")
+
+        # Date should be parseable
+        dates = pd.to_datetime(df['date'], errors='coerce')
+        self.assertTrue(dates.notna().all(), "Invalid dates found")
+
+        # Numeric columns should be numeric or empty
+        numeric_cols = ['duration_min', 'avg_hr', 'max_hr', 'TRIMP']
+        for col in numeric_cols:
+            if col in df.columns:
+                # Should be convertible to numeric (allowing empty strings)
+                numeric_vals = pd.to_numeric(df[col], errors='coerce')
+                # At least some values should be valid numbers
+                self.assertTrue(numeric_vals.notna().any(),
+                              f"No valid numeric values in {col}")
+
+    def test_csv_no_duplicate_sessions(self):
+        """Test CSV doesn't contain duplicate sessions"""
+        source_dir = Path(__file__).parent
+        csv_path = source_dir / "workout_summary_from_fit.csv"
+
+        if not csv_path.exists():
+            self.skipTest("CSV file not found")
+
+        df = pd.read_csv(csv_path)
+
+        if len(df) < 2:
+            self.skipTest("Not enough data to check for duplicates")
+
+        # Check for exact duplicates across key columns
+        key_cols = ['date', 'start_time', 'duration_min', 'avg_hr']
+        available_cols = [col for col in key_cols if col in df.columns]
+
+        if available_cols:
+            duplicates = df.duplicated(subset=available_cols, keep=False)
+            duplicate_rows = df[duplicates]
+
+            # If duplicates exist, they should have different file names
+            # (indicating they're from different FIT files)
+            if len(duplicate_rows) > 0:
+                self.assertGreater(
+                    duplicate_rows['file'].nunique(),
+                    1,
+                    "True duplicates found (same data, same file)"
+                )
+
+
+class TestMultisportHandling(unittest.TestCase):
+    """Test multisport activity handling"""
+
+    def test_multisport_sessions_separated(self):
+        """Test that multisport activities are properly separated"""
+        source_dir = Path(__file__).parent
+        csv_path = source_dir / "workout_summary_from_fit.csv"
+
+        if not csv_path.exists():
+            self.skipTest("CSV file not found")
+
+        df = pd.read_csv(csv_path)
+
+        # Check if we have sport column (indicates multisport processing)
+        if 'sport' not in df.columns:
+            self.skipTest("No sport column found (multisport not enabled)")
+
+        # Look for sessions with different sports but same base filename
+        df['base_filename'] = df['file'].str.replace('_session.*', '', regex=True)
+
+        # Group by base filename
+        for base_name, group in df.groupby('base_filename'):
+            if len(group) > 1:
+                # Multiple sessions for same file
+                # They should have different sports or start times
+                sports = group['sport'].unique()
+                start_times = group['start_time'].unique()
+
+                self.assertTrue(
+                    len(sports) > 1 or len(start_times) > 1,
+                    f"Multiple sessions for {base_name} are identical"
+                )
+
+
+class TestErrorHandling(unittest.TestCase):
+    """Test error handling and edge cases"""
+
+    def test_missing_ftp_parameter(self):
+        """Test that missing FTP parameter is handled"""
+        test_dir = tempfile.mkdtemp()
+
+        try:
+            script_path = Path(__file__).parent / "fit_to_summary.py"
+            if not script_path.exists():
+                self.skipTest("fit_to_summary.py not found")
+
+            # Run without FTP parameter (should fail gracefully)
+            result = subprocess.run(
+                [sys.executable, str(script_path)],
+                cwd=test_dir,
+                capture_output=True,
+                text=True
+            )
+
+            # Should exit with error
+            self.assertNotEqual(result.returncode, 0)
+            # Should have helpful error message
+            self.assertTrue(
+                'ftp' in result.stderr.lower() or 'required' in result.stderr.lower(),
+                "Error message should mention missing FTP parameter"
+            )
+        finally:
+            shutil.rmtree(test_dir)
+
+    def test_invalid_fit_file(self):
+        """Test handling of invalid/corrupted FIT file"""
+        test_dir = tempfile.mkdtemp()
+
+        try:
+            # Create a fake FIT file with invalid data
+            fake_fit = Path(test_dir) / "20765123456_ACTIVITY.fit"
+            fake_fit.write_bytes(b"This is not a valid FIT file")
+
+            script_path = Path(__file__).parent / "fit_to_summary.py"
+            if not script_path.exists():
+                self.skipTest("fit_to_summary.py not found")
+
+            # Copy script
+            script_dst = Path(test_dir) / "fit_to_summary.py"
+            shutil.copy(script_path, script_dst)
+
+            # Run analysis (should handle error gracefully)
+            result = subprocess.run(
+                [sys.executable, str(script_dst), "--ftp", "300", str(fake_fit)],
+                cwd=test_dir,
+                capture_output=True,
+                text=True
+            )
+
+            # Should not crash completely
+            # Either succeeds with warning or fails gracefully
+            self.assertIn(
+                result.returncode,
+                [0, 1],
+                "Script crashed unexpectedly"
+            )
+        finally:
+            shutil.rmtree(test_dir)
+
+
+if __name__ == '__main__':
+    unittest.main(verbosity=2)
