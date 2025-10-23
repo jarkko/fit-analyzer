@@ -31,7 +31,7 @@
 - Current test count: 90 tests - maintain or increase
 - Use pytest for all testing
 - Run `make test` to verify all tests pass
-- We must always keep 100 % code coverage for committed code
+- We must always keep 100 % code coverage for committed code. Don't come up with excuses for why some file doesn't need good coverage. They all do.
 
 ### Test Quality
 - Tests should be clear, focused, and well-named

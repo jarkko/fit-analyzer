@@ -430,6 +430,228 @@ class TestSportMapping(unittest.TestCase):
         self.assertEqual(len(codes), len(set(codes)), "Found duplicate sub-sport codes")
 
 
+class TestEdgeCases(unittest.TestCase):
+    """Test edge cases and error conditions."""
+
+    def test_summarize_fit_sessions_missing_start_time(self):
+        """Test handling of sessions without start_time."""
+        with patch('fitanalyzer.parser.FitFile') as mock_fitfile:
+            with patch('fitanalyzer.parser._extract_sessions_from_fit') as mock_extract:
+                # Session missing start_time
+                mock_extract.return_value = [
+                    {"total_timer_time": 1000},  # No start_time
+                    {"start_time": datetime.now(), "total_timer_time": 1000}
+                ]
+                mock_fitfile.return_value.get_messages.return_value = []
+                
+                results, _ = summarize_fit_sessions("test.fit")
+                # Should only process the second session
+                self.assertEqual(len(results), 0)  # No records, so no results
+
+    def test_summarize_fit_sessions_zero_timer_time(self):
+        """Test handling of sessions with zero total_timer_time."""
+        with patch('fitanalyzer.parser.FitFile') as mock_fitfile:
+            with patch('fitanalyzer.parser._extract_sessions_from_fit') as mock_extract:
+                # Session with zero timer time
+                mock_extract.return_value = [
+                    {"start_time": datetime.now(), "total_timer_time": 0},
+                ]
+                mock_fitfile.return_value.get_messages.return_value = []
+                
+                results, _ = summarize_fit_sessions("test.fit")
+                self.assertEqual(len(results), 0)
+
+    def test_get_first_valid_value_with_tuple(self):
+        """Test _extract_valid_value with tuple input."""
+        from fitanalyzer.parser import _extract_valid_value
+        
+        # Valid value in tuple
+        result = _extract_valid_value((1, 2, 3))
+        self.assertEqual(result, 1)
+        
+        # Skip invalid values (65534)
+        result = _extract_valid_value((65534, 100, 200))
+        self.assertEqual(result, 100)
+        
+        # All invalid
+        result = _extract_valid_value((65534, 65534))
+        self.assertIsNone(result)
+        
+        # None in tuple
+        result = _extract_valid_value((None, 100))
+        self.assertEqual(result, 100)
+
+    def test_get_first_valid_value_with_nan(self):
+        """Test _extract_valid_value with NaN and None."""
+        from fitanalyzer.parser import _extract_valid_value
+        
+        result = _extract_valid_value(np.nan)
+        self.assertIsNone(result)
+        
+        result = _extract_valid_value(None)
+        self.assertIsNone(result)
+
+    def test_get_first_valid_value_with_invalid_marker(self):
+        """Test _extract_valid_value with custom invalid marker."""
+        from fitanalyzer.parser import _extract_valid_value
+        
+        result = _extract_valid_value(65534)
+        self.assertIsNone(result)
+        
+        result = _extract_valid_value(100)
+        self.assertEqual(result, 100)
+
+    def test_get_sport_names_with_string_values(self):
+        """Test _get_sport_names when sport/subsport are already strings."""
+        from fitanalyzer.parser import _get_sport_names
+        
+        sessions = [{"sport": "cycling", "sub_sport": "road"}]
+        sport, subsport = _get_sport_names(sessions)
+        self.assertEqual(sport, "cycling")
+        self.assertEqual(subsport, "road")
+
+    def test_get_sport_names_with_unmapped_codes(self):
+        """Test _get_sport_names with codes not in mapping."""
+        from fitanalyzer.parser import _get_sport_names
+        
+        # Use a code that doesn't exist in mapping
+        sessions = [{"sport": 99999, "sub_sport": 88888}]
+        sport, subsport = _get_sport_names(sessions)
+        self.assertEqual(sport, "99999")  # Should convert to string
+        self.assertEqual(subsport, "88888")
+
+
+class TestCLIFunctions(unittest.TestCase):
+    """Test CLI-related functions."""
+
+    def test_process_multisport_file_with_no_results(self):
+        """Test _process_multisport_file when no results returned."""
+        from fitanalyzer.parser import _process_multisport_file
+        
+        args = MagicMock()
+        args.ftp = 300
+        args.hrrest = 50
+        args.hrmax = 190
+        args.tz = "UTC"
+        
+        with patch('fitanalyzer.parser.summarize_fit_sessions', return_value=([], [])):
+            result = _process_multisport_file("test.fit", args, set())
+            self.assertEqual(result, [])
+
+    def test_process_multisport_file_with_null_result(self):
+        """Test _process_multisport_file with None in results."""
+        from fitanalyzer.parser import _process_multisport_file
+        
+        args = MagicMock()
+        args.ftp = 300
+        args.hrrest = 50
+        args.hrmax = 190
+        args.tz = "UTC"
+        
+        # Return list with None
+        with patch('fitanalyzer.parser.summarize_fit_sessions', return_value=([None, {"sport": "running"}], [])):
+            result = _process_multisport_file("test.fit", args, set())
+            # Should skip None
+            self.assertEqual(len(result), 1)
+
+    def test_process_multisport_file_duplicate_detection(self):
+        """Test _process_multisport_file detects duplicates."""
+        from fitanalyzer.parser import _process_multisport_file
+        
+        args = MagicMock()
+        args.ftp = 300
+        args.hrrest = 50
+        args.hrmax = 190
+        args.tz = "UTC"
+        
+        session = {
+            "sport": "running",
+            "start_time": "2024-01-01 10:00:00",
+            "duration_min": 30.0,
+            "avg_hr": 150,
+            "avg_power_w": 200,
+        }
+        
+        processed = set()
+        
+        with patch('fitanalyzer.parser.summarize_fit_sessions', return_value=([session], [])):
+            # First call should add it
+            result1 = _process_multisport_file("test.fit", args, processed)
+            self.assertEqual(len(result1), 1)
+            
+            # Second call with same session should skip it
+            result2 = _process_multisport_file("test.fit", args, processed)
+            self.assertEqual(len(result2), 0)
+
+    def test_process_single_file(self):
+        """Test _process_single_file function."""
+        from fitanalyzer.parser import _process_single_file
+        
+        args = MagicMock()
+        args.ftp = 300
+        args.hrrest = 50
+        args.hrmax = 190
+        args.tz = "UTC"
+        
+        summary = {"sport": "cycling", "duration_min": 60.0}
+        
+        with patch('fitanalyzer.parser.summarize_fit_original', return_value=(summary, pd.DataFrame())):
+            result = _process_single_file("test.fit", args)
+            self.assertEqual(result, [summary])
+
+    def test_main_with_args_no_files(self):
+        """Test main_with_args with no FIT files."""
+        from fitanalyzer.parser import main_with_args
+        
+        args = MagicMock()
+        args.fit_files = []
+        args.multisport = False
+        args.dump_sets = False
+        
+        # Should print "No data to output" and return 0
+        with patch('builtins.print'):
+            result = main_with_args(args)
+            self.assertEqual(result, 0)
+
+    def test_main_with_args_dump_sets_empty(self):
+        """Test main_with_args with dump_sets but no strength data."""
+        from fitanalyzer.parser import main_with_args
+        
+        args = MagicMock()
+        args.fit_files = ["test.fit"]
+        args.multisport = False
+        args.dump_sets = True
+        args.ftp = 300
+        args.hrrest = 50
+        args.hrmax = 190
+        args.tz = "UTC"
+        args.output_dir = "/tmp"
+        
+        summary = {
+            "sport": "cycling",
+            "date": "2024-01-01",
+            "start_time": "10:00:00",
+        }
+        
+        with patch('fitanalyzer.parser.summarize_fit_original', return_value=(summary, pd.DataFrame())):
+            with patch('fitanalyzer.parser._aggregate_strength_sets', return_value=None):
+                with patch('builtins.print'):
+                    result = main_with_args(args)
+                    self.assertEqual(result, 0)
+
+    def test_main_entry_point(self):
+        """Test main() entry point."""
+        from fitanalyzer.parser import main
+        
+        with patch('fitanalyzer.parser.parse_arguments') as mock_parse:
+            with patch('fitanalyzer.parser.main_with_args', return_value=0) as mock_main:
+                mock_parse.return_value = MagicMock()
+                result = main()
+                self.assertEqual(result, 0)
+                mock_parse.assert_called_once()
+                mock_main.assert_called_once()
+
+
 if __name__ == "__main__":
     # Run tests with verbose output
     unittest.main(verbosity=2)

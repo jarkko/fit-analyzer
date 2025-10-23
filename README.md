@@ -5,8 +5,8 @@
 # Garmin FIT File Analyzer
 
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-91%20passed-brightgreen)](./tests/)
-[![Coverage](https://img.shields.io/badge/coverage-87%25-green)]()
+[![Tests](https://img.shields.io/badge/tests-159%20passed-brightgreen)](./tests/)
+[![Coverage](https://img.shields.io/badge/coverage-83%25-green)]()
 [![Code style: pylint](https://img.shields.io/badge/code%20quality-10.00%2F10-brightgreen)](https://pylint.org/)
 [![Type Checked](https://img.shields.io/badge/type%20checked-mypy%20strict-blue)](https://mypy.readthedocs.io/)
 [![Security](https://img.shields.io/badge/security-bandit%20%2B%20safety-orange)](https://github.com/PyCQA/bandit)
