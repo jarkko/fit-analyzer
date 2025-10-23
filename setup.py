@@ -16,7 +16,7 @@ setup(
     url="https://github.com/yourusername/fitanalyzer",
     package_dir={"": "src"},
     packages=find_packages(where="src"),
-    python_requires=">=3.8",
+    python_requires=">=3.10",
     install_requires=[
         "fitparse>=1.2.0",
         "pandas>=2.0.0",
