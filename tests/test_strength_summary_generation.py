@@ -11,7 +11,7 @@ from fitanalyzer.parser import (
 )
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def multiple_strength_files():
     """Paths to multiple strength training FIT files."""
     return [
@@ -21,16 +21,23 @@ def multiple_strength_files():
     ]
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def multisport_with_strength():
     """Path to multisport activity with strength training session."""
     return "tests/fixtures/20744294788_ACTIVITY.fit"
 
 
+@pytest.fixture(scope="module")
+def multisport_aggregated(multisport_with_strength):
+    """Pre-aggregated data from multisport activity."""
+    config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki")
+    return _aggregate_strength_sets([multisport_with_strength], config, multisport=False)
+
+
 class TestMultisportStrengthExtraction:
     """Test that strength training from multisport activities has correct sport metadata."""
 
-    def test_multisport_strength_autodetects_and_uses_correct_sport(self, multisport_with_strength):
+    def test_multisport_strength_autodetects_and_uses_correct_sport(self, multisport_aggregated):
         """Test that strength sets from multisport activity automatically get correct sport.
 
         Multisport activities should be detected automatically - no flag needed.
@@ -38,11 +45,7 @@ class TestMultisportStrengthExtraction:
         strength training session, not from the first session (which might be cycling).
         """
 
-        df_summary = _aggregate_strength_sets(
-            [multisport_with_strength],
-            AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=False,
-        )
+        df_summary = multisport_aggregated
 
         assert df_summary is not None
         assert not df_summary.empty
@@ -66,13 +69,9 @@ class TestMultisportStrengthExtraction:
             f"Found: sport={unique_sports}, sub_sport={unique_subsports}"
         )
 
-    def test_multisport_strength_all_sets_same_sport(self, multisport_with_strength):
+    def test_multisport_strength_all_sets_same_sport(self, multisport_aggregated):
         """Test that all extracted sets have consistent sport metadata."""
-        df_summary = _aggregate_strength_sets(
-            [multisport_with_strength],
-            AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=False,
-        )
+        df_summary = multisport_aggregated
 
         # All sets should have the same sport/subsport (no mixing)
         assert (
