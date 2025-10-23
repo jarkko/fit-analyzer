@@ -116,6 +116,7 @@ jobs:
       - name: Run safety check on dependencies
         run: |
           echo "🔍 Scanning dependencies for known security vulnerabilities..."
+          # Note: 'check' is deprecated but 'scan' requires authentication setup
           safety check --output=text
 
       - name: Run bandit security scan on code
