@@ -116,14 +116,12 @@ jobs:
       - name: Run safety check on dependencies
         run: |
           echo "🔍 Scanning dependencies for known security vulnerabilities..."
-          safety check --output=text || echo "⚠️ Safety check found some issues (non-blocking)"
-        continue-on-error: true
+          safety check --output=text
 
       - name: Run bandit security scan on code
         run: |
           echo "🔍 Scanning source code for security issues..."
-          bandit -r src/ -ll -f screen || echo "⚠️ Bandit found some issues (non-blocking)"
-        continue-on-error: true
+          bandit -r src/ -ll -f screen
 
   build:
     name: Build Package
