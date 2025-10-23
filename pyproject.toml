@@ -90,7 +90,7 @@ persistent = true
 unsafe-load-any-extension = false
 
 [tool.pylint.messages_control]
-disable = []
+disable = ["cyclic-import"]
 
 [tool.pylint.format]
 max-line-length = 100

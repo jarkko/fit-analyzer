@@ -32,7 +32,7 @@ class TestExistingActivityIDs(unittest.TestCase):
     def test_get_existing_activity_ids_empty_directory(self):
         """Test with no FIT files"""
         result = get_existing_activity_ids(self.test_dir)
-        self.assertEqual(result, set())
+        self.assertEqual(result, {})
 
     def test_get_existing_activity_ids_with_files(self):
         """Test with valid activity files"""
@@ -49,7 +49,11 @@ class TestExistingActivityIDs(unittest.TestCase):
         result = get_existing_activity_ids(self.test_dir)
 
         expected_ids = {"20744294782", "20744294788", "20747700969"}
-        self.assertEqual(result, expected_ids)
+        # Now returns dict with activity_id -> mtime, so check keys
+        self.assertEqual(set(result.keys()), expected_ids)
+        # Verify all values are timestamps (floats)
+        for mtime in result.values():
+            self.assertIsInstance(mtime, float)
 
     def test_get_existing_activity_ids_mixed_files(self):
         """Test with mix of valid and invalid filenames"""
@@ -67,7 +71,8 @@ class TestExistingActivityIDs(unittest.TestCase):
         result = get_existing_activity_ids(self.test_dir)
 
         expected_ids = {"20744294782", "20744294788"}
-        self.assertEqual(result, expected_ids)
+        # Now returns dict with activity_id -> mtime, so check keys
+        self.assertEqual(set(result.keys()), expected_ids)
 
 
 class TestGarminAuthentication(unittest.TestCase):

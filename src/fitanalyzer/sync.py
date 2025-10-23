@@ -8,13 +8,14 @@ Automatically downloads new activities from Garmin Connect and updates your work
 import argparse
 import getpass
 import io
+import json
 import os
 import subprocess
 import sys
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from .constants import DEFAULT_FTP, DEFAULT_HR_MAX, DEFAULT_HR_REST, DEFAULT_SYNC_DAYS
 
@@ -22,16 +23,21 @@ __all__ = [
     "authenticate_garmin",
     "download_new_activities",
     "run_analysis",
+    "fetch_exercise_sets_from_api",
+    "save_exercise_sets_to_json",
+    "load_exercise_sets_from_json",
     "main",
 ]
 
 # Try to import garth at module level
 try:
     import garth
+    from garth.http import GarthHTTPError
 
     GARTH_AVAILABLE = True
 except ImportError:
     garth = None
+    GarthHTTPError = Exception  # Fallback type for type hints
     GARTH_AVAILABLE = False
 
 
@@ -121,8 +127,12 @@ def authenticate_garmin(email=None, password=None, token_store="~/.garth"):
 
 
 def get_existing_activity_ids(directory="."):
-    """Get set of activity IDs that have already been downloaded"""
-    existing_ids = set()
+    """Get set of activity IDs and their file modification times.
+
+    Returns:
+        Dict mapping activity_id -> file modification timestamp
+    """
+    existing_activities = {}
     fit_files = Path(directory).glob("*_ACTIVITY.fit")
 
     for fit_file in fit_files:
@@ -131,12 +141,14 @@ def get_existing_activity_ids(directory="."):
         try:
             # Verify it's a numeric ID
             int(activity_id)
-            existing_ids.add(activity_id)
-        except ValueError:
-            # Skip files that don't match the pattern
+            # Get file modification time
+            mtime = fit_file.stat().st_mtime
+            existing_activities[activity_id] = mtime
+        except (ValueError, OSError):
+            # Skip files that don't match the pattern or can't be accessed
             continue
 
-    return existing_ids
+    return existing_activities
 
 
 def _parse_activity_date(activity):
@@ -180,6 +192,103 @@ def _extract_fit_from_zip(fit_data):
     return None
 
 
+def _should_download_activity(activity, existing_activities):
+    """Check if activity should be downloaded based on update timestamp.
+
+    Args:
+        activity: Activity dict from Garmin API
+        existing_activities: Dict of activity_id -> local file mtime
+
+    Returns:
+        Tuple of (should_download, is_update, check_api_update)
+            - should_download: Whether to download FIT file
+            - is_update: Whether this is an update to existing activity
+            - check_api_update: Whether to check for API exercise data updates
+    """
+    activity_id = str(activity["activityId"])
+
+    if activity_id not in existing_activities:
+        return (True, False, False)
+
+    # Activity exists - check if it was updated on Garmin
+    garmin_update_time = activity.get("updateDate") or activity.get("lastModified")
+
+    if not garmin_update_time:
+        # No update timestamp from activity list, but we should still
+        # check the API exercise data for updates (user may have edited exercises)
+        return (False, False, True)
+
+    # Parse Garmin timestamp (milliseconds since epoch)
+    garmin_timestamp = garmin_update_time / 1000.0
+    local_timestamp = existing_activities[activity_id]
+
+    # Re-download if Garmin version is newer (with 1 second tolerance)
+    if garmin_timestamp > local_timestamp + 1:
+        return (True, True, False)
+
+    return (False, False, True)
+
+
+def _exercise_names_differ(existing_sets, fresh_sets):
+    """Check if exercise names differ between two sets."""
+    for ex_set, fr_set in zip(existing_sets, fresh_sets):
+        ex_exercises = ex_set.get('exercises', [{}])
+        fr_exercises = fr_set.get('exercises', [{}])
+        ex_name = ex_exercises[0].get('name') if ex_exercises else None
+        fr_name = fr_exercises[0].get('name') if fr_exercises else None
+        if ex_name != fr_name:
+            return True
+    return False
+
+
+def _check_and_update_api_data(activity_id, directory):
+    """Check if API exercise data needs updating and update if necessary.
+
+    Args:
+        activity_id: Activity ID to check
+        directory: Directory containing FIT files
+
+    Returns:
+        True if data was updated, False otherwise
+    """
+    try:
+        filename = Path(directory) / f"{activity_id}_ACTIVITY.fit"
+        if not filename.exists():
+            return False
+
+        # Fetch fresh API data
+        fresh_data = fetch_exercise_sets_from_api(activity_id)
+        if not fresh_data:
+            return False
+
+        # Load existing API data
+        existing_data = load_exercise_sets_from_json(str(filename))
+
+        # Determine if we need to update
+        needs_update = False
+        if not existing_data:
+            needs_update = True
+        else:
+            existing_sets = existing_data.get('exerciseSets', [])
+            fresh_sets = fresh_data.get('exerciseSets', [])
+
+            # Update if lengths differ or exercise names differ
+            if len(existing_sets) != len(fresh_sets):
+                needs_update = True
+            elif _exercise_names_differ(existing_sets, fresh_sets):
+                needs_update = True
+
+        if needs_update:
+            save_exercise_sets_to_json(str(filename), fresh_data)
+            return True
+
+        return False
+
+    except (OSError, RuntimeError, ValueError) as e:
+        print(f"      ⚠️  Error checking API data for {activity_id}: {e}")
+        return False
+
+
 def _download_single_activity(activity_id, activity_name, activity_date, directory):
     """Download a single activity and save to file"""
     try:
@@ -200,6 +309,13 @@ def _download_single_activity(activity_id, activity_name, activity_date, directo
         with open(filename, "wb") as f:
             f.write(fit_data)
 
+        # Fetch and save exercise sets from API (for strength training)
+        exercise_sets = fetch_exercise_sets_from_api(activity_id)
+        if exercise_sets:
+            save_exercise_sets_to_json(str(filename), exercise_sets)
+            num_sets = len(exercise_sets.get('exerciseSets', []))
+            print(f"      ✅ Saved exercise data ({num_sets} sets)")
+
         return True
 
     except (OSError, RuntimeError, ValueError) as e:
@@ -207,8 +323,157 @@ def _download_single_activity(activity_id, activity_name, activity_date, directo
         return False
 
 
+def _fetch_exercise_sets_for_activity(activity_id: int) -> Optional[Dict[str, Any]]:
+    """Fetch exercise sets for a single activity ID.
+
+    Args:
+        activity_id: Garmin activity ID
+
+    Returns:
+        Dict with activityId and exerciseSets array, or None if not found
+    """
+    try:
+        exercise_sets = garth.connectapi(
+            f'/activity-service/activity/{activity_id}/exerciseSets'
+        )
+        # Handle case where API might return unexpected types
+        if isinstance(exercise_sets, dict) and exercise_sets.get('exerciseSets'):
+            return exercise_sets
+    except (GarthHTTPError, KeyError, TypeError):
+        pass
+    return None
+
+
+def _get_child_activity_ids(activity_details: Dict[str, Any]) -> list:
+    """Extract child activity IDs from activity details.
+
+    Args:
+        activity_details: Activity details from API
+
+    Returns:
+        List of child activity IDs, or empty list if none
+    """
+    if isinstance(activity_details, list):
+        return []
+    metadata = activity_details.get('metadataDTO', {})
+    return metadata.get('childIds', [])
+
+
+def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
+    """Fetch exercise sets from Garmin Connect API for an activity.
+
+    Handles both regular activities and multisport activities (fetches from child activities).
+
+    Args:
+        activity_id: Garmin activity ID
+
+    Returns:
+        Dict with activityId and exerciseSets array, or None if no exercise sets found
+    """
+    if garth is None:
+        return None
+
+    try:
+        # Get activity details to check for child activities (multisport)
+        activity_details = garth.connectapi(f'/activity-service/activity/{activity_id}')
+        child_ids = _get_child_activity_ids(activity_details)
+
+        # Try child activities first (for multisport)
+        for child_id in child_ids:
+            result = _fetch_exercise_sets_for_activity(child_id)
+            if result:
+                return result
+
+        # Try the main activity if no children or no child had exercise sets
+        return _fetch_exercise_sets_for_activity(activity_id)
+
+    except (GarthHTTPError, KeyError, TypeError) as e:
+        print(f"      ⚠️  Error fetching exercise sets for {activity_id}: {e}")
+        return None
+
+
+def save_exercise_sets_to_json(fit_file_path: str, exercise_sets: Dict[str, Any]) -> None:
+    """Save exercise sets data to JSON file alongside FIT file.
+
+    Args:
+        fit_file_path: Path to the FIT file
+        exercise_sets: Exercise sets data from API
+    """
+    fit_path = Path(fit_file_path)
+    json_path = fit_path.with_name(f"{fit_path.stem}_exercises.json")
+
+    # Create directory if it doesn't exist
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(json_path, 'w', encoding='utf-8') as f:
+        json.dump(exercise_sets, f, indent=2)
+
+
+def load_exercise_sets_from_json(fit_file_path: str) -> Optional[Dict[str, Any]]:
+    """Load exercise sets data from JSON file.
+
+    Args:
+        fit_file_path: Path to the FIT file
+
+    Returns:
+        Exercise sets data, or None if file doesn't exist
+    """
+    fit_path = Path(fit_file_path)
+    json_path = fit_path.with_name(f"{fit_path.stem}_exercises.json")
+
+    if not json_path.exists():
+        return None
+
+    try:
+        with open(json_path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def _process_activity(activity, existing_activities, directory, counters):
+    """Process a single activity (download, update, or skip).
+
+    Args:
+        activity: Activity dict from Garmin API
+        existing_activities: Dict of existing activity IDs
+        directory: Directory to save files
+        counters: Dict with keys: new_count, updated_count, api_updated_count, skipped_count
+    """
+    activity_id = str(activity["activityId"])
+    activity_name = activity.get("activityName", "Unknown")
+    activity_date = activity["startTimeLocal"][:10]
+
+    # Check if we need to download this activity
+    should_download, is_update, check_api = _should_download_activity(
+        activity, existing_activities
+    )
+
+    if should_download:
+        if is_update:
+            print(f"   🔄 Update detected for: {activity_name} [ID: {activity_id}]")
+
+        if _download_single_activity(activity_id, activity_name, activity_date, directory):
+            if is_update:
+                counters['updated_count'] += 1
+            else:
+                counters['new_count'] += 1
+    elif check_api:
+        # FIT file exists and up-to-date, but check if exercise data was updated
+        if _check_and_update_api_data(activity_id, directory):
+            print(f"   📝 Exercise data updated for: {activity_name} [ID: {activity_id}]")
+            counters['api_updated_count'] += 1
+        else:
+            counters['skipped_count'] += 1
+    else:
+        counters['skipped_count'] += 1
+
+
 def download_new_activities(
-    days: int = DEFAULT_SYNC_DAYS, limit: Optional[int] = None, directory: str = "."
+    days: int = DEFAULT_SYNC_DAYS,
+    limit: Optional[int] = None,
+    directory: str = ".",
+    force: bool = False,
 ) -> int:
     """Download new activities from Garmin Connect.
 
@@ -216,6 +481,7 @@ def download_new_activities(
         days: Number of days of activities to fetch
         limit: Maximum number of activities to download
         directory: Directory to save FIT files to
+        force: If True, re-download even if FIT file already exists
 
     Returns:
         Number of activities downloaded
@@ -228,9 +494,12 @@ def download_new_activities(
 
     print(f"\n📥 Fetching activities from last {days} days...")
 
-    # Get existing activity IDs
-    existing_ids = get_existing_activity_ids(directory)
-    print(f"   Found {len(existing_ids)} existing FIT files")
+    # Get existing activity IDs and their modification times (unless force mode)
+    existing_activities = {} if force else get_existing_activity_ids(directory)
+    if force:
+        print("   Force mode: will re-download all activities")
+    else:
+        print(f"   Found {len(existing_activities)} existing FIT files")
 
     # Fetch activities
     try:
@@ -252,27 +521,24 @@ def download_new_activities(
         print(f"   Found {len(recent_activities)} activities in date range")
 
         # Download new activities
-        new_count = 0
-        skipped_count = 0
+        counters = {
+            'new_count': 0,
+            'updated_count': 0,
+            'api_updated_count': 0,
+            'skipped_count': 0
+        }
 
         for activity in recent_activities:
-            activity_id = str(activity["activityId"])
-            activity_name = activity.get("activityName", "Unknown")
-            activity_date = activity["startTimeLocal"][:10]
-
-            # Skip if already downloaded
-            if activity_id in existing_ids:
-                skipped_count += 1
-                continue
-
-            if _download_single_activity(activity_id, activity_name, activity_date, directory):
-                new_count += 1
+            _process_activity(activity, existing_activities, directory, counters)
 
         print("\n✅ Download complete!")
-        print(f"   New activities: {new_count}")
-        print(f"   Skipped (already downloaded): {skipped_count}")
+        print(f"   New activities: {counters['new_count']}")
+        print(f"   Updated activities: {counters['updated_count']}")
+        if counters['api_updated_count'] > 0:
+            print(f"   Exercise data updated: {counters['api_updated_count']}")
+        print(f"   Skipped (already up-to-date): {counters['skipped_count']}")
 
-        return new_count
+        return counters['new_count'] + counters['updated_count'] + counters['api_updated_count']
 
     except (OSError, RuntimeError, ValueError) as e:
         print(f"❌ Error fetching activities: {e}")
@@ -312,6 +578,7 @@ def run_analysis(
         args.extend(["--ftp", str(ftp)])
         args.extend(["--hrrest", str(hrrest)])
         args.extend(["--hrmax", str(hrmax)])
+        args.append("--dump-sets")  # Always save strength training sets
         if multisport:
             args.append("--multisport")
 
@@ -366,6 +633,11 @@ def main():
     parser.add_argument(
         "--analyze-only", action="store_true", help="Only run analysis, don't download"
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-download of activities even if they already exist",
+    )
 
     args = parser.parse_args()
 
@@ -390,7 +662,7 @@ def main():
 
         # Download new activities
         new_activities = download_new_activities(
-            days=args.days, limit=args.limit, directory=directory
+            days=args.days, limit=args.limit, directory=directory, force=args.force
         )
 
     # Run analysis
@@ -406,7 +678,8 @@ def main():
     print("\n🎉 Done!")
     if new_activities > 0:
         print(f"   Downloaded {new_activities} new activities")
-    print("   Summary saved to: workout_summary_from_fit.csv")
+    print("   Summary saved to: data/workout_summary_from_fit.csv")
+    print("   Strength sets saved to: data/strength_training_summary.csv")
 
     return 0
 
