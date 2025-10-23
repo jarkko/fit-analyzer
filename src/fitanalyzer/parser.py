@@ -88,7 +88,7 @@ def summarize_fit_sessions(
         hr_max=kwargs.get('hr_max', DEFAULT_HR_MAX),
         tz_name=kwargs.get('tz_name', DEFAULT_TIMEZONE),
     )
-    
+
     ff = FitFile(path)
     sessions = _extract_sessions_from_fit(ff)
 
@@ -108,11 +108,17 @@ def summarize_fit_sessions(
 
         # Process this session's data
         if (recs := [
-            {"time": d["timestamp"], "hr": d.get("heart_rate", np.nan), "power": d.get("power", np.nan)}
+            {
+                "time": d["timestamp"],
+                "hr": d.get("heart_rate", np.nan),
+                "power": d.get("power", np.nan),
+            }
             for m in ff.get_messages("record")
             if (d := {d.name: d.value for d in m})
             and "timestamp" in d
-            and session_start <= d["timestamp"] <= (session_start + timedelta(seconds=session_timer_time))
+            and session_start <= d["timestamp"] <= (
+                session_start + timedelta(seconds=session_timer_time)
+            )
         ]) and (session_summary := process_session_data(
             pd.DataFrame(recs).sort_values("time"), path, session, session_idx, config
         )):
@@ -573,7 +579,7 @@ def summarize_fit_original(
     path: str, config: AnalysisConfig = None, **kwargs
 ) -> Tuple[Optional[Dict[str, Any]], pd.DataFrame]:
     """Original function for single-session activities.
-    
+
     Can accept either a config object or individual parameters for backwards compatibility.
     """
     config = config or AnalysisConfig(
@@ -582,7 +588,7 @@ def summarize_fit_original(
         hr_max=kwargs.get('hr_max', DEFAULT_HR_MAX),
         tz_name=kwargs.get('tz_name', DEFAULT_TIMEZONE),
     )
-    
+
     ff = FitFile(path)
     df = _extract_records_from_fit(ff)
     df_sets = extract_sets_from_fit(ff, fit_file_path=path)
@@ -594,7 +600,7 @@ def summarize_fit_original(
     metrics = _calculate_metrics_original(
         df.set_index(time_index).sort_index().resample("1s").ffill(), config, start_utc, end_utc
     )
-    
+
     sport, subsport = _get_sport_names(_extract_sessions_from_fit(ff))
     start_local = start_utc.astimezone(tz.gettz(config.tz_name))
 
