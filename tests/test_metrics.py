@@ -95,10 +95,7 @@ class TestTSS:
     def test_tss_valid_data(self):
         """Test TSS calculation with valid inputs."""
         result = calculate_tss(
-            normalized_power=250.0,
-            intensity_factor=1.0,
-            duration_hours=1.0,
-            ftp=250.0
+            normalized_power=250.0, intensity_factor=1.0, duration_hours=1.0, ftp=250.0
         )
         assert np.isfinite(result)
         assert result > 0
@@ -106,50 +103,35 @@ class TestTSS:
     def test_tss_with_nan_normalized_power(self):
         """Test TSS with NaN normalized power returns nan."""
         result = calculate_tss(
-            normalized_power=np.nan,
-            intensity_factor=1.0,
-            duration_hours=1.0,
-            ftp=250.0
+            normalized_power=np.nan, intensity_factor=1.0, duration_hours=1.0, ftp=250.0
         )
         assert np.isnan(result)
 
     def test_tss_with_nan_intensity_factor(self):
         """Test TSS with NaN intensity factor returns nan."""
         result = calculate_tss(
-            normalized_power=250.0,
-            intensity_factor=np.nan,
-            duration_hours=1.0,
-            ftp=250.0
+            normalized_power=250.0, intensity_factor=np.nan, duration_hours=1.0, ftp=250.0
         )
         assert np.isnan(result)
 
     def test_tss_with_nan_duration(self):
         """Test TSS with NaN duration returns nan."""
         result = calculate_tss(
-            normalized_power=250.0,
-            intensity_factor=1.0,
-            duration_hours=np.nan,
-            ftp=250.0
+            normalized_power=250.0, intensity_factor=1.0, duration_hours=np.nan, ftp=250.0
         )
         assert np.isnan(result)
 
     def test_tss_with_zero_ftp(self):
         """Test TSS with zero FTP returns nan."""
         result = calculate_tss(
-            normalized_power=250.0,
-            intensity_factor=1.0,
-            duration_hours=1.0,
-            ftp=0.0
+            normalized_power=250.0, intensity_factor=1.0, duration_hours=1.0, ftp=0.0
         )
         assert np.isnan(result)
 
     def test_tss_with_negative_ftp(self):
         """Test TSS with negative FTP returns nan."""
         result = calculate_tss(
-            normalized_power=250.0,
-            intensity_factor=1.0,
-            duration_hours=1.0,
-            ftp=-250.0
+            normalized_power=250.0, intensity_factor=1.0, duration_hours=1.0, ftp=-250.0
         )
         assert np.isnan(result)
 
@@ -159,10 +141,7 @@ class TestTSS:
         # With NP=250, IF=1.0, duration=1h, FTP=250:
         # TSS = (1 * 250 * 1.0) / 250 * 100 = 100
         result = calculate_tss(
-            normalized_power=250.0,
-            intensity_factor=1.0,
-            duration_hours=1.0,
-            ftp=250.0
+            normalized_power=250.0, intensity_factor=1.0, duration_hours=1.0, ftp=250.0
         )
         assert abs(result - 100.0) < 0.01
 
@@ -196,7 +175,7 @@ class TestIntensityFactor:
         # IF = NP / FTP
         result = calculate_intensity_factor(normalized_power=200.0, ftp=250.0)
         assert abs(result - 0.8) < 0.01
-        
+
         result = calculate_intensity_factor(normalized_power=300.0, ftp=250.0)
         assert abs(result - 1.2) < 0.01
 

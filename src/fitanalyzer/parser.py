@@ -83,10 +83,10 @@ def summarize_fit_sessions(
         A tuple of two lists: (session_summaries, strength_sets)
     """
     config = config or AnalysisConfig(
-        ftp=kwargs.get('ftp', DEFAULT_FTP),
-        hr_rest=kwargs.get('hr_rest', DEFAULT_HR_REST),
-        hr_max=kwargs.get('hr_max', DEFAULT_HR_MAX),
-        tz_name=kwargs.get('tz_name', DEFAULT_TIMEZONE),
+        ftp=kwargs.get("ftp", DEFAULT_FTP),
+        hr_rest=kwargs.get("hr_rest", DEFAULT_HR_REST),
+        hr_max=kwargs.get("hr_max", DEFAULT_HR_MAX),
+        tz_name=kwargs.get("tz_name", DEFAULT_TIMEZONE),
     )
 
     ff = FitFile(path)
@@ -107,21 +107,25 @@ def summarize_fit_sessions(
             continue
 
         # Process this session's data
-        if (recs := [
-            {
-                "time": d["timestamp"],
-                "hr": d.get("heart_rate", np.nan),
-                "power": d.get("power", np.nan),
-            }
-            for m in ff.get_messages("record")
-            if (d := {d.name: d.value for d in m})
-            and "timestamp" in d
-            and session_start <= d["timestamp"] <= (
-                session_start + timedelta(seconds=session_timer_time)
+        if (
+            recs := [
+                {
+                    "time": d["timestamp"],
+                    "hr": d.get("heart_rate", np.nan),
+                    "power": d.get("power", np.nan),
+                }
+                for m in ff.get_messages("record")
+                if (d := {d.name: d.value for d in m})
+                and "timestamp" in d
+                and session_start
+                <= d["timestamp"]
+                <= (session_start + timedelta(seconds=session_timer_time))
+            ]
+        ) and (
+            session_summary := process_session_data(
+                pd.DataFrame(recs).sort_values("time"), path, session, session_idx, config
             )
-        ]) and (session_summary := process_session_data(
-            pd.DataFrame(recs).sort_values("time"), path, session, session_idx, config
-        )):
+        ):
             results.append(session_summary)
 
     return results, []
@@ -511,11 +515,13 @@ def _aggregate_strength_sets(
         )
 
         # Add metadata to each active set
-        all_strength_data.extend([
-            _create_set_record(row, idx, metadata)
-            for idx, row in df_sets.iterrows()
-            if row.get("set_type") == "active"
-        ])
+        all_strength_data.extend(
+            [
+                _create_set_record(row, idx, metadata)
+                for idx, row in df_sets.iterrows()
+                if row.get("set_type") == "active"
+            ]
+        )
 
     if not all_strength_data:
         return None
@@ -583,10 +589,10 @@ def summarize_fit_original(
     Can accept either a config object or individual parameters for backwards compatibility.
     """
     config = config or AnalysisConfig(
-        ftp=kwargs.get('ftp', DEFAULT_FTP),
-        hr_rest=kwargs.get('hr_rest', DEFAULT_HR_REST),
-        hr_max=kwargs.get('hr_max', DEFAULT_HR_MAX),
-        tz_name=kwargs.get('tz_name', DEFAULT_TIMEZONE),
+        ftp=kwargs.get("ftp", DEFAULT_FTP),
+        hr_rest=kwargs.get("hr_rest", DEFAULT_HR_REST),
+        hr_max=kwargs.get("hr_max", DEFAULT_HR_MAX),
+        tz_name=kwargs.get("tz_name", DEFAULT_TIMEZONE),
     )
 
     ff = FitFile(path)

@@ -78,9 +78,7 @@ def check_and_install_garth() -> bool:
 
 
 def authenticate_garmin(
-    email: Optional[str] = None,
-    password: Optional[str] = None,
-    token_store: str = "~/.garth"
+    email: Optional[str] = None, password: Optional[str] = None, token_store: str = "~/.garth"
 ) -> bool:
     """Authenticate with Garmin Connect and manage session tokens.
 
@@ -236,8 +234,7 @@ def _extract_fit_from_zip(fit_data: bytes) -> Optional[bytes]:
 
 
 def _should_download_activity(
-    activity: Dict[str, Any],
-    existing_activities: Dict[str, float]
+    activity: Dict[str, Any], existing_activities: Dict[str, float]
 ) -> Tuple[bool, bool, bool]:
     """Check if activity should be downloaded based on update timestamp.
 
@@ -278,10 +275,10 @@ def _should_download_activity(
 def _exercise_names_differ(existing_sets: List[Dict], fresh_sets: List[Dict]) -> bool:
     """Check if exercise names differ between two sets."""
     for ex_set, fr_set in zip(existing_sets, fresh_sets):
-        ex_exercises = ex_set.get('exercises', [{}])
-        fr_exercises = fr_set.get('exercises', [{}])
-        ex_name = ex_exercises[0].get('name') if ex_exercises else None
-        fr_name = fr_exercises[0].get('name') if fr_exercises else None
+        ex_exercises = ex_set.get("exercises", [{}])
+        fr_exercises = fr_set.get("exercises", [{}])
+        ex_name = ex_exercises[0].get("name") if ex_exercises else None
+        fr_name = fr_exercises[0].get("name") if fr_exercises else None
         if ex_name != fr_name:
             return True
     return False
@@ -315,8 +312,8 @@ def _check_and_update_api_data(activity_id: str, directory: str) -> bool:
         if not existing_data:
             needs_update = True
         else:
-            existing_sets = existing_data.get('exerciseSets', [])
-            fresh_sets = fresh_data.get('exerciseSets', [])
+            existing_sets = existing_data.get("exerciseSets", [])
+            fresh_sets = fresh_data.get("exerciseSets", [])
 
             # Update if lengths differ or exercise names differ
             if len(existing_sets) != len(fresh_sets):
@@ -336,10 +333,7 @@ def _check_and_update_api_data(activity_id: str, directory: str) -> bool:
 
 
 def _download_single_activity(
-    activity_id: str,
-    activity_name: str,
-    activity_date: str,
-    directory: str
+    activity_id: str, activity_name: str, activity_date: str, directory: str
 ) -> bool:
     """Download a single activity and save to file"""
     try:
@@ -364,7 +358,7 @@ def _download_single_activity(
         exercise_sets = fetch_exercise_sets_from_api(activity_id)
         if exercise_sets:
             save_exercise_sets_to_json(str(filename), exercise_sets)
-            num_sets = len(exercise_sets.get('exerciseSets', []))
+            num_sets = len(exercise_sets.get("exerciseSets", []))
             print(f"      ✅ Saved exercise data ({num_sets} sets)")
 
         return True
@@ -384,11 +378,9 @@ def _fetch_exercise_sets_for_activity(activity_id: int) -> Optional[Dict[str, An
         Dict with activityId and exerciseSets array, or None if not found
     """
     try:
-        exercise_sets = garth.connectapi(
-            f'/activity-service/activity/{activity_id}/exerciseSets'
-        )
+        exercise_sets = garth.connectapi(f"/activity-service/activity/{activity_id}/exerciseSets")
         # Handle case where API might return unexpected types
-        if isinstance(exercise_sets, dict) and exercise_sets.get('exerciseSets'):
+        if isinstance(exercise_sets, dict) and exercise_sets.get("exerciseSets"):
             return exercise_sets
     except (GarthHTTPError, KeyError, TypeError):
         pass
@@ -406,8 +398,8 @@ def _get_child_activity_ids(activity_details: Dict[str, Any]) -> list:
     """
     if isinstance(activity_details, list):
         return []
-    metadata = activity_details.get('metadataDTO', {})
-    return metadata.get('childIds', [])
+    metadata = activity_details.get("metadataDTO", {})
+    return metadata.get("childIds", [])
 
 
 def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
@@ -477,7 +469,7 @@ def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
 
     try:
         # Get activity details to check for child activities (multisport)
-        activity_details = garth.connectapi(f'/activity-service/activity/{activity_id}')
+        activity_details = garth.connectapi(f"/activity-service/activity/{activity_id}")
         child_ids = _get_child_activity_ids(activity_details)
 
         # Try child activities first (for multisport)
@@ -507,7 +499,7 @@ def save_exercise_sets_to_json(fit_file_path: str, exercise_sets: Dict[str, Any]
     # Create directory if it doesn't exist
     json_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(json_path, 'w', encoding='utf-8') as f:
+    with open(json_path, "w", encoding="utf-8") as f:
         json.dump(exercise_sets, f, indent=2)
 
 
@@ -527,7 +519,7 @@ def load_exercise_sets_from_json(fit_file_path: str) -> Optional[Dict[str, Any]]
         return None
 
     try:
-        with open(json_path, 'r', encoding='utf-8') as f:
+        with open(json_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except (json.JSONDecodeError, OSError):
         return None
@@ -537,7 +529,7 @@ def _process_activity(
     activity: Dict[str, Any],
     existing_activities: Dict[str, float],
     directory: str,
-    counters: Dict[str, int]
+    counters: Dict[str, int],
 ) -> None:
     """Process a single activity (download, update, or skip).
 
@@ -552,9 +544,7 @@ def _process_activity(
     activity_date = activity["startTimeLocal"][:10]
 
     # Check if we need to download this activity
-    should_download, is_update, check_api = _should_download_activity(
-        activity, existing_activities
-    )
+    should_download, is_update, check_api = _should_download_activity(activity, existing_activities)
 
     if should_download:
         if is_update:
@@ -562,18 +552,18 @@ def _process_activity(
 
         if _download_single_activity(activity_id, activity_name, activity_date, directory):
             if is_update:
-                counters['updated_count'] += 1
+                counters["updated_count"] += 1
             else:
-                counters['new_count'] += 1
+                counters["new_count"] += 1
     elif check_api:
         # FIT file exists and up-to-date, but check if exercise data was updated
         if _check_and_update_api_data(activity_id, directory):
             print(f"   📝 Exercise data updated for: {activity_name} [ID: {activity_id}]")
-            counters['api_updated_count'] += 1
+            counters["api_updated_count"] += 1
         else:
-            counters['skipped_count'] += 1
+            counters["skipped_count"] += 1
     else:
-        counters['skipped_count'] += 1
+        counters["skipped_count"] += 1
 
 
 def download_new_activities(
@@ -677,12 +667,7 @@ def download_new_activities(
         print(f"   Found {len(recent_activities)} activities in date range")
 
         # Download new activities
-        counters = {
-            'new_count': 0,
-            'updated_count': 0,
-            'api_updated_count': 0,
-            'skipped_count': 0
-        }
+        counters = {"new_count": 0, "updated_count": 0, "api_updated_count": 0, "skipped_count": 0}
 
         for activity in recent_activities:
             _process_activity(activity, existing_activities, directory, counters)
@@ -690,11 +675,11 @@ def download_new_activities(
         print("\n✅ Download complete!")
         print(f"   New activities: {counters['new_count']}")
         print(f"   Updated activities: {counters['updated_count']}")
-        if counters['api_updated_count'] > 0:
+        if counters["api_updated_count"] > 0:
             print(f"   Exercise data updated: {counters['api_updated_count']}")
         print(f"   Skipped (already up-to-date): {counters['skipped_count']}")
 
-        return counters['new_count'] + counters['updated_count'] + counters['api_updated_count']
+        return counters["new_count"] + counters["updated_count"] + counters["api_updated_count"]
 
     except (OSError, RuntimeError, ValueError) as e:
         print(f"❌ Error fetching activities: {e}")

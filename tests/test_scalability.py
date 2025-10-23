@@ -30,11 +30,13 @@ def test_parse_multiple_files_sequentially(sample_fit_files):
     results = []
     for fit_file in sample_fit_files[:10]:  # Limit to 10 files
         sessions, sets = summarize_fit_sessions(str(fit_file))
-        results.append({
-            "file": fit_file.name,
-            "sessions": len(sessions),
-            "sets": len(sets),
-        })
+        results.append(
+            {
+                "file": fit_file.name,
+                "sessions": len(sessions),
+                "sets": len(sets),
+            }
+        )
 
     # Verify all files parsed successfully
     assert len(results) > 0

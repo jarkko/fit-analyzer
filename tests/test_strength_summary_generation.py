@@ -1,4 +1,5 @@
 """Tests for strength training summary CSV generation."""
+
 import pytest
 import pandas as pd
 from pathlib import Path
@@ -40,7 +41,7 @@ class TestMultisportStrengthExtraction:
         df_summary = _aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=False
+            multisport=False,
         )
 
         assert df_summary is not None
@@ -70,24 +71,27 @@ class TestMultisportStrengthExtraction:
         df_summary = _aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=False
+            multisport=False,
         )
 
         # All sets should have the same sport/subsport (no mixing)
-        assert df_summary["sport"].nunique() == 1, (
-            f"Expected all sets to have same sport, but found: {df_summary['sport'].unique()}"
-        )
-        assert df_summary["sub_sport"].nunique() == 1, (
-            f"Expected all sets to have same sub_sport, but found: {df_summary['sub_sport'].unique()}"
-        )
+        assert (
+            df_summary["sport"].nunique() == 1
+        ), f"Expected all sets to have same sport, but found: {df_summary['sport'].unique()}"
+        assert (
+            df_summary["sub_sport"].nunique() == 1
+        ), f"Expected all sets to have same sub_sport, but found: {df_summary['sub_sport'].unique()}"
 
 
 class TestStrengthSummaryGeneration:
     """Test generating consolidated strength training CSV from multiple FIT files."""
 
-    def test_generates_summary_for_all_fit_files_in_directory(self, tmp_path, multiple_strength_files):
+    def test_generates_summary_for_all_fit_files_in_directory(
+        self, tmp_path, multiple_strength_files
+    ):
         """Test that the script generates a summary for all FIT files in directory."""
         import os
+
         original_dir = os.getcwd()
 
         # Convert to absolute paths before changing directory
@@ -96,12 +100,9 @@ class TestStrengthSummaryGeneration:
         os.chdir(tmp_path)
 
         try:
-            args = parse_arguments([
-                *abs_files,
-                '--ftp', '300',
-                '--dump-sets',
-                '--output-dir', str(tmp_path)
-            ])
+            args = parse_arguments(
+                [*abs_files, "--ftp", "300", "--dump-sets", "--output-dir", str(tmp_path)]
+            )
 
             main_with_args(args)
 
@@ -122,6 +123,7 @@ class TestStrengthSummaryGeneration:
     def test_summary_not_overwritten_by_last_file(self, tmp_path, multiple_strength_files):
         """Test that each file's data is accumulated, not overwritten."""
         import os
+
         original_dir = os.getcwd()
 
         # Convert to absolute paths before changing directory
@@ -130,12 +132,9 @@ class TestStrengthSummaryGeneration:
         os.chdir(tmp_path)
 
         try:
-            args = parse_arguments([
-                *abs_files,
-                '--ftp', '300',
-                '--dump-sets',
-                '--output-dir', str(tmp_path)
-            ])
+            args = parse_arguments(
+                [*abs_files, "--ftp", "300", "--dump-sets", "--output-dir", str(tmp_path)]
+            )
 
             main_with_args(args)
 
@@ -161,6 +160,7 @@ class TestStrengthSummaryGeneration:
     def test_summary_sorted_by_date_and_time(self, tmp_path, multiple_strength_files):
         """Test that the summary CSV is sorted chronologically."""
         import os
+
         original_dir = os.getcwd()
 
         # Convert to absolute paths before changing directory
@@ -169,12 +169,9 @@ class TestStrengthSummaryGeneration:
         os.chdir(tmp_path)
 
         try:
-            args = parse_arguments([
-                *abs_files,
-                '--ftp', '300',
-                '--dump-sets',
-                '--output-dir', str(tmp_path)
-            ])
+            args = parse_arguments(
+                [*abs_files, "--ftp", "300", "--dump-sets", "--output-dir", str(tmp_path)]
+            )
 
             main_with_args(args)
 
@@ -182,10 +179,10 @@ class TestStrengthSummaryGeneration:
             df = pd.read_csv(summary_file)
 
             # Convert date and timestamp to comparable format
-            df['timestamp'] = pd.to_datetime(df['timestamp'])
+            df["timestamp"] = pd.to_datetime(df["timestamp"])
 
             # Check if sorted (allowing for NaT values at end)
-            timestamps = df['timestamp'].dropna()
+            timestamps = df["timestamp"].dropna()
             assert timestamps.is_monotonic_increasing, "Summary should be sorted by timestamp"
 
         finally:

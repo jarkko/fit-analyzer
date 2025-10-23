@@ -374,41 +374,45 @@ class TestEnvironmentVariables(unittest.TestCase):
 class TestCheckAndInstallGarth(unittest.TestCase):
     """Test garth installation checking."""
 
-    @patch('fitanalyzer.sync.GARTH_AVAILABLE', True)
+    @patch("fitanalyzer.sync.GARTH_AVAILABLE", True)
     def test_check_garth_available(self):
         """Test when garth is already available."""
         from fitanalyzer.sync import check_and_install_garth
+
         result = check_and_install_garth()
         self.assertTrue(result)
 
-    @patch('fitanalyzer.sync.GARTH_AVAILABLE', False)
-    @patch('builtins.input', return_value='n')
-    @patch('builtins.print')
+    @patch("fitanalyzer.sync.GARTH_AVAILABLE", False)
+    @patch("builtins.input", return_value="n")
+    @patch("builtins.print")
     def test_check_garth_not_available_decline_install(self, mock_print, mock_input):
         """Test when garth not available and user declines install."""
         from fitanalyzer.sync import check_and_install_garth
+
         result = check_and_install_garth()
         self.assertFalse(result)
 
-    @patch('fitanalyzer.sync.GARTH_AVAILABLE', False)
-    @patch('builtins.input', return_value='y')
-    @patch('subprocess.check_call')
-    @patch('builtins.print')
+    @patch("fitanalyzer.sync.GARTH_AVAILABLE", False)
+    @patch("builtins.input", return_value="y")
+    @patch("subprocess.check_call")
+    @patch("builtins.print")
     def test_check_garth_install_success(self, mock_print, mock_subprocess, mock_input):
         """Test successful garth installation."""
         from fitanalyzer.sync import check_and_install_garth
+
         result = check_and_install_garth()
         # Returns False because need to restart
         self.assertFalse(result)
         mock_subprocess.assert_called_once()
 
-    @patch('fitanalyzer.sync.GARTH_AVAILABLE', False)
-    @patch('builtins.input', return_value='y')
-    @patch('subprocess.check_call', side_effect=subprocess.CalledProcessError(1, 'pip'))
-    @patch('builtins.print')
+    @patch("fitanalyzer.sync.GARTH_AVAILABLE", False)
+    @patch("builtins.input", return_value="y")
+    @patch("subprocess.check_call", side_effect=subprocess.CalledProcessError(1, "pip"))
+    @patch("builtins.print")
     def test_check_garth_install_failure(self, mock_print, mock_subprocess, mock_input):
         """Test failed garth installation."""
         from fitanalyzer.sync import check_and_install_garth
+
         result = check_and_install_garth()
         self.assertFalse(result)
 
@@ -416,31 +420,29 @@ class TestCheckAndInstallGarth(unittest.TestCase):
 class TestExerciseSetsAPI(unittest.TestCase):
     """Test exercise sets API functions."""
 
-    @patch('fitanalyzer.sync.garth')
+    @patch("fitanalyzer.sync.garth")
     def test_fetch_exercise_sets_from_api(self, mock_garth):
         """Test fetching exercise sets from Garmin API."""
         from fitanalyzer.sync import fetch_exercise_sets_from_api
-        
+
         mock_garth.connectapi.return_value = {
-            "exerciseSets": [
-                {"category": 1, "exerciseName": "BENCH_PRESS", "reps": 10}
-            ]
+            "exerciseSets": [{"category": 1, "exerciseName": "BENCH_PRESS", "reps": 10}]
         }
-        
+
         result = fetch_exercise_sets_from_api("12345")
         self.assertIsNotNone(result)
         self.assertIn("exerciseSets", result)
 
-    @patch('fitanalyzer.sync.garth')
+    @patch("fitanalyzer.sync.garth")
     def test_fetch_exercise_sets_api_error(self, mock_garth):
         """Test API error when fetching exercise sets."""
         from fitanalyzer.sync import fetch_exercise_sets_from_api
-        
+
         # Use TypeError which is caught by the function
         mock_garth.connectapi.side_effect = TypeError("API Error")
-        
+
         # Should catch exception and return None
-        with patch('builtins.print'):
+        with patch("builtins.print"):
             result = fetch_exercise_sets_from_api("12345")
             self.assertIsNone(result)
 
@@ -448,17 +450,17 @@ class TestExerciseSetsAPI(unittest.TestCase):
         """Test saving and loading exercise sets to/from JSON."""
         from fitanalyzer.sync import save_exercise_sets_to_json, load_exercise_sets_from_json
         import tempfile
-        
+
         test_data = {"exerciseSets": [{"reps": 10}]}
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             fit_path = str(Path(tmpdir) / "test_activity.fit")
-            
+
             # Save (will create test_activity_exercises.json)
             save_exercise_sets_to_json(fit_path, test_data)
             json_path = Path(tmpdir) / "test_activity_exercises.json"
             self.assertTrue(json_path.exists())
-            
+
             # Load
             loaded = load_exercise_sets_from_json(fit_path)
             self.assertEqual(loaded, test_data)
@@ -466,7 +468,7 @@ class TestExerciseSetsAPI(unittest.TestCase):
     def test_load_exercise_sets_missing_file(self):
         """Test loading from missing file returns None."""
         from fitanalyzer.sync import load_exercise_sets_from_json
-        
+
         result = load_exercise_sets_from_json("/nonexistent/file.json")
         self.assertIsNone(result)
 

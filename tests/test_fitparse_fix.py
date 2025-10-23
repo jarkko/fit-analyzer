@@ -11,6 +11,7 @@ class TestFitparseFix(unittest.TestCase):
     def test_patch_is_applied(self):
         """Test that patch is applied when fitparse is available."""
         from fitanalyzer.fitparse_fix import is_patched
+
         # In normal circumstances, fitparse is installed
         self.assertTrue(is_patched())
 
@@ -18,11 +19,11 @@ class TestFitparseFix(unittest.TestCase):
         """Test handling when fitparse is not available."""
         # This test simulates the ImportError case
         # We need to reload the module without fitparse
-        with patch.dict(sys.modules, {'fitparse': None, 'fitparse.processors': None}):
+        with patch.dict(sys.modules, {"fitparse": None, "fitparse.processors": None}):
             # Force reimport with fitparse unavailable
             import importlib
             import fitanalyzer.fitparse_fix as fix_module
-            
+
             # The module should handle the ImportError gracefully
             # and _PATCH_APPLIED should be False
             # Note: This is hard to test in practice because the module

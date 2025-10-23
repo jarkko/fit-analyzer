@@ -83,7 +83,9 @@ class TestStrengthTrainingAggregation:
     def test_aggregate_strength_sets_returns_dataframe(self, multiple_strength_files):
         """Test that _aggregate_strength_sets returns a consolidated DataFrame."""
         df_summary = _aggregate_strength_sets(
-            multiple_strength_files, AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"), multisport=False
+            multiple_strength_files,
+            AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
+            multisport=False,
         )
 
         assert df_summary is not None
@@ -93,7 +95,9 @@ class TestStrengthTrainingAggregation:
     def test_aggregate_includes_expected_columns(self, multiple_strength_files):
         """Test that aggregated data includes all expected columns."""
         df_summary = _aggregate_strength_sets(
-            multiple_strength_files, AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"), multisport=False
+            multiple_strength_files,
+            AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
+            multisport=False,
         )
 
         expected_columns = [
@@ -117,7 +121,9 @@ class TestStrengthTrainingAggregation:
     def test_aggregate_only_includes_active_sets(self, multiple_strength_files):
         """Test that aggregated summary only includes active sets, not rest periods."""
         df_summary = _aggregate_strength_sets(
-            multiple_strength_files, AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"), multisport=False
+            multiple_strength_files,
+            AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
+            multisport=False,
         )
 
         # All set_type should be "active"
@@ -125,7 +131,11 @@ class TestStrengthTrainingAggregation:
 
     def test_aggregate_extracts_sport_information(self, strength_fit_file):
         """Test that sport and sub_sport are correctly extracted from FIT files."""
-        df_summary = _aggregate_strength_sets([strength_fit_file], AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"), multisport=False)
+        df_summary = _aggregate_strength_sets(
+            [strength_fit_file],
+            AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
+            multisport=False,
+        )
 
         # Sport should not be "unknown" for valid strength training files
         assert df_summary["sport"].iloc[0] != "unknown"
@@ -135,7 +145,9 @@ class TestStrengthTrainingAggregation:
     def test_aggregate_includes_activity_id(self, multiple_strength_files):
         """Test that each set has the correct activity_id."""
         df_summary = _aggregate_strength_sets(
-            multiple_strength_files, AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"), multisport=False
+            multiple_strength_files,
+            AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
+            multisport=False,
         )
 
         # Should have multiple unique activity IDs
@@ -153,7 +165,7 @@ class TestStrengthTrainingAggregation:
         df_summary = _aggregate_strength_sets(
             multiple_strength_files,
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=False
+            multisport=False,
         )
 
         # Dates should be in order
@@ -162,7 +174,11 @@ class TestStrengthTrainingAggregation:
 
     def test_aggregate_handles_empty_file_list(self):
         """Test that empty file list returns None."""
-        df_summary = _aggregate_strength_sets([], AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"), multisport=False)
+        df_summary = _aggregate_strength_sets(
+            [],
+            AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
+            multisport=False,
+        )
 
         assert df_summary is None
 
@@ -171,7 +187,7 @@ class TestStrengthTrainingAggregation:
         df_summary = _aggregate_strength_sets(
             multiple_strength_files,
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=False
+            multisport=False,
         )
 
         # Should have multiple sets from 3 workouts
@@ -232,7 +248,7 @@ class TestExerciseNames:
         df_summary = _aggregate_strength_sets(
             multiple_strength_files,
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=False
+            multisport=False,
         )
 
         assert "exercise_name" in df_summary.columns
@@ -267,7 +283,7 @@ class TestMultisportStrengthExtraction:
         df_summary = _aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=True
+            multisport=True,
         )
 
         # Should extract strength sets from the multisport file
@@ -283,7 +299,7 @@ class TestMultisportStrengthExtraction:
         df_summary = _aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=True
+            multisport=True,
         )
 
         # Should have exercise_name column
@@ -298,7 +314,7 @@ class TestMultisportStrengthExtraction:
         df_summary = _aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=True
+            multisport=True,
         )
 
         # All extracted sets should be from strength training session
