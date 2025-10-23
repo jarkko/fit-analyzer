@@ -23,26 +23,26 @@ try:
     # UTC reference for FIT timestamps (seconds since UTC 00:00 Dec 31 1989)
     UTC_REFERENCE = 631065600
 
-    # 'self' is required for monkey-patched instance methods
-    def _patched_process_type_date_time(self, _field_data):  # pylint: disable=unused-argument
+    # Note: 'self' unused but required to match instance method signature for monkey patching
+    def _patched_process_type_date_time(_self, field_data):
         """Fixed version using timezone-aware datetime"""
-        value = _field_data.value
+        value = field_data.value
         if value is not None and value >= 0x10000000:
             # Use timezone-aware fromtimestamp instead of deprecated utcfromtimestamp
-            _field_data.value = datetime.datetime.fromtimestamp(
+            field_data.value = datetime.datetime.fromtimestamp(
                 UTC_REFERENCE + value, tz=datetime.timezone.utc
             )
-            _field_data.units = None
+            field_data.units = None
 
-    # 'self' is required for monkey-patched instance methods
-    def _patched_process_type_local_date_time(self, _field_data):  # pylint: disable=unused-argument
+    # Note: 'self' unused but required to match instance method signature for monkey patching
+    def _patched_process_type_local_date_time(_self, field_data):
         """Fixed version using timezone-aware datetime"""
-        if _field_data.value is not None:
+        if field_data.value is not None:
             # Use timezone-aware fromtimestamp instead of deprecated utcfromtimestamp
-            _field_data.value = datetime.datetime.fromtimestamp(
-                UTC_REFERENCE + _field_data.value, tz=datetime.timezone.utc
+            field_data.value = datetime.datetime.fromtimestamp(
+                UTC_REFERENCE + field_data.value, tz=datetime.timezone.utc
             )
-            _field_data.units = None
+            field_data.units = None
 
     # Apply monkey patches
     FitFileDataProcessor.process_type_date_time = _patched_process_type_date_time
