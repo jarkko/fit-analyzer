@@ -12,7 +12,8 @@ A professional Python library for analyzing Garmin FIT files and calculating tra
 
 - 📊 **Parse FIT Files**: Extract comprehensive data from Garmin FIT activity files
 - 🏃 **Training Metrics**: Calculate NP (Normalized Power), TSS, TRIMP, and IF
-- 🔄 **Garmin Sync**: Automated syncing from Garmin Connect
+- � **Strength Training**: Extract sets, weights, repetitions, and exercise categories
+- �🔄 **Garmin Sync**: Automated syncing from Garmin Connect
 - 🎯 **Multisport Support**: Handle complex multisport activities
 - 📈 **CSV Export**: Generate training summaries for analysis
 
@@ -113,6 +114,54 @@ setup_garmin_client()
 
 # Sync new activities
 sync_activities(output_dir="./activities", days=30)
+```
+
+### Extract Strength Training Data
+
+FIT Analyzer can extract detailed strength training sets including weights, repetitions, and exercise categories:
+
+```bash
+# Extract strength sets from FIT files
+./analyze.py data/samples/*.fit --ftp 300 --dump-sets
+```
+
+This generates two outputs:
+
+1. **Individual CSV files** (one per workout): `ACTIVITY_ID_strength_sets.csv`
+   - Contains all sets (active + rest periods)
+   - Includes detailed exercise categories and timing
+
+2. **Consolidated summary**: `strength_training_summary.csv`
+   - Aggregates all active sets from multiple workouts
+   - Columns: `activity_id`, `file`, `date`, `sport`, `sub_sport`, `set_number`, `set_type`, `exercise_name`, `category`, `category_subtype`, `repetitions`, `weight`, `duration`, `timestamp`
+   - `exercise_name` uses **two-level naming system**:
+     * **Specific names** when your watch records detailed exercise data: "Barbell Power Clean", "Ghd Back Extensions", "Single Arm Neutral Grip Dumbbell Row"
+     * **Category names** as fallback when only high-level data available: "Olympic Lift", "Hyperextension", "Row"
+     * See [EXERCISE_MAPPINGS.md](EXERCISE_MAPPINGS.md) for complete mapping of 53 categories and 1,846+ specific exercises
+   - Perfect for tracking strength training progress over time
+
+Example output:
+```
+Yhteensä 72 strength training settiä 3 treenikerrasta.
+
+activity_id  date        repetitions  weight  duration
+20474406937  2025-09-23           10    14.0    26.207
+20474406937  2025-09-23            5     0.0    33.812
+20555050352  2025-10-01           10    14.0    27.049
+...
+```
+
+**Usage in Python:**
+
+```python
+from fitanalyzer import summarize_fit_original
+
+# Get both workout summary and strength sets
+summary, strength_sets = summarize_fit_original("workout.fit", ftp=300)
+
+if strength_sets is not None:
+    print(f"Found {len(strength_sets)} sets")
+    print(strength_sets[['repetitions', 'weight', 'duration']])
 ```
 
 ## Project Structure
