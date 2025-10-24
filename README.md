@@ -284,11 +284,13 @@ Heart rate-based training load metric for activities without power data.
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.10+
 - fitparse >= 1.2.0
 - pandas >= 2.0.0
 - numpy >= 1.24.0
-- garth >= 0.5.0
+- python-dateutil >= 2.8.0
+- pytz >= 2023.3
+- garth >= 0.4.0
 
 ## Contributing
 
