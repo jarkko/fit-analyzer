@@ -1,8 +1,6 @@
-# FIT Analyzer
-
-[![CI](https://github.com/jarkko/fit-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/jarkko/fit-analyzer/actions/workflows/ci.yml)
 # Garmin FIT File Analyzer
 
+[![CI](https://github.com/jarkko/fit-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/jarkko/fit-analyzer/actions/workflows/ci.yml)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
 [![Tests](https://img.shields.io/badge/tests-159%20passed-brightgreen)](./tests/)
 [![Coverage](https://img.shields.io/badge/coverage-83%25-green)]()
