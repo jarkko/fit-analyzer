@@ -15,8 +15,8 @@ A Python library for analyzing Garmin FIT files and calculating training metrics
 
 - 📊 **Parse FIT Files**: Extract comprehensive data from Garmin FIT activity files
 - 🏃 **Training Metrics**: Calculate NP (Normalized Power), TSS, TRIMP, and IF
-- � **Strength Training**: Extract sets, weights, repetitions, and exercise categories
-- �🔄 **Garmin Sync**: Automated syncing from Garmin Connect
+- 💪 **Strength Training**: Extract sets, weights, repetitions, and exercise categories
+- 🔄 **Garmin Sync**: Automated syncing from Garmin Connect
 - 🎯 **Multisport Support**: Handle complex multisport activities
 - 📈 **CSV Export**: Generate training summaries for analysis
 
