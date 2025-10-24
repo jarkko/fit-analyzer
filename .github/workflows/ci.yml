@@ -6,12 +6,12 @@ on:
   pull_request:
     branches: [main]
     paths-ignore:
-      - '**.md'
-      - 'docs/**'
-      - '.gitignore'
-      - 'LICENSE'
+      - "**.md"
+      - "docs/**"
+      - ".gitignore"
+      - "LICENSE"
   schedule:
-    - cron: '0 0 * * 0'  # Weekly full test on all Python versions
+    - cron: "0 0 * * 0" # Weekly full test on all Python versions
 
 env:
   CACHE_VERSION: v1

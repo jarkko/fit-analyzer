@@ -145,7 +145,7 @@ This generates two outputs:
 
 Example output:
 ```
-Yhteensä 72 strength training settiä 3 treenikerrasta.
+Total: 72 strength training sets from 3 workouts.
 
 activity_id  date        repetitions  weight  duration
 20474406937  2025-09-23           10    14.0    26.207
