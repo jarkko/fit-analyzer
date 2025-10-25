@@ -328,52 +328,49 @@ class TestStrengthEdgeCasesForFullCoverage:
         # We test this indirectly by checking the module imported successfully
         # Actually triggering the ImportError would require uninstalling the package
         from fitanalyzer import strength
-        
+
         # The module should have imported successfully even if SDK was missing
-        assert hasattr(strength, 'get_specific_exercise_name')
-        assert hasattr(strength, 'EXERCISE_CATEGORY_MAPPING')
+        assert hasattr(strength, "get_specific_exercise_name")
+        assert hasattr(strength, "EXERCISE_CATEGORY_MAPPING")
 
     def test_get_specific_exercise_name_with_unavailable_profile(self):
         """Test handling when profile is None or missing 'types' (line 103)"""
         from fitanalyzer.strength import get_specific_exercise_name
         from unittest.mock import patch
-        
+
         # Mock _get_garmin_profile to return None
-        with patch('fitanalyzer.strength._get_garmin_profile', return_value=None):
+        with patch("fitanalyzer.strength._get_garmin_profile", return_value=None):
             result = get_specific_exercise_name(category_id=0, subtype_id=0)
             assert result is None
-        
+
         # Mock _get_garmin_profile to return dict without 'types'
-        with patch('fitanalyzer.strength._get_garmin_profile', return_value={}):
+        with patch("fitanalyzer.strength._get_garmin_profile", return_value={}):
             result = get_specific_exercise_name(category_id=0, subtype_id=0)
             assert result is None
 
     def test_get_specific_exercise_name_unknown_category(self):
         """Test handling of unknown exercise category (line 110)"""
         from fitanalyzer.strength import get_specific_exercise_name
-        
+
         # When category_id is not in known types, should return None
-        result = get_specific_exercise_name(
-            category_id=9999,  # Unknown category
-            subtype_id=0
-        )
-        
+        result = get_specific_exercise_name(category_id=9999, subtype_id=0)  # Unknown category
+
         assert result is None
 
     def test_get_specific_exercise_name_with_unknown_exercise_name(self):
         """Test handling when exercise_name is 'unknown' (line 121)"""
         from fitanalyzer.strength import get_specific_exercise_name
         from unittest.mock import patch
-        
+
         # Mock profile to return 'unknown' as exercise name
         mock_profile = {
             "types": {
                 "exercise_category": {"0": "bench_press"},
-                "bench_press_exercise_name": {"0": "unknown"}
+                "bench_press_exercise_name": {"0": "unknown"},
             }
         }
-        
-        with patch('fitanalyzer.strength._get_garmin_profile', return_value=mock_profile):
+
+        with patch("fitanalyzer.strength._get_garmin_profile", return_value=mock_profile):
             result = get_specific_exercise_name(category_id=0, subtype_id=0)
             # Should return None when exercise name is 'unknown'
             assert result is None
@@ -381,19 +378,19 @@ class TestStrengthEdgeCasesForFullCoverage:
     def test_extract_valid_value_with_tuple(self):
         """Test _extract_valid_value with tuple values (lines 195-198)"""
         from fitanalyzer.strength import _extract_valid_value
-        
+
         # When value is a tuple, should extract first valid element
         result = _extract_valid_value((5,))
         assert result == 5
-        
+
         # With invalid marker 65534
         result = _extract_valid_value((65534, 10))
         assert result == 10
-        
+
         # All invalid (line 200)
         result = _extract_valid_value((65534, None))
         assert result is None
-        
+
         # All invalid marker values (line 200)
         result = _extract_valid_value((65534, 65534))
         assert result is None
@@ -402,15 +399,15 @@ class TestStrengthEdgeCasesForFullCoverage:
         """Test _extract_valid_value when value is None (line 193)"""
         from fitanalyzer.strength import _extract_valid_value
         import pandas as pd
-        
+
         # When value is None or NaN
         assert _extract_valid_value(None) is None
         assert _extract_valid_value(pd.NA) is None
-    
+
     def test_extract_valid_value_with_invalid_marker(self):
         """Test _extract_valid_value with 65534 invalid marker (line 202)"""
         from fitanalyzer.strength import _extract_valid_value
-        
+
         # When value is the invalid marker 65534
         result = _extract_valid_value(65534)
         assert result is None
@@ -418,51 +415,49 @@ class TestStrengthEdgeCasesForFullCoverage:
     def test_merge_api_exercise_names_with_data(self):
         """Test merge_api_exercise_names merging API data (line 288)"""
         from fitanalyzer.strength import merge_api_exercise_names
-        
+
         # Create a sample DataFrame
-        df = pd.DataFrame({
-            'message_index': [1, 2],
-            'reps': [10, 12],
-            'weight': [100, 110],
-            'exercise_name': ['Exercise 1', 'Exercise 2']
-        })
-        
+        df = pd.DataFrame(
+            {
+                "message_index": [1, 2],
+                "reps": [10, 12],
+                "weight": [100, 110],
+                "exercise_name": ["Exercise 1", "Exercise 2"],
+            }
+        )
+
         # API data with correct structure
         api_data = {
-            'exerciseSets': [
-                {
-                    'messageIndex': 1,
-                    'exercises': [{'name': 'BENCH_PRESS'}]
-                },
-                {
-                    'messageIndex': 2,
-                    'exercises': [{'name': 'BARBELL_SQUAT'}]
-                }
+            "exerciseSets": [
+                {"messageIndex": 1, "exercises": [{"name": "BENCH_PRESS"}]},
+                {"messageIndex": 2, "exercises": [{"name": "BARBELL_SQUAT"}]},
             ]
         }
-        
+
         result = merge_api_exercise_names(df, api_data)
-        
+
         # Should have merged the exercise names from API data
-        assert 'exercise_name' in result.columns
+        assert "exercise_name" in result.columns
         # Check that API names were merged (converted to Title Case)
-        assert result[result['message_index'] == 1]['exercise_name'].iloc[0] == 'Bench Press'
-        assert result[result['message_index'] == 2]['exercise_name'].iloc[0] == 'Barbell Squat'
+        assert result[result["message_index"] == 1]["exercise_name"].iloc[0] == "Bench Press"
+        assert result[result["message_index"] == 2]["exercise_name"].iloc[0] == "Barbell Squat"
 
     def test_merge_api_exercise_names_without_api_data(self):
         """Test merge_api_exercise_names when API data is None"""
         from fitanalyzer.strength import merge_api_exercise_names
-        
+
         # Create a sample DataFrame
-        df = pd.DataFrame({
-            'message_index': [1, 2],
-            'reps': [10, 12],
-            'exercise_name': ['Exercise 1', 'Exercise 2']
-        })
-        
+        df = pd.DataFrame(
+            {
+                "message_index": [1, 2],
+                "reps": [10, 12],
+                "exercise_name": ["Exercise 1", "Exercise 2"],
+            }
+        )
+
         # Call with None API data (should return unchanged)
         result = merge_api_exercise_names(df, None)
-        
+
         # Should return the DataFrame unchanged
         assert isinstance(result, pd.DataFrame)
         pd.testing.assert_frame_equal(result, df)
@@ -472,26 +467,23 @@ class TestStrengthEdgeCasesForFullCoverage:
         from fitanalyzer.strength import extract_sets_from_fit
         from fitparse import FitFile
         from unittest.mock import patch
-        
+
         # Use a real FIT file
         fit_file = "tests/fixtures/20474406937_ACTIVITY.fit"
         ff = FitFile(fit_file)
-        
+
         # Mock _load_exercise_sets_from_json to return API data
         mock_api_data = {
-            'exerciseSets': [
-                {
-                    'messageIndex': 0,
-                    'exercises': [{'name': 'MOCKED_EXERCISE'}]
-                }
-            ]
+            "exerciseSets": [{"messageIndex": 0, "exercises": [{"name": "MOCKED_EXERCISE"}]}]
         }
-        
-        with patch('fitanalyzer.strength._load_exercise_sets_from_json', return_value=mock_api_data):
+
+        with patch(
+            "fitanalyzer.strength._load_exercise_sets_from_json", return_value=mock_api_data
+        ):
             # This should hit line 288 (merge_api_exercise_names call)
             df = extract_sets_from_fit(ff, fit_file)
-            
+
             # Should have extracted sets
             assert len(df) > 0
-            assert 'exercise_name' in df.columns
+            assert "exercise_name" in df.columns
             # API data should have been merged (line 288)

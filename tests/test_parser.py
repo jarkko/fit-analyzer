@@ -665,27 +665,28 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
     def test_session_without_start_time_skipped(self):
         """Test that sessions without start_time are skipped (line 105-106)"""
         from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
-        
+
         # Mock the FitFile and _extract_sessions_from_fit to return invalid sessions
-        with patch("fitanalyzer.parser.FitFile") as mock_fitfile, \
-             patch("fitanalyzer.parser._extract_sessions_from_fit") as mock_extract:
-            
+        with patch("fitanalyzer.parser.FitFile") as mock_fitfile, patch(
+            "fitanalyzer.parser._extract_sessions_from_fit"
+        ) as mock_extract:
+
             # Return sessions with one missing start_time (line 105-106)
             mock_extract.return_value = [
                 {"total_timer_time": 100},  # Missing start_time - should be skipped
                 {
                     "start_time": datetime.now(),
                     "total_timer_time": 1000,
-                }
+                },
             ]
-            
+
             # Mock get_messages to return empty for simplicity
             mock_fitfile.return_value.get_messages.return_value = []
-            
+
             config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="UTC")
-            
+
             results, _ = summarize_fit_sessions("dummy.fit", config)
-            
+
             # Should have skipped the session without start_time
             # Since we're mocking get_messages to return empty, we might get empty results
             # The important thing is it didn't crash
@@ -694,30 +695,28 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
     def test_session_with_invalid_timer_time(self):
         """Test that sessions with timer_time <= 0 are skipped (line 107-108)"""
         from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
-        
+
         # Mock the FitFile and _extract_sessions_from_fit to return sessions with invalid timer
-        with patch("fitanalyzer.parser.FitFile") as mock_fitfile, \
-             patch("fitanalyzer.parser._extract_sessions_from_fit") as mock_extract:
-            
+        with patch("fitanalyzer.parser.FitFile") as mock_fitfile, patch(
+            "fitanalyzer.parser._extract_sessions_from_fit"
+        ) as mock_extract:
+
             # Return sessions with invalid timer_time (line 107-108)
             mock_extract.return_value = [
                 {
                     "start_time": datetime.now(),
-                    "total_timer_time": 0  # Invalid - should be skipped
+                    "total_timer_time": 0,  # Invalid - should be skipped
                 },
-                {
-                    "start_time": datetime.now(),
-                    "total_timer_time": -5  # Also invalid
-                },
+                {"start_time": datetime.now(), "total_timer_time": -5},  # Also invalid
             ]
-            
+
             # Mock get_messages to return empty
             mock_fitfile.return_value.get_messages.return_value = []
-            
+
             config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="UTC")
-            
+
             results, _ = summarize_fit_sessions("dummy.fit", config)
-            
+
             # Should have skipped all sessions with invalid timer_time
             # Results should be empty or minimal
             self.assertIsInstance(results, list)
@@ -727,15 +726,13 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
         from fitanalyzer.parser import _extract_first_session_metadata
 
         # The code path we're testing: when sessions is a DataFrame, not a list
-        df_sessions = pd.DataFrame({
-            "sport": ["cycling"],
-            "sub_sport": ["road"],  
-            "date": ["2025-01-01"]
-        })
-        
+        df_sessions = pd.DataFrame(
+            {"sport": ["cycling"], "sub_sport": ["road"], "date": ["2025-01-01"]}
+        )
+
         # This will hit line 451 (DataFrame check) and 452 (iloc[0])
         sport, sub_sport, date = _extract_first_session_metadata(df_sessions)
-        
+
         # The Series from iloc[0] should work in the .get() calls
         self.assertEqual(sport, "cycling")
         self.assertEqual(sub_sport, "road")
@@ -744,21 +741,21 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
     def test_aggregate_strength_with_empty_sets(self):
         """Test _aggregate_strength_sets when df_sets is empty (line 505)"""
         from fitanalyzer.parser import _aggregate_strength_sets, AnalysisConfig
-        
+
         config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="UTC")
-        
+
         # Mock to return empty DataFrame for sets
         with patch("fitanalyzer.parser._get_session_info") as mock_session:
             # Return empty DataFrame that will be skipped
             mock_session.return_value = ([], pd.DataFrame())
-            
+
             with tempfile.TemporaryDirectory() as tmpdir:
                 # Create a dummy file
                 dummy_file = Path(tmpdir) / "test.fit"
                 dummy_file.write_text("")
-                
+
                 result = _aggregate_strength_sets([str(dummy_file)], config, False)
-                
+
                 # Should return None when all sets are empty
                 self.assertIsNone(result)
 
@@ -766,120 +763,96 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
         """Test _process_timestamps with already timezone-aware timestamps (lines 183-184)"""
         from fitanalyzer.parser import _process_timestamps
         import pytz
-        
+
         # Create timezone-aware timestamps (not UTC)
-        eastern = pytz.timezone('US/Eastern')
-        times = pd.DatetimeIndex([
-            datetime(2025, 1, 1, 12, 0, 0),
-            datetime(2025, 1, 1, 12, 1, 0)
-        ]).tz_localize(eastern)
-        
-        df = pd.DataFrame({
-            "time": times,
-            "power": [200, 210]
-        })
-        
+        eastern = pytz.timezone("US/Eastern")
+        times = pd.DatetimeIndex(
+            [datetime(2025, 1, 1, 12, 0, 0), datetime(2025, 1, 1, 12, 1, 0)]
+        ).tz_localize(eastern)
+
+        df = pd.DataFrame({"time": times, "power": [200, 210]})
+
         result = _process_timestamps(df, "UTC")
-        
+
         # Should use tz_convert to convert to UTC (line 183-184)
         self.assertIsNotNone(result["start_utc"])
-        self.assertEqual(str(result["start_utc"].tzinfo), 'UTC')
+        self.assertEqual(str(result["start_utc"].tzinfo), "UTC")
 
     def test_timezone_naive_to_utc(self):
         """Test _process_timestamps with naive timestamps (lines 179-180)"""
         from fitanalyzer.parser import _process_timestamps
-        
+
         # Create naive (no timezone) timestamps
-        times = pd.DatetimeIndex([
-            datetime(2025, 1, 1, 12, 0, 0),
-            datetime(2025, 1, 1, 12, 1, 0)
-        ])
-        
-        df = pd.DataFrame({
-            "time": times,
-            "power": [200, 210]
-        })
-        
+        times = pd.DatetimeIndex([datetime(2025, 1, 1, 12, 0, 0), datetime(2025, 1, 1, 12, 1, 0)])
+
+        df = pd.DataFrame({"time": times, "power": [200, 210]})
+
         result = _process_timestamps(df, "UTC")
-        
+
         # Should use tz_localize to add UTC timezone (lines 179-180)
         self.assertIsNotNone(result["start_utc"])
-        self.assertEqual(str(result["start_utc"].tzinfo), 'UTC')
+        self.assertEqual(str(result["start_utc"].tzinfo), "UTC")
 
     def test_prepare_timezone_aware_index_with_tz_aware_timestamps(self):
         """Test _prepare_timezone_aware_index with timezone-aware timestamps (lines 543-544)"""
         from fitanalyzer.parser import _prepare_timezone_aware_index
         import pytz
-        
+
         # Create timezone-aware timestamps (not UTC)
-        eastern = pytz.timezone('US/Eastern')
-        times = pd.DatetimeIndex([
-            datetime(2025, 1, 1, 12, 0, 0),
-            datetime(2025, 1, 1, 12, 1, 0)
-        ]).tz_localize(eastern)
-        
-        df = pd.DataFrame({
-            "time": times,
-            "power": [200, 210]
-        })
-        
+        eastern = pytz.timezone("US/Eastern")
+        times = pd.DatetimeIndex(
+            [datetime(2025, 1, 1, 12, 0, 0), datetime(2025, 1, 1, 12, 1, 0)]
+        ).tz_localize(eastern)
+
+        df = pd.DataFrame({"time": times, "power": [200, 210]})
+
         start_utc, end_utc, time_index = _prepare_timezone_aware_index(df)
-        
+
         # Should use tz_convert to convert to UTC (lines 543-544)
         self.assertIsNotNone(start_utc)
-        self.assertEqual(str(start_utc.tzinfo), 'UTC')
+        self.assertEqual(str(start_utc.tzinfo), "UTC")
         # time_index should also be converted (line 551)
         self.assertIsNotNone(time_index)
 
     def test_prepare_timezone_aware_index_with_naive_timestamps(self):
         """Test _prepare_timezone_aware_index with naive timestamps (line 549)"""
         from fitanalyzer.parser import _prepare_timezone_aware_index
-        
+
         # Create naive (no timezone) timestamps
-        times = pd.DatetimeIndex([
-            datetime(2025, 1, 1, 12, 0, 0),
-            datetime(2025, 1, 1, 12, 1, 0)
-        ])
-        
-        df = pd.DataFrame({
-            "time": times,
-            "power": [200, 210]
-        })
-        
+        times = pd.DatetimeIndex([datetime(2025, 1, 1, 12, 0, 0), datetime(2025, 1, 1, 12, 1, 0)])
+
+        df = pd.DataFrame({"time": times, "power": [200, 210]})
+
         start_utc, end_utc, time_index = _prepare_timezone_aware_index(df)
-        
+
         # Should use tz_localize to add UTC timezone (lines 540-541, 549)
         self.assertIsNotNone(start_utc)
-        self.assertEqual(str(start_utc.tzinfo), 'UTC')
+        self.assertEqual(str(start_utc.tzinfo), "UTC")
         # time_index should also be localized (line 549)
         self.assertIsNotNone(time_index)
 
     def test_multisport_with_dump_sets_flag(self):
         """Test that --dump-sets is skipped when --multisport is used (lines 696-697)"""
         from fitanalyzer.parser import main_with_args, parse_arguments
-        
+
         with tempfile.TemporaryDirectory() as tmpdir:
             # Use strength training fixture
             test_file = "tests/fixtures/20744294788_ACTIVITY.fit"
-            
-            args = parse_arguments([
-                test_file,
-                "--multisport",
-                "--dump-sets", 
-                "--ftp", "300",
-                "--output-dir", tmpdir
-            ])
-            
+
+            args = parse_arguments(
+                [test_file, "--multisport", "--dump-sets", "--ftp", "300", "--output-dir", tmpdir]
+            )
+
             result = main_with_args(args)
-            
+
             # Should complete successfully
             self.assertEqual(result, 0)
-            
+
             # When multisport is True, the per-file dump-sets is skipped
             # So we shouldn't have individual set CSV files
             output_path = Path(tmpdir)
             set_files = list(output_path.glob("*_sets.csv"))
-            
+
             # With multisport, sets are only in the aggregated output
             # Individual set files shouldn't be created
             self.assertEqual(len(set_files), 0)

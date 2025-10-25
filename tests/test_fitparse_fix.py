@@ -19,21 +19,21 @@ class TestFitparseFix(unittest.TestCase):
         """Test handling when fitparse is not available."""
         # Test that the module can be imported even when fitparse isn't available
         # by simulating an ImportError during the module's import
-        
+
         # Create a fresh module that will fail on fitparse import
         import importlib.util
         import os
-        
+
         spec = importlib.util.find_spec("fitanalyzer.fitparse_fix")
         if spec and spec.origin:
             # Read the module source
-            with open(spec.origin, 'r') as f:
+            with open(spec.origin, "r") as f:
                 source = f.read()
-            
+
             # Verify that ImportError handling code exists
             self.assertIn("except ImportError:", source)
             self.assertIn("_PATCH_APPLIED = False", source)
-            
+
             # The actual ImportError path is hard to test without uninstalling fitparse,
             # but we've verified the code exists and the normal path works
 
