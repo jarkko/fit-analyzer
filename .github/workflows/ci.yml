@@ -16,6 +16,11 @@ on:
 env:
   CACHE_VERSION: v1
 
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   test:
     name: Test on Python ${{ matrix.python-version }}
@@ -52,8 +57,7 @@ jobs:
       - name: Run tests with coverage (Python 3.13)
         if: matrix.python-version == '3.13'
         run: |
-          make coverage
-          pytest tests/ --junitxml=pytest-results.xml
+          pytest tests/ -v --cov=src/fitanalyzer --cov-report=term-missing --cov-report=html --junitxml=pytest-results.xml
 
       - name: Run fast tests (Python 3.10-3.12)
         if: matrix.python-version != '3.13' && github.event_name != 'schedule'
@@ -97,6 +101,7 @@ jobs:
 
       - name: Publish test results
         if: always() && matrix.python-version == '3.13'
+        continue-on-error: true
         uses: EnricoMi/publish-unit-test-result-action@v2
         with:
           files: pytest-results.xml
