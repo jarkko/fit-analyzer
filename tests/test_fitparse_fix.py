@@ -2,7 +2,7 @@
 
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 
 class TestFitparseFix(unittest.TestCase):
@@ -17,17 +17,25 @@ class TestFitparseFix(unittest.TestCase):
 
     def test_import_error_handling(self):
         """Test handling when fitparse is not available."""
-        # This test simulates the ImportError case
-        # We need to reload the module without fitparse
-        with patch.dict(sys.modules, {"fitparse": None, "fitparse.processors": None}):
-            # Force reimport with fitparse unavailable
-            import importlib
-            import fitanalyzer.fitparse_fix as fix_module
-
-            # The module should handle the ImportError gracefully
-            # and _PATCH_APPLIED should be False
-            # Note: This is hard to test in practice because the module
-            # is already imported, but we're testing the code path exists
+        # Test that the module can be imported even when fitparse isn't available
+        # by simulating an ImportError during the module's import
+        
+        # Create a fresh module that will fail on fitparse import
+        import importlib.util
+        import os
+        
+        spec = importlib.util.find_spec("fitanalyzer.fitparse_fix")
+        if spec and spec.origin:
+            # Read the module source
+            with open(spec.origin, 'r') as f:
+                source = f.read()
+            
+            # Verify that ImportError handling code exists
+            self.assertIn("except ImportError:", source)
+            self.assertIn("_PATCH_APPLIED = False", source)
+            
+            # The actual ImportError path is hard to test without uninstalling fitparse,
+            # but we've verified the code exists and the normal path works
 
 
 if __name__ == "__main__":

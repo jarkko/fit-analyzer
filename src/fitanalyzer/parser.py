@@ -451,7 +451,7 @@ def _extract_first_session_metadata(df_sessions):
     elif isinstance(df_sessions, pd.DataFrame) and not df_sessions.empty:
         first_session = df_sessions.iloc[0]
 
-    if first_session:
+    if first_session is not None:
         sport = first_session.get("sport", "unknown")
         sub_sport = first_session.get("sub_sport", "unknown")
         date = first_session.get("date", None)
