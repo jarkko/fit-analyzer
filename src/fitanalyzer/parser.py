@@ -439,6 +439,7 @@ def _extract_records_from_fit(ff: FitFile) -> pd.DataFrame:
                     "speed": d.get("enhanced_speed", d.get("speed", np.nan)),
                     "cadence": d.get("cadence", np.nan),
                     "distance": d.get("distance", np.nan),
+                    "altitude": d.get("enhanced_altitude", d.get("altitude", np.nan)),
                 }
             )
     df = pd.DataFrame(recs)
@@ -679,6 +680,49 @@ def _calc_distance_metrics(df: Any) -> Dict[str, float]:
     return {"total_distance_m": np.nan, "total_distance_km": np.nan}
 
 
+def _calc_elevation_metrics(df: Any) -> Dict[str, float]:
+    """Calculate elevation metrics from dataframe"""
+    if "altitude" not in df.columns:
+        return {
+            "total_ascent_m": np.nan,
+            "total_descent_m": np.nan,
+            "avg_altitude_m": np.nan,
+            "min_altitude_m": np.nan,
+            "max_altitude_m": np.nan,
+        }
+
+    altitude_series = df["altitude"].dropna()
+
+    # If no valid altitude data, return NaN for all metrics
+    if altitude_series.empty:
+        return {
+            "total_ascent_m": np.nan,
+            "total_descent_m": np.nan,
+            "avg_altitude_m": np.nan,
+            "min_altitude_m": np.nan,
+            "max_altitude_m": np.nan,
+        }
+
+    # Calculate ascent and descent by looking at altitude changes
+    ascent = 0.0
+    descent = 0.0
+
+    # Get altitude differences between consecutive points
+    alt_diff = altitude_series.diff()
+
+    # Sum positive changes (ascent) and negative changes (descent)
+    ascent = float(alt_diff[alt_diff > 0].sum())
+    descent = float(abs(alt_diff[alt_diff < 0].sum()))
+
+    return {
+        "total_ascent_m": ascent,
+        "total_descent_m": descent,
+        "avg_altitude_m": float(altitude_series.mean()),
+        "min_altitude_m": float(altitude_series.min()),
+        "max_altitude_m": float(altitude_series.max()),
+    }
+
+
 def _calculate_metrics_original(
     df: Any, config: AnalysisConfig, start_utc: Any, end_utc: Any
 ) -> Dict[str, Any]:
@@ -692,6 +736,7 @@ def _calculate_metrics_original(
     speed = _calc_speed_metrics(df)
     cadence = _calc_cadence_metrics(df)
     distance = _calc_distance_metrics(df)
+    elevation = _calc_elevation_metrics(df)
 
     return {
         "dur_sec": dur_sec,
@@ -711,10 +756,11 @@ def _calculate_metrics_original(
             if df["hr"].notna().any()
             else 0.0
         ),
-        # Speed, cadence, and distance metrics
+        # Speed, cadence, distance, and elevation metrics
         **speed,
         **cadence,
         **distance,
+        **elevation,
     }
 
 
@@ -802,6 +848,32 @@ def summarize_fit_original(
         "total_distance_km": (
             round(metrics["total_distance_km"], 3)
             if np.isfinite(metrics["total_distance_km"])
+            else ""
+        ),
+        # Elevation metrics
+        "total_ascent_m": (
+            round(metrics["total_ascent_m"], 1)
+            if np.isfinite(metrics["total_ascent_m"])
+            else ""
+        ),
+        "total_descent_m": (
+            round(metrics["total_descent_m"], 1)
+            if np.isfinite(metrics["total_descent_m"])
+            else ""
+        ),
+        "avg_altitude_m": (
+            round(metrics["avg_altitude_m"], 1)
+            if np.isfinite(metrics["avg_altitude_m"])
+            else ""
+        ),
+        "min_altitude_m": (
+            round(metrics["min_altitude_m"], 1)
+            if np.isfinite(metrics["min_altitude_m"])
+            else ""
+        ),
+        "max_altitude_m": (
+            round(metrics["max_altitude_m"], 1)
+            if np.isfinite(metrics["max_altitude_m"])
             else ""
         ),
     }, df_sets

@@ -1024,11 +1024,11 @@ class TestSpeedCadenceDistanceExtraction(unittest.TestCase):
         """Integration test: Real FIT file should produce speed/cadence/distance metrics"""
         from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
 
-        # Test with the actual cycling FIT file
+        # Test with the cycling test fixture
         config = AnalysisConfig(ftp=250, hr_rest=60, hr_max=190, tz_name='UTC')
 
-        # This should work with the real file
-        sessions, sets = summarize_fit_sessions('data/samples/20684859222_ACTIVITY.fit', config)
+        # This should work with the test fixture
+        sessions, sets = summarize_fit_sessions('tests/fixtures/20684859222_ACTIVITY.fit', config)
 
         # Should have at least one session
         self.assertGreater(len(sessions), 0)
@@ -1060,6 +1060,106 @@ class TestSpeedCadenceDistanceExtraction(unittest.TestCase):
 
         # Distance should be positive
         self.assertGreater(session['total_distance_m'], 0)
+
+
+class TestElevationMetrics(unittest.TestCase):
+    """Test elevation metrics extraction and calculation (TDD for ascent/descent)"""
+
+    def test_elevation_fields_in_csv_output(self):
+        """Test that elevation fields are present in CSV output"""
+        # Use a running activity file that has GPS/elevation data
+        fit_file = Path("tests/fixtures/20544585388_ACTIVITY.fit")
+
+        if not fit_file.exists():
+            self.skipTest(f"Test file {fit_file} not found")
+
+        config = AnalysisConfig(
+            ftp=250, hr_rest=60, hr_max=190, tz_name="Europe/Helsinki"
+        )
+
+        result, _ = summarize_fit_original(str(fit_file), config)
+
+        # Should have elevation-related fields in the output
+        self.assertIn("total_ascent_m", result)
+        self.assertIn("total_descent_m", result)
+        self.assertIn("avg_altitude_m", result)
+        self.assertIn("min_altitude_m", result)
+        self.assertIn("max_altitude_m", result)
+
+    def test_elevation_calculation_with_gps_data(self):
+        """Test that elevation metrics are calculated correctly from GPS data"""
+        fit_file = Path("tests/fixtures/20544585388_ACTIVITY.fit")
+
+        if not fit_file.exists():
+            self.skipTest(f"Test file {fit_file} not found")
+
+        config = AnalysisConfig(
+            ftp=250, hr_rest=60, hr_max=190, tz_name="Europe/Helsinki"
+        )
+
+        result, _ = summarize_fit_original(str(fit_file), config)
+
+        # Elevation values should be numeric (not empty strings)
+        self.assertIsInstance(result["total_ascent_m"], (int, float))
+        self.assertIsInstance(result["total_descent_m"], (int, float))
+        self.assertIsInstance(result["avg_altitude_m"], (int, float))
+        self.assertIsInstance(result["min_altitude_m"], (int, float))
+        self.assertIsInstance(result["max_altitude_m"], (int, float))
+
+        # Values should be non-negative
+        self.assertGreaterEqual(result["total_ascent_m"], 0)
+        self.assertGreaterEqual(result["total_descent_m"], 0)
+
+        # Min should be <= avg <= max
+        self.assertLessEqual(result["min_altitude_m"], result["avg_altitude_m"])
+        self.assertLessEqual(result["avg_altitude_m"], result["max_altitude_m"])
+
+    def test_elevation_empty_when_no_gps_data(self):
+        """Test that elevation fields are empty for activities without GPS data"""
+        # Use a strength training file that has no GPS/elevation data
+        fit_file = Path("tests/fixtures/20794985860_ACTIVITY.fit")
+
+        if not fit_file.exists():
+            self.skipTest(f"Test file {fit_file} not found")
+
+        config = AnalysisConfig(
+            ftp=250, hr_rest=60, hr_max=190, tz_name="Europe/Helsinki"
+        )
+
+        result, _ = summarize_fit_original(str(fit_file), config)
+
+        # Should have elevation fields but they should be empty
+        self.assertIn("total_ascent_m", result)
+        self.assertIn("total_descent_m", result)
+        self.assertIn("avg_altitude_m", result)
+
+        # Values should be empty strings when no elevation data
+        self.assertEqual(result["total_ascent_m"], "")
+        self.assertEqual(result["total_descent_m"], "")
+        self.assertEqual(result["avg_altitude_m"], "")
+        self.assertEqual(result["min_altitude_m"], "")
+        self.assertEqual(result["max_altitude_m"], "")
+
+    def test_csv_headers_include_elevation(self):
+        """Test that CSV headers include elevation fields"""
+        # Generate CSV data from a test file
+        fit_file = Path("tests/fixtures/20544585388_ACTIVITY.fit")
+
+        if not fit_file.exists():
+            self.skipTest(f"Test file {fit_file} not found")
+
+        config = AnalysisConfig(
+            ftp=250, hr_rest=60, hr_max=190, tz_name="Europe/Helsinki"
+        )
+
+        result, _ = summarize_fit_original(str(fit_file), config)
+
+        # Check that result dict has elevation fields (these become CSV columns)
+        self.assertIn("total_ascent_m", result)
+        self.assertIn("total_descent_m", result)
+        self.assertIn("avg_altitude_m", result)
+        self.assertIn("min_altitude_m", result)
+        self.assertIn("max_altitude_m", result)
 
 
 if __name__ == "__main__":

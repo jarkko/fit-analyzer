@@ -44,6 +44,35 @@ All tests use consistent parameters:
 - **HR Max:** 190 bpm
 - **Timezone:** Europe/Helsinki
 
+### 20684859222_ACTIVITY.fit
+- **Sport:** Cycling (indoor_cycling)
+- **Date:** 2025-10-14
+- **Duration:** 30.0 minutes
+- **Avg HR:** 116.0 bpm
+- **Avg Power:** 184.8 watts
+- **Avg Speed:** 7.58 m/s (27.30 kph)
+- **Avg Cadence:** 85.7 rpm
+- **Distance:** 13,611.8 meters
+- **Purpose:** Tests speed/cadence/distance metrics for cycling activities
+
+### 20544585388_ACTIVITY.fit
+- **Sport:** Running (trail)
+- **Date:** 2025-09-30
+- **Duration:** 26.0 minutes
+- **Avg HR:** 128.5 bpm
+- **Avg Power:** 320.9 watts
+- **Avg Speed:** 2.65 m/s (9.54 kph)
+- **Elevation:** Ascent 115.0m, Descent 105.2m, Avg 120.7m
+- **Distance:** 4,102.9 meters
+- **Purpose:** Tests elevation metrics (GPS/altitude data) for running activities
+
+### 20794985860_ACTIVITY.fit
+- **Sport:** Training (strength_training)
+- **Date:** 2025-10-25
+- **Duration:** 47.5 minutes
+- **Avg HR:** 92.4 bpm
+- **Purpose:** Tests activities without GPS/elevation data (indoor strength training)
+
 ## Adding New Fixtures
 
 When adding new test fixtures:

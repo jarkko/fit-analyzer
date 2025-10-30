@@ -31,7 +31,7 @@ class TestCSVIntegration(unittest.TestCase):
 
     def test_csv_has_required_columns(self):
         """Test that generated CSV has all expected columns including new ones"""
-        # Expected columns after our speed/cadence/distance feature
+        # Expected columns after our speed/cadence/distance/elevation features
         expected_columns = [
             # Original columns
             "file",
@@ -49,7 +49,7 @@ class TestCSVIntegration(unittest.TestCase):
             "IF",
             "TSS",
             "TRIMP",
-            # New speed/cadence/distance columns
+            # Speed/cadence/distance columns
             "avg_speed_mps",
             "max_speed_mps",
             "avg_speed_kph",
@@ -58,10 +58,16 @@ class TestCSVIntegration(unittest.TestCase):
             "max_cadence",
             "total_distance_m",
             "total_distance_km",
+            # Elevation columns
+            "total_ascent_m",
+            "total_descent_m",
+            "avg_altitude_m",
+            "min_altitude_m",
+            "max_altitude_m",
         ]
 
         # Process a real cycling file
-        sessions, _ = summarize_fit_sessions("data/samples/20684859222_ACTIVITY.fit", self.config)
+        sessions, _ = summarize_fit_sessions("tests/fixtures/20684859222_ACTIVITY.fit", self.config)
 
         # Verify session data has all columns
         self.assertGreater(len(sessions), 0, "Should have at least one session")
@@ -91,7 +97,7 @@ class TestCSVIntegration(unittest.TestCase):
 
     def test_cycling_data_has_speed_cadence_values(self):
         """Test that cycling files produce actual speed/cadence/distance values"""
-        sessions, _ = summarize_fit_sessions("data/samples/20684859222_ACTIVITY.fit", self.config)
+        sessions, _ = summarize_fit_sessions("tests/fixtures/20684859222_ACTIVITY.fit", self.config)
         session = sessions[0]
 
         # Cycling file should have real values (not empty strings)
@@ -106,7 +112,7 @@ class TestCSVIntegration(unittest.TestCase):
 
     def test_csv_column_order_stability(self):
         """Test that CSV columns are in a stable, predictable order"""
-        sessions, _ = summarize_fit_sessions("data/samples/20684859222_ACTIVITY.fit", self.config)
+        sessions, _ = summarize_fit_sessions("tests/fixtures/20684859222_ACTIVITY.fit", self.config)
         df = pd.DataFrame(sessions)
 
         # Remove internal columns
