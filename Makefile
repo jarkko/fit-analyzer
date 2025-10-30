@@ -1,7 +1,7 @@
 # Makefile for FIT Analyzer
 # Professional Python library development workflow
 
-.PHONY: help install install-dev test test-fast test-unit test-integration lint format type-check clean coverage docs build install-editable
+.PHONY: help install install-dev test test-sequential test-fast test-unit test-integration lint format type-check clean coverage docs build install-editable
 
 # Python interpreter - always use venv to ensure consistent environment
 PYTHON := .venv/bin/python3
@@ -23,7 +23,8 @@ help:
 	@echo "  make install-editable  Install package in editable mode"
 	@echo ""
 	@echo "Testing:"
-	@echo "  make test              Run all tests (52 tests)"
+	@echo "  make test              Run all tests in parallel (196 tests, fast)"
+	@echo "  make test-sequential   Run all tests sequentially (for debugging)"
 	@echo "  make test-fast         Run fast tests only (skip integration)"
 	@echo "  make test-unit         Run unit tests only"
 	@echo "  make test-integration  Run integration tests (requires FIT files, slow)"
@@ -58,17 +59,20 @@ install-editable:
 test:
 	$(PYTEST) tests/ -n auto -v
 
+test-sequential:
+	$(PYTEST) tests/ -v
+
 test-fast:
 	$(PYTEST) tests/ -n auto -v -m "not slow"
 
 test-unit:
-	$(PYTEST) tests/test_parser.py tests/test_sync.py -n auto -v
+	$(PYTEST) tests/test_parser.py tests/test_sync.py -v
 
 test-integration:
 	$(PYTEST) tests/test_integration.py -v
 
 coverage:
-	$(PYTEST) tests/ -n auto -v --cov=src/fitanalyzer --cov-report=term-missing --cov-report=html
+	$(PYTEST) tests/ -v --cov=src/fitanalyzer --cov-report=term-missing --cov-report=html
 	@echo ""
 	@echo "Coverage report generated: htmlcov/index.html"
 

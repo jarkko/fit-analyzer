@@ -12,7 +12,6 @@ import os  # Add os import
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from fitanalyzer.dev_utils import force_reload_fitanalyzer_modules
 import pandas as pd
 
 
@@ -116,10 +115,7 @@ def regenerate_and_validate() -> bool:
     # Set environment variable to force reload
     os.environ["FITANALYZER_FORCE_RELOAD"] = "1"
 
-    # Force reload to avoid caching issues
-    force_reload_fitanalyzer_modules()
-
-    # Import after reload
+    # Import parser module
     from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
     import pandas as pd
 
