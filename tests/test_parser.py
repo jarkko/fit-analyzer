@@ -160,7 +160,8 @@ class TestFITFileParsing(unittest.TestCase):
         mock_ff.get_messages.return_value = []
         mock_fitfile.return_value = mock_ff
 
-        result, df_sets = summarize_fit_original("test.fit", ftp=300)
+        config = AnalysisConfig(ftp=300, hr_rest=60, hr_max=190, tz_name="UTC")
+        result, df_sets = summarize_fit_original("test.fit", config)
 
         self.assertIsNone(result)
 
@@ -189,7 +190,8 @@ class TestFITFileParsing(unittest.TestCase):
         mock_ff.get_messages.side_effect = mock_get_messages
         mock_fitfile.return_value = mock_ff
 
-        results, _ = summarize_fit_sessions("test.fit", ftp=300)
+        config = AnalysisConfig(ftp=300, hr_rest=60, hr_max=190, tz_name="UTC")
+        results, _ = summarize_fit_sessions("test.fit", config)
 
         # Should handle single session appropriately
         self.assertIsInstance(results, list)
@@ -444,7 +446,8 @@ class TestEdgeCases(unittest.TestCase):
                 ]
                 mock_fitfile.return_value.get_messages.return_value = []
 
-                results, _ = summarize_fit_sessions("test.fit")
+                config = AnalysisConfig(ftp=250, hr_rest=60, hr_max=190, tz_name="UTC")
+                results, _ = summarize_fit_sessions("test.fit", config)
                 # Should only process the second session
                 self.assertEqual(len(results), 0)  # No records, so no results
 
@@ -458,7 +461,8 @@ class TestEdgeCases(unittest.TestCase):
                 ]
                 mock_fitfile.return_value.get_messages.return_value = []
 
-                results, _ = summarize_fit_sessions("test.fit")
+                config = AnalysisConfig(ftp=250, hr_rest=60, hr_max=190, tz_name="UTC")
+                results, _ = summarize_fit_sessions("test.fit", config)
                 self.assertEqual(len(results), 0)
 
     def test_get_first_valid_value_with_tuple(self):
@@ -856,6 +860,206 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
             # With multisport, sets are only in the aggregated output
             # Individual set files shouldn't be created
             self.assertEqual(len(set_files), 0)
+
+
+class TestSpeedCadenceDistanceExtraction(unittest.TestCase):
+    """Test extraction of speed, cadence, and distance data from FIT files"""
+
+    def test_extract_records_includes_speed_cadence_distance(self):
+        """Test that _extract_records_from_fit includes speed, cadence, and distance"""
+        from fitanalyzer.parser import _extract_records_from_fit
+        from fitparse import FitFile
+        from unittest.mock import Mock
+
+        # Mock FIT file with speed, cadence, distance data
+        mock_fit = Mock(spec=FitFile)
+
+        # Create proper mock message structure
+        def create_mock_message(data_dict):
+            mock_msg = Mock()
+            mock_fields = []
+            for key, value in data_dict.items():
+                mock_field = Mock()
+                mock_field.name = key
+                mock_field.value = value
+                mock_fields.append(mock_field)
+            mock_msg.__iter__ = lambda self: iter(mock_fields)
+            return mock_msg
+
+        # Mock record messages with various data fields
+        mock_messages = [
+            # Complete record with all fields
+            create_mock_message({
+                'timestamp': datetime.now(),
+                'heart_rate': 150,
+                'power': 250,
+                'speed': 8.33,  # m/s
+                'cadence': 90,  # rpm
+                'distance': 1000.5,  # meters
+            }),
+            # Record with missing speed/cadence (should handle gracefully)
+            create_mock_message({
+                'timestamp': datetime.now() + timedelta(seconds=1),
+                'heart_rate': 155,
+                'power': 260,
+                'distance': 1010.8,
+            }),
+            # Record with only basic fields
+            create_mock_message({
+                'timestamp': datetime.now() + timedelta(seconds=2),
+                'heart_rate': 148,
+            }),
+        ]
+
+        mock_fit.get_messages.return_value = mock_messages
+
+        # Extract records
+        df = _extract_records_from_fit(mock_fit)
+
+        # Verify expected columns exist
+        expected_columns = ['time', 'hr', 'power', 'speed', 'cadence', 'distance']
+        for col in expected_columns:
+            self.assertIn(col, df.columns, f"Column '{col}' should be in DataFrame")
+
+        # Verify data integrity
+        self.assertEqual(len(df), 3, "Should have 3 records")
+
+        # First record should have all data
+        self.assertEqual(df.iloc[0]['hr'], 150)
+        self.assertEqual(df.iloc[0]['power'], 250)
+        self.assertEqual(df.iloc[0]['speed'], 8.33)
+        self.assertEqual(df.iloc[0]['cadence'], 90)
+        self.assertEqual(df.iloc[0]['distance'], 1000.5)
+
+        # Second record should have NaN for missing cadence
+        self.assertEqual(df.iloc[1]['hr'], 155)
+        self.assertEqual(df.iloc[1]['power'], 260)
+        self.assertTrue(pd.isna(df.iloc[1]['speed']))
+        self.assertTrue(pd.isna(df.iloc[1]['cadence']))
+        self.assertEqual(df.iloc[1]['distance'], 1010.8)
+
+        # Third record should have NaN for missing fields
+        self.assertEqual(df.iloc[2]['hr'], 148)
+        self.assertTrue(pd.isna(df.iloc[2]['power']))
+        self.assertTrue(pd.isna(df.iloc[2]['speed']))
+        self.assertTrue(pd.isna(df.iloc[2]['cadence']))
+        self.assertTrue(pd.isna(df.iloc[2]['distance']))
+
+    def test_session_summary_includes_speed_cadence_distance_metrics(self):
+        """Test that session summaries include speed, cadence, and distance metrics"""
+        from fitanalyzer.parser import process_session_data, AnalysisConfig
+
+        # Create test data with speed/cadence/distance
+        test_data = pd.DataFrame({
+            'time': pd.date_range('2025-10-30 10:00:00', periods=5, freq='1s'),
+            'hr': [150, 152, 148, 155, 151],
+            'power': [250, 260, 240, 270, 255],
+            'speed': [8.0, 8.5, 7.8, 9.0, 8.2],  # m/s
+            'cadence': [88, 90, 85, 95, 89],     # rpm
+            'distance': [1000, 1008, 1016, 1025, 1033]  # meters
+        })
+
+        config = AnalysisConfig(ftp=300, hr_rest=60, hr_max=190, tz_name="UTC")
+        mock_session = {'sport': 'cycling', 'sub_sport': 'road'}
+
+        result = process_session_data(test_data, "test.fit", mock_session, 0, config)
+
+        # Verify speed metrics are included
+        self.assertIn('avg_speed_mps', result)
+        self.assertIn('max_speed_mps', result)
+        self.assertIn('avg_speed_kph', result)
+        self.assertIn('max_speed_kph', result)
+
+        # Verify cadence metrics are included
+        self.assertIn('avg_cadence', result)
+        self.assertIn('max_cadence', result)
+
+        # Verify distance is included
+        self.assertIn('total_distance_m', result)
+        self.assertIn('total_distance_km', result)
+
+        # Check calculated values
+        self.assertAlmostEqual(result['avg_speed_mps'], 8.3, places=1)
+        self.assertAlmostEqual(result['max_speed_mps'], 9.0, places=1)
+        self.assertAlmostEqual(result['avg_speed_kph'], 29.88, places=1)  # 8.3 * 3.6
+        self.assertAlmostEqual(result['max_speed_kph'], 32.4, places=1)   # 9.0 * 3.6
+
+        self.assertAlmostEqual(result['avg_cadence'], 89.4, places=1)
+        self.assertEqual(result['max_cadence'], 95)
+
+        # Distance should be max - min
+        self.assertAlmostEqual(result['total_distance_m'], 33, places=0)  # 1033 - 1000
+        self.assertAlmostEqual(result['total_distance_km'], 0.033, places=3)
+
+    def test_handles_missing_speed_cadence_distance_gracefully(self):
+        """Test that missing speed/cadence/distance data is handled gracefully"""
+        from fitanalyzer.parser import process_session_data, AnalysisConfig
+
+        # Create test data without speed/cadence/distance
+        test_data = pd.DataFrame({
+            'time': pd.date_range('2025-10-30 10:00:00', periods=3, freq='1s'),
+            'hr': [150, 152, 148],
+            'power': [250, 260, 240],
+            'speed': [np.nan, np.nan, np.nan],
+            'cadence': [np.nan, np.nan, np.nan],
+            'distance': [np.nan, np.nan, np.nan]
+        })
+
+        config = AnalysisConfig(ftp=300, hr_rest=60, hr_max=190, tz_name="UTC")
+        mock_session = {'sport': 'running', 'sub_sport': 'generic'}
+
+        result = process_session_data(test_data, "test.fit", mock_session, 0, config)
+
+        # Should still return a valid result
+        self.assertIsNotNone(result)
+
+        # Speed/cadence/distance metrics should be empty strings or nan
+        self.assertEqual(result['avg_speed_mps'], "")
+        self.assertEqual(result['max_speed_mps'], "")
+        self.assertEqual(result['avg_cadence'], "")
+        self.assertEqual(result['max_cadence'], "")
+        self.assertEqual(result['total_distance_m'], "")
+
+    def test_real_cycling_fit_file_integration(self):
+        """Integration test: Real FIT file should produce speed/cadence/distance metrics"""
+        from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
+
+        # Test with the actual cycling FIT file
+        config = AnalysisConfig(ftp=250, hr_rest=60, hr_max=190, tz_name='UTC')
+
+        # This should work with the real file
+        sessions, sets = summarize_fit_sessions('data/samples/20684859222_ACTIVITY.fit', config)
+
+        # Should have at least one session
+        self.assertGreater(len(sessions), 0)
+
+        session = sessions[0]
+
+        # Should have the new columns
+        self.assertIn('avg_speed_mps', session)
+        self.assertIn('max_speed_mps', session)
+        self.assertIn('avg_speed_kph', session)
+        self.assertIn('max_speed_kph', session)
+        self.assertIn('avg_cadence', session)
+        self.assertIn('max_cadence', session)
+        self.assertIn('total_distance_m', session)
+        self.assertIn('total_distance_km', session)
+
+        # For a cycling file, these should have actual values (not empty strings)
+        self.assertNotEqual(session['avg_speed_mps'], "")
+        self.assertNotEqual(session['avg_cadence'], "")
+        self.assertNotEqual(session['total_distance_m'], "")
+
+        # Speed should be reasonable for indoor cycling (1-10 m/s)
+        self.assertGreaterEqual(session['avg_speed_mps'], 1.0)
+        self.assertLessEqual(session['avg_speed_mps'], 10.0)
+
+        # Cadence should be reasonable for cycling (40-120 rpm)
+        self.assertGreaterEqual(session['avg_cadence'], 40)
+        self.assertLessEqual(session['avg_cadence'], 120)
+
+        # Distance should be positive
+        self.assertGreater(session['total_distance_m'], 0)
 
 
 if __name__ == "__main__":
