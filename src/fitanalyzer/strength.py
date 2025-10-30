@@ -23,12 +23,12 @@ class _GarminProfileLoader:
     _instance = None
     _profile = None
 
-    def __new__(cls):
+    def __new__(cls) -> '_GarminProfileLoader':
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def get_profile(self):
+    def get_profile(self) -> Any:
         """Get the Garmin Profile, loading it on first access
 
         Returns:
@@ -48,7 +48,7 @@ class _GarminProfileLoader:
 _profile_loader = _GarminProfileLoader()
 
 
-def _get_garmin_profile():
+def _get_garmin_profile() -> Any:
     """Lazy-load Garmin FIT SDK Profile
 
     Returns:

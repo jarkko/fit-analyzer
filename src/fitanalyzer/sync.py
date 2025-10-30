@@ -744,7 +744,7 @@ def run_analysis(
         return False
 
 
-def main():
+def main() -> int:
     """Main entry point for the sync command-line tool."""
     parser = argparse.ArgumentParser(
         description="Sync activities from Garmin Connect and analyze them"

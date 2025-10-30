@@ -382,7 +382,7 @@ def _extract_valid_value(value: Any, invalid_value: int = 65534) -> Optional[int
 
 
 # Aggregate strength sets from multiple files
-def _get_session_info(fit_file: str, config: AnalysisConfig, multisport: bool):
+def _get_session_info(fit_file: str, config: AnalysisConfig, multisport: bool) -> Tuple[Any, Any]:
     """Extract session info and sets from a FIT file.
 
     Auto-detects multisport activities by checking session count.
@@ -481,7 +481,7 @@ def _create_set_record(row: Dict[str, Any], idx: int, metadata: SetMetadata) -> 
 
 def _aggregate_strength_sets(
     fit_files: List[str], config: AnalysisConfig, multisport: bool = False
-):
+) -> Optional[Any]:
     """
     Aggregate strength training sets from multiple FIT files into a single DataFrame.
 
@@ -553,7 +553,7 @@ def _prepare_timezone_aware_index(df):
     return start_utc, end_utc, time_index
 
 
-def _calculate_metrics_original(df, config: AnalysisConfig, start_utc, end_utc):
+def _calculate_metrics_original(df, config: AnalysisConfig, start_utc, end_utc) -> Dict[str, Any]:
     """Calculate all training metrics from dataframe for original function"""
     dur_sec = int((end_utc - start_utc).total_seconds()) + 1
     dur_hr = dur_sec / 3600.0
@@ -753,7 +753,7 @@ def main_with_args(args):
     return 0
 
 
-def main():
+def main() -> int:
     """Main entry point for command line"""
     args = parse_arguments()
     return main_with_args(args)
