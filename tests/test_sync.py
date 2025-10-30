@@ -185,7 +185,7 @@ class TestDownloadActivities(unittest.TestCase):
         # Create a dynamic date that's always within the 7-day range (yesterday)
         yesterday = datetime.now(timezone.utc) - timedelta(days=1)
         activity_date = yesterday.strftime("%Y-%m-%dT%H:%M:%SZ")
-        
+
         # Mock Garmin API
         mock_activities = [
             {
@@ -232,7 +232,7 @@ class TestDownloadActivities(unittest.TestCase):
         """Test handling of different timezone formats in activity dates"""
         # Create dynamic dates that are always within range (3 days ago)
         base_date = datetime.now(timezone.utc) - timedelta(days=3)
-        
+
         # Test with various timezone formats that Garmin might return
         mock_activities = [
             {
@@ -334,7 +334,7 @@ class TestAnalysisExecution(unittest.TestCase):
 
             self.assertTrue(result)
             mock_main.assert_called_once_with(mock_parsed_args)
-            
+
             # Check that parse_arguments was called with correct arguments
             call_args = mock_parse.call_args[0][0]
             self.assertIn("--output-dir", call_args)
@@ -361,7 +361,7 @@ class TestAnalysisExecution(unittest.TestCase):
 
         self.assertTrue(result)
         call_args = mock_parse.call_args[0][0]
-        
+
         # Check all parameters are passed correctly
         self.assertIn("--ftp", call_args)
         self.assertIn("250", call_args)
@@ -402,7 +402,7 @@ class TestAnalysisExecution(unittest.TestCase):
 
             self.assertTrue(result)
             call_args = mock_parse.call_args[0][0]
-            
+
             # Check default values are used
             self.assertIn("--ftp", call_args)
             self.assertIn("300", call_args)  # DEFAULT_FTP
@@ -762,7 +762,7 @@ class TestOutputDirFunctionality(unittest.TestCase):
         """Set up test directories"""
         self.test_dir = tempfile.mkdtemp()
         self.output_dir = tempfile.mkdtemp()
-        
+
         # Create test FIT files
         for i in range(2):
             (Path(self.test_dir) / f"test_activity_{i}_ACTIVITY.fit").touch()
@@ -776,25 +776,25 @@ class TestOutputDirFunctionality(unittest.TestCase):
     def test_argument_parser_output_dir(self, mock_subprocess):
         """Test that --output-dir argument is parsed correctly"""
         from fitanalyzer.sync import main
-        
+
         # Mock successful subprocess execution
         mock_result = Mock()
         mock_result.returncode = 0
         mock_subprocess.return_value = mock_result
-        
+
         # Test with minimal patches to avoid complex mocking
         with patch("sys.argv", [
-            "sync.py", 
-            "--analyze-only", 
+            "sync.py",
+            "--analyze-only",
             "--directory", self.test_dir,
             "--output-dir", self.output_dir
         ]), \
         patch("fitanalyzer.sync.run_analysis") as mock_analysis, \
         patch("builtins.print"):  # Suppress output
-            
+
             mock_analysis.return_value = True
             result = main()
-            
+
             # Check that run_analysis was called with correct output_dir
             mock_analysis.assert_called_once()
             call_kwargs = mock_analysis.call_args[1]
@@ -805,12 +805,12 @@ class TestOutputDirFunctionality(unittest.TestCase):
     def test_argument_parser_default_output_dir(self, mock_subprocess):
         """Test that default output directory is 'data'"""
         from fitanalyzer.sync import main
-        
+
         # Mock successful subprocess execution
         mock_result = Mock()
         mock_result.returncode = 0
         mock_subprocess.return_value = mock_result
-        
+
         with patch("sys.argv", [
             "sync.py",
             "--analyze-only",
@@ -818,10 +818,10 @@ class TestOutputDirFunctionality(unittest.TestCase):
         ]), \
         patch("fitanalyzer.sync.run_analysis") as mock_analysis, \
         patch("builtins.print"):  # Suppress output
-            
+
             mock_analysis.return_value = True
             result = main()
-            
+
             # Check that default output_dir is used
             mock_analysis.assert_called_once()
             call_kwargs = mock_analysis.call_args[1]
@@ -832,19 +832,19 @@ class TestOutputDirFunctionality(unittest.TestCase):
         """Test that output_dir is correctly passed to parser arguments"""
         with patch("fitanalyzer.parser.main_with_args") as mock_main, \
              patch("fitanalyzer.parser.parse_arguments") as mock_parse:
-            
+
             mock_main.return_value = 0
             mock_parsed_args = Mock()
             mock_parse.return_value = mock_parsed_args
-            
+
             custom_output = "/custom/output/path"
             result = run_analysis(
                 directory=self.test_dir,
                 output_dir=custom_output
             )
-            
+
             self.assertTrue(result)
-            
+
             # Verify that --output-dir argument was passed to parser
             call_args = mock_parse.call_args[0][0]
             self.assertIn("--output-dir", call_args)
@@ -856,19 +856,19 @@ class TestOutputDirFunctionality(unittest.TestCase):
         # This test verifies that Path objects work as expected
         relative_path = "./relative/output"
         absolute_path = "/absolute/output"
-        
+
         # Test relative path resolution
         rel_path_obj = Path(relative_path)
         abs_path_obj = Path(absolute_path)
-        
+
         # Relative paths should resolve relative to current working directory
         self.assertFalse(rel_path_obj.is_absolute())
         self.assertTrue(abs_path_obj.is_absolute())
-        
+
         # Both should work with expanduser() - relative path gets normalized
         rel_expanded = rel_path_obj.expanduser()
         abs_expanded = abs_path_obj.expanduser()
-        
+
         # Path normalization removes the ./ prefix
         self.assertEqual(str(rel_expanded), "relative/output")
         self.assertEqual(str(abs_expanded), absolute_path)
@@ -878,21 +878,21 @@ class TestOutputDirFunctionality(unittest.TestCase):
         # Create a single FIT file
         single_file = Path(self.test_dir) / "single_test_ACTIVITY.fit"
         single_file.touch()
-        
+
         with patch("fitanalyzer.parser.main_with_args") as mock_main, \
              patch("fitanalyzer.parser.parse_arguments") as mock_parse:
-            
+
             mock_main.return_value = 0
             mock_parsed_args = Mock()
             mock_parse.return_value = mock_parsed_args
-            
+
             result = run_analysis(
                 directory=str(single_file),
                 output_dir=self.output_dir
             )
-            
+
             self.assertTrue(result)
-            
+
             # Verify the file was recognized and arguments include output_dir
             call_args = mock_parse.call_args[0][0]
             self.assertIn("--output-dir", call_args)
