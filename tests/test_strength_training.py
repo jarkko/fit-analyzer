@@ -412,6 +412,21 @@ class TestStrengthEdgeCasesForFullCoverage:
         result = _extract_valid_value(65534)
         assert result is None
 
+    def test_extract_valid_value_with_string_unknown(self):
+        """Test _extract_valid_value with string 'unknown' (bug fix)"""
+        from fitanalyzer.strength import _extract_valid_value
+
+        # When value is string "unknown" - should return None instead of raising ValueError
+        result = _extract_valid_value("unknown")
+        assert result is None
+
+        # Test other string values as well
+        result = _extract_valid_value("invalid")
+        assert result is None
+
+        result = _extract_valid_value("")
+        assert result is None
+
     def test_merge_api_exercise_names_with_data(self):
         """Test merge_api_exercise_names merging API data (line 288)"""
         from fitanalyzer.strength import merge_api_exercise_names

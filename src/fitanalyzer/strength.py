@@ -182,15 +182,18 @@ def merge_api_exercise_names(
 
 
 def _extract_valid_value(val: Any) -> Optional[int]:
-    """Extract valid integer from value (handles tuples and None).
+    """Extract valid integer from value (handles tuples, strings, and None).
 
     Args:
-        val: Value to extract from (can be tuple, int, or None)
+        val: Value to extract from (can be tuple, int, string, or None)
 
     Returns:
         Integer value if valid, None otherwise
     """
     if pd.isna(val) or val is None:
+        return None
+    # Handle string values like "unknown"
+    if isinstance(val, str):
         return None
     if isinstance(val, tuple):
         for v in val:
