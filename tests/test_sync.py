@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, call, patch
 
@@ -181,12 +182,16 @@ class TestDownloadActivities(unittest.TestCase):
     @patch("fitanalyzer.sync.garth")
     def test_download_with_new_activities(self, mock_garth):
         """Test downloading new activities"""
+        # Create a dynamic date that's always within the 7-day range (yesterday)
+        yesterday = datetime.now(timezone.utc) - timedelta(days=1)
+        activity_date = yesterday.strftime("%Y-%m-%dT%H:%M:%SZ")
+        
         # Mock Garmin API
         mock_activities = [
             {
                 "activityId": 20765123456,
                 "activityName": "New Activity",
-                "startTimeLocal": "2025-10-23T10:00:00Z",
+                "startTimeLocal": activity_date,
             }
         ]
 
@@ -225,22 +230,25 @@ class TestDownloadActivities(unittest.TestCase):
     @patch("fitanalyzer.sync.garth")
     def test_download_handles_timezone_formats(self, mock_garth):
         """Test handling of different timezone formats in activity dates"""
+        # Create dynamic dates that are always within range (3 days ago)
+        base_date = datetime.now(timezone.utc) - timedelta(days=3)
+        
         # Test with various timezone formats that Garmin might return
         mock_activities = [
             {
                 "activityId": 20765100001,
                 "activityName": "Activity with Z",
-                "startTimeLocal": "2025-10-23T10:00:00Z",  # UTC with Z
+                "startTimeLocal": base_date.strftime("%Y-%m-%dT%H:%M:%SZ"),  # UTC with Z
             },
             {
                 "activityId": 20765100002,
                 "activityName": "Activity with offset",
-                "startTimeLocal": "2025-10-23T10:00:00+00:00",  # UTC with offset
+                "startTimeLocal": base_date.strftime("%Y-%m-%dT%H:%M:%S+00:00"),  # UTC with offset
             },
             {
                 "activityId": 20765100003,
                 "activityName": "Activity naive",
-                "startTimeLocal": "2025-10-23T10:00:00",  # Naive (no timezone)
+                "startTimeLocal": base_date.strftime("%Y-%m-%dT%H:%M:%S"),  # Naive (no timezone)
             },
         ]
 
