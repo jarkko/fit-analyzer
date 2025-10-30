@@ -15,7 +15,6 @@ import os
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
-from fitanalyzer.dev_utils import force_reload_fitanalyzer_modules
 
 
 class TestCSVIntegration(unittest.TestCase):
@@ -25,9 +24,6 @@ class TestCSVIntegration(unittest.TestCase):
         """Set up test environment with temp directory"""
         self.test_dir = tempfile.mkdtemp()
         self.config = AnalysisConfig(ftp=250, hr_rest=60, hr_max=190, tz_name="UTC")
-
-        # Force fresh modules to avoid caching issues
-        force_reload_fitanalyzer_modules()
 
     def tearDown(self):
         """Clean up test environment"""
