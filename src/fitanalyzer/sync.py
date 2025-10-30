@@ -32,12 +32,13 @@ __all__ = [
 # Try to import garth at module level
 try:
     import garth
-    from garth.http import GarthHTTPError
+    from garth.http import GarthHTTPError as _GarthHTTPError
 
     GARTH_AVAILABLE = True
+    GarthHTTPError = _GarthHTTPError
 except ImportError:
-    garth = None
-    GarthHTTPError = Exception  # Fallback type for type hints
+    garth = None  # type: ignore[assignment]
+    GarthHTTPError = Exception  # type: ignore[misc, assignment]
     GARTH_AVAILABLE = False
 
 
@@ -272,7 +273,9 @@ def _should_download_activity(
     return (False, False, True)
 
 
-def _exercise_names_differ(existing_sets: List[Dict], fresh_sets: List[Dict]) -> bool:
+def _exercise_names_differ(
+    existing_sets: List[Dict[str, Any]], fresh_sets: List[Dict[str, Any]]
+) -> bool:
     """Check if exercise names differ between two sets."""
     for ex_set, fr_set in zip(existing_sets, fresh_sets):
         ex_exercises = ex_set.get("exercises", [{}])
@@ -387,7 +390,7 @@ def _fetch_exercise_sets_for_activity(activity_id: int) -> Optional[Dict[str, An
     return None
 
 
-def _get_child_activity_ids(activity_details: Dict[str, Any]) -> list:
+def _get_child_activity_ids(activity_details: Dict[str, Any]) -> List[Any]:
     """Extract child activity IDs from activity details.
 
     Args:

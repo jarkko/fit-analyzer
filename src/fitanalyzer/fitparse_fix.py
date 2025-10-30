@@ -10,6 +10,7 @@ See: https://github.com/dtcooper/python-fitparse/issues
 """
 
 import datetime
+from typing import Any
 
 __all__ = ["is_patched"]
 
@@ -24,7 +25,7 @@ try:
     UTC_REFERENCE = 631065600
 
     # Note: 'self' unused but required to match instance method signature for monkey patching
-    def _patched_process_type_date_time(_self, field_data):
+    def _patched_process_type_date_time(_self: Any, field_data: Any) -> None:
         """Fixed version using timezone-aware datetime"""
         value = field_data.value
         if value is not None and value >= 0x10000000:
@@ -35,7 +36,7 @@ try:
             field_data.units = None
 
     # Note: 'self' unused but required to match instance method signature for monkey patching
-    def _patched_process_type_local_date_time(_self, field_data):
+    def _patched_process_type_local_date_time(_self: Any, field_data: Any) -> None:
         """Fixed version using timezone-aware datetime"""
         if field_data.value is not None:
             # Use timezone-aware fromtimestamp instead of deprecated utcfromtimestamp
@@ -55,6 +56,6 @@ except ImportError:
     _PATCH_APPLIED = False
 
 
-def is_patched():
+def is_patched() -> bool:
     """Check if the fitparse patch has been applied"""
     return _PATCH_APPLIED
