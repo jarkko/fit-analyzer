@@ -5,6 +5,7 @@
 pytest>=7.4.0
 pytest-cov>=4.1.0
 pytest-mock>=3.11.1
+pytest-xdist>=3.8.0  # Parallel test execution for test isolation
 coverage>=7.3.0
 
 # Code Quality

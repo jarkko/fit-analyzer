@@ -3,15 +3,15 @@
 
 .PHONY: help install install-dev test test-fast test-unit test-integration lint format type-check clean coverage docs build install-editable
 
-# Python interpreter - use venv if available, otherwise system python
-PYTHON := $(shell command -v .venv/bin/python3 2>/dev/null || echo python3)
+# Python interpreter - always use venv to ensure consistent environment
+PYTHON := .venv/bin/python3
 PIP := $(PYTHON) -m pip
-PYTEST := $(shell command -v .venv/bin/pytest 2>/dev/null || echo pytest)
-FLAKE8 := $(shell command -v .venv/bin/flake8 2>/dev/null || echo flake8)
-PYLINT := $(shell command -v .venv/bin/pylint 2>/dev/null || echo pylint)
-BLACK := $(shell command -v .venv/bin/black 2>/dev/null || echo black)
-ISORT := $(shell command -v .venv/bin/isort 2>/dev/null || echo isort)
-MYPY := $(shell command -v .venv/bin/mypy 2>/dev/null || echo mypy)
+PYTEST := $(PYTHON) -m pytest
+FLAKE8 := $(PYTHON) -m flake8
+PYLINT := $(PYTHON) -m pylint
+BLACK := $(PYTHON) -m black
+ISORT := $(PYTHON) -m isort
+MYPY := $(PYTHON) -m mypy
 
 help:
 	@echo "FIT Analyzer - Professional Python Library"
@@ -56,19 +56,19 @@ install-editable:
 	$(PIP) install -e .
 
 test:
-	$(PYTEST) tests/ -v
+	$(PYTEST) tests/ -n auto -v
 
 test-fast:
-	$(PYTEST) tests/ -v -m "not slow"
+	$(PYTEST) tests/ -n auto -v -m "not slow"
 
 test-unit:
-	$(PYTEST) tests/test_parser.py tests/test_sync.py -v
+	$(PYTEST) tests/test_parser.py tests/test_sync.py -n auto -v
 
 test-integration:
 	$(PYTEST) tests/test_integration.py -v
 
 coverage:
-	$(PYTEST) tests/ -v --cov=src/fitanalyzer --cov-report=term-missing --cov-report=html
+	$(PYTEST) tests/ -n auto -v --cov=src/fitanalyzer --cov-report=term-missing --cov-report=html
 	@echo ""
 	@echo "Coverage report generated: htmlcov/index.html"
 
