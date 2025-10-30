@@ -289,7 +289,7 @@ class TestAnalysisExecution(unittest.TestCase):
         mock_main.return_value = 0
         mock_parse.return_value = Mock()
 
-        result = run_analysis(ftp=300, directory=self.test_dir)
+        result = run_analysis(directory=self.test_dir, ftp=300)
 
         self.assertTrue(result)
         mock_main.assert_called_once()
@@ -299,7 +299,7 @@ class TestAnalysisExecution(unittest.TestCase):
         empty_dir = tempfile.mkdtemp()
 
         try:
-            result = run_analysis(ftp=300, directory=empty_dir)
+            result = run_analysis(directory=empty_dir, ftp=300)
 
             self.assertFalse(result)
         finally:
@@ -312,11 +312,102 @@ class TestAnalysisExecution(unittest.TestCase):
         mock_main.return_value = 1
         mock_parse.return_value = Mock()
 
-        result = run_analysis(ftp=300, directory=self.test_dir)
+        result = run_analysis(directory=self.test_dir, ftp=300)
 
         self.assertFalse(result)
 
-        self.assertFalse(result)
+    @patch("fitanalyzer.parser.main_with_args")
+    @patch("fitanalyzer.parser.parse_arguments")
+    def test_run_analysis_with_output_dir(self, mock_parse, mock_main):
+        """Test analysis with custom output directory"""
+        mock_main.return_value = 0
+        mock_parsed_args = Mock()
+        mock_parse.return_value = mock_parsed_args
+
+        output_dir = tempfile.mkdtemp()
+        try:
+            result = run_analysis(
+                directory=self.test_dir,
+                output_dir=output_dir,
+                ftp=300
+            )
+
+            self.assertTrue(result)
+            mock_main.assert_called_once_with(mock_parsed_args)
+            
+            # Check that parse_arguments was called with correct arguments
+            call_args = mock_parse.call_args[0][0]
+            self.assertIn("--output-dir", call_args)
+            self.assertIn(output_dir, call_args)
+        finally:
+            shutil.rmtree(output_dir)
+
+    @patch("fitanalyzer.parser.main_with_args")
+    @patch("fitanalyzer.parser.parse_arguments")
+    def test_run_analysis_kwargs_parameters(self, mock_parse, mock_main):
+        """Test analysis with parameters passed via kwargs"""
+        mock_main.return_value = 0
+        mock_parsed_args = Mock()
+        mock_parse.return_value = mock_parsed_args
+
+        result = run_analysis(
+            directory=self.test_dir,
+            output_dir="custom_output",
+            ftp=250,
+            hrrest=50,
+            hrmax=180,
+            multisport=False
+        )
+
+        self.assertTrue(result)
+        call_args = mock_parse.call_args[0][0]
+        
+        # Check all parameters are passed correctly
+        self.assertIn("--ftp", call_args)
+        self.assertIn("250", call_args)
+        self.assertIn("--hrrest", call_args)
+        self.assertIn("50", call_args)
+        self.assertIn("--hrmax", call_args)
+        self.assertIn("180", call_args)
+        self.assertIn("--output-dir", call_args)
+        self.assertIn("custom_output", call_args)
+        self.assertNotIn("--multisport", call_args)  # Should be False
+
+    def test_run_analysis_single_file(self):
+        """Test analysis with single FIT file"""
+        # Create a single FIT file
+        fit_file = Path(self.test_dir) / "single_ACTIVITY.fit"
+        fit_file.touch()
+
+        with patch("fitanalyzer.parser.main_with_args") as mock_main, \
+             patch("fitanalyzer.parser.parse_arguments") as mock_parse:
+            mock_main.return_value = 0
+            mock_parsed_args = Mock()
+            mock_parse.return_value = mock_parsed_args
+
+            result = run_analysis(directory=str(fit_file))
+
+            self.assertTrue(result)
+            mock_main.assert_called_once_with(mock_parsed_args)
+
+    def test_run_analysis_default_parameters(self):
+        """Test analysis with default parameters"""
+        with patch("fitanalyzer.parser.main_with_args") as mock_main, \
+             patch("fitanalyzer.parser.parse_arguments") as mock_parse:
+            mock_main.return_value = 0
+            mock_parsed_args = Mock()
+            mock_parse.return_value = mock_parsed_args
+
+            result = run_analysis(directory=self.test_dir)
+
+            self.assertTrue(result)
+            call_args = mock_parse.call_args[0][0]
+            
+            # Check default values are used
+            self.assertIn("--ftp", call_args)
+            self.assertIn("300", call_args)  # DEFAULT_FTP
+            self.assertIn("--output-dir", call_args)
+            self.assertIn("data", call_args)  # default output_dir
 
 
 class TestIdempotency(unittest.TestCase):
@@ -662,6 +753,150 @@ class TestDownloadEdgeCases(unittest.TestCase):
         self.assertTrue(should_dl)
         self.assertTrue(is_update)
         self.assertFalse(check_api)
+
+
+class TestOutputDirFunctionality(unittest.TestCase):
+    """Test --output-dir argument and path handling"""
+
+    def setUp(self):
+        """Set up test directories"""
+        self.test_dir = tempfile.mkdtemp()
+        self.output_dir = tempfile.mkdtemp()
+        
+        # Create test FIT files
+        for i in range(2):
+            (Path(self.test_dir) / f"test_activity_{i}_ACTIVITY.fit").touch()
+
+    def tearDown(self):
+        """Clean up test directories"""
+        shutil.rmtree(self.test_dir)
+        shutil.rmtree(self.output_dir)
+
+    @patch("fitanalyzer.sync.subprocess.run")
+    def test_argument_parser_output_dir(self, mock_subprocess):
+        """Test that --output-dir argument is parsed correctly"""
+        from fitanalyzer.sync import main
+        
+        # Mock successful subprocess execution
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_subprocess.return_value = mock_result
+        
+        # Test with minimal patches to avoid complex mocking
+        with patch("sys.argv", [
+            "sync.py", 
+            "--analyze-only", 
+            "--directory", self.test_dir,
+            "--output-dir", self.output_dir
+        ]), \
+        patch("fitanalyzer.sync.run_analysis") as mock_analysis, \
+        patch("builtins.print"):  # Suppress output
+            
+            mock_analysis.return_value = True
+            result = main()
+            
+            # Check that run_analysis was called with correct output_dir
+            mock_analysis.assert_called_once()
+            call_kwargs = mock_analysis.call_args[1]
+            self.assertEqual(call_kwargs["output_dir"], self.output_dir)
+            self.assertEqual(result, 0)
+
+    @patch("fitanalyzer.sync.subprocess.run")
+    def test_argument_parser_default_output_dir(self, mock_subprocess):
+        """Test that default output directory is 'data'"""
+        from fitanalyzer.sync import main
+        
+        # Mock successful subprocess execution
+        mock_result = Mock()
+        mock_result.returncode = 0
+        mock_subprocess.return_value = mock_result
+        
+        with patch("sys.argv", [
+            "sync.py",
+            "--analyze-only",
+            "--directory", self.test_dir
+        ]), \
+        patch("fitanalyzer.sync.run_analysis") as mock_analysis, \
+        patch("builtins.print"):  # Suppress output
+            
+            mock_analysis.return_value = True
+            result = main()
+            
+            # Check that default output_dir is used
+            mock_analysis.assert_called_once()
+            call_kwargs = mock_analysis.call_args[1]
+            self.assertEqual(call_kwargs["output_dir"], "data")
+            self.assertEqual(result, 0)
+
+    def test_run_analysis_output_dir_argument_passing(self):
+        """Test that output_dir is correctly passed to parser arguments"""
+        with patch("fitanalyzer.parser.main_with_args") as mock_main, \
+             patch("fitanalyzer.parser.parse_arguments") as mock_parse:
+            
+            mock_main.return_value = 0
+            mock_parsed_args = Mock()
+            mock_parse.return_value = mock_parsed_args
+            
+            custom_output = "/custom/output/path"
+            result = run_analysis(
+                directory=self.test_dir,
+                output_dir=custom_output
+            )
+            
+            self.assertTrue(result)
+            
+            # Verify that --output-dir argument was passed to parser
+            call_args = mock_parse.call_args[0][0]
+            self.assertIn("--output-dir", call_args)
+            output_dir_index = call_args.index("--output-dir")
+            self.assertEqual(call_args[output_dir_index + 1], custom_output)
+
+    def test_path_handling_relative_vs_absolute(self):
+        """Test that paths are handled correctly (relative to caller)"""
+        # This test verifies that Path objects work as expected
+        relative_path = "./relative/output"
+        absolute_path = "/absolute/output"
+        
+        # Test relative path resolution
+        rel_path_obj = Path(relative_path)
+        abs_path_obj = Path(absolute_path)
+        
+        # Relative paths should resolve relative to current working directory
+        self.assertFalse(rel_path_obj.is_absolute())
+        self.assertTrue(abs_path_obj.is_absolute())
+        
+        # Both should work with expanduser() - relative path gets normalized
+        rel_expanded = rel_path_obj.expanduser()
+        abs_expanded = abs_path_obj.expanduser()
+        
+        # Path normalization removes the ./ prefix
+        self.assertEqual(str(rel_expanded), "relative/output")
+        self.assertEqual(str(abs_expanded), absolute_path)
+
+    def test_single_file_handling_with_output_dir(self):
+        """Test that single file analysis works with custom output directory"""
+        # Create a single FIT file
+        single_file = Path(self.test_dir) / "single_test_ACTIVITY.fit"
+        single_file.touch()
+        
+        with patch("fitanalyzer.parser.main_with_args") as mock_main, \
+             patch("fitanalyzer.parser.parse_arguments") as mock_parse:
+            
+            mock_main.return_value = 0
+            mock_parsed_args = Mock()
+            mock_parse.return_value = mock_parsed_args
+            
+            result = run_analysis(
+                directory=str(single_file),
+                output_dir=self.output_dir
+            )
+            
+            self.assertTrue(result)
+            
+            # Verify the file was recognized and arguments include output_dir
+            call_args = mock_parse.call_args[0][0]
+            self.assertIn("--output-dir", call_args)
+            self.assertIn(self.output_dir, call_args)
 
 
 if __name__ == "__main__":

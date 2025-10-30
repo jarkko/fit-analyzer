@@ -690,29 +690,36 @@ def download_new_activities(
 
 
 def run_analysis(
-    ftp: float = DEFAULT_FTP,
-    hrrest: int = DEFAULT_HR_REST,
-    hrmax: int = DEFAULT_HR_MAX,
-    multisport: bool = True,
     directory: str = ".",
+    output_dir: str = "data",
+    **kwargs
 ) -> None:
     """Run the FIT file analysis using the parser module.
 
     Args:
-        ftp: Functional Threshold Power in watts
-        hrrest: Resting heart rate in bpm
-        hrmax: Maximum heart rate in bpm
-        multisport: Whether to process multisport activities
         directory: Directory containing FIT files
+        output_dir: Directory for output CSV files
+        **kwargs: Additional arguments (ftp, hrrest, hrmax, multisport)
     """
+    # Extract kwargs with defaults
+    ftp = kwargs.get("ftp", DEFAULT_FTP)
+    hrrest = kwargs.get("hrrest", DEFAULT_HR_REST)
+    hrmax = kwargs.get("hrmax", DEFAULT_HR_MAX)
+    multisport = kwargs.get("multisport", True)
+
     print("\n📊 Running analysis on all FIT files...")
 
     try:
         # Import parser module (relative import must be inside function)
         from . import parser  # pylint: disable=import-outside-toplevel
 
-        # Get all FIT files in the directory
-        fit_files = list(Path(directory).glob("*_ACTIVITY.fit"))
+        # Get all FIT files in the directory or use single file
+        directory_path = Path(directory)
+        if directory_path.is_file() and directory_path.name.endswith("_ACTIVITY.fit"):
+            fit_files = [directory_path]
+        else:
+            fit_files = list(directory_path.glob("*_ACTIVITY.fit"))
+
         if not fit_files:
             print("⚠️  No FIT files found to analyze")
             return False
@@ -722,6 +729,7 @@ def run_analysis(
         args.extend(["--ftp", str(ftp)])
         args.extend(["--hrrest", str(hrrest)])
         args.extend(["--hrmax", str(hrmax)])
+        args.extend(["--output-dir", str(output_dir)])
         args.append("--dump-sets")  # Always save strength training sets
         if multisport:
             args.append("--multisport")
@@ -783,15 +791,21 @@ def main() -> int:
         action="store_true",
         help="Force re-download of activities even if they already exist",
     )
+    parser.add_argument(
+        "--output-dir",
+        default="data",
+        help="Directory for output CSV files (default: data)",
+    )
 
     args = parser.parse_args()
 
     print("🏃 Garmin Connect Auto-Sync")
     print("=" * 50)
 
-    # Ensure directory exists
+    # Ensure directory exists (unless it's a single file)
     directory = Path(args.directory).expanduser()
-    directory.mkdir(parents=True, exist_ok=True)
+    if not directory.is_file():
+        directory.mkdir(parents=True, exist_ok=True)
 
     # Check for garth library
     if not args.analyze_only:
@@ -813,18 +827,20 @@ def main() -> int:
     # Run analysis
     if not args.download_only:
         run_analysis(
+            directory=str(directory),
+            output_dir=args.output_dir,
             ftp=args.ftp,
             hrrest=args.hrrest,
             hrmax=args.hrmax,
             multisport=not args.no_multisport,
-            directory=directory,
         )
 
     print("\n🎉 Done!")
     if new_activities > 0:
         print(f"   Downloaded {new_activities} new activities")
-    print("   Summary saved to: data/workout_summary_from_fit.csv")
-    print("   Strength sets saved to: data/strength_training_summary.csv")
+    output_dir = Path(args.output_dir)
+    print(f"   Summary saved to: {output_dir / 'workout_summary_from_fit.csv'}")
+    print(f"   Strength sets saved to: {output_dir / 'strength_training_summary.csv'}")
 
     return 0
 
