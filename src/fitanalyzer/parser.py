@@ -113,6 +113,9 @@ def summarize_fit_sessions(
                     "time": d["timestamp"],
                     "hr": d.get("heart_rate", np.nan),
                     "power": d.get("power", np.nan),
+                    "speed": d.get("speed", np.nan),
+                    "cadence": d.get("cadence", np.nan),
+                    "distance": d.get("distance", np.nan),
                 }
                 for m in ff.get_messages("record")
                 if (d := {d.name: d.value for d in m})
@@ -132,18 +135,46 @@ def summarize_fit_sessions(
 
 
 def _calculate_metrics(df: pd.DataFrame, dur_hr: float, config: AnalysisConfig) -> Dict[str, float]:
-    """Calculate power and heart rate metrics from session data.
+    """Calculate power, heart rate, speed, cadence, and distance metrics from session data.
 
     Args:
-        df: Resampled DataFrame with hr and power columns
+        df: Resampled DataFrame with hr, power, speed, cadence, distance columns
         dur_hr: Duration in hours
         config: Analysis configuration with ftp, hr_rest, hr_max
 
     Returns:
-        Dictionary with avg_hr, max_hr, avg_p, max_p, npw, intensity_factor, tss, trimp
+        Dictionary with all calculated metrics including speed, cadence, distance
     """
     npw = np_power(df["power"].fillna(0)) if df["power"].notna().any() else np.nan
     intensity_factor = (npw / config.ftp) if np.isfinite(npw) and config.ftp > 0 else np.nan
+
+    # Calculate speed metrics (m/s and km/h)
+    if "speed" in df.columns:
+        avg_speed_mps = float(df["speed"].mean()) if df["speed"].notna().any() else np.nan
+        max_speed_mps = float(df["speed"].max()) if df["speed"].notna().any() else np.nan
+        avg_speed_kph = avg_speed_mps * 3.6 if np.isfinite(avg_speed_mps) else np.nan
+        max_speed_kph = max_speed_mps * 3.6 if np.isfinite(max_speed_mps) else np.nan
+    else:
+        avg_speed_mps = max_speed_mps = avg_speed_kph = max_speed_kph = np.nan
+
+    # Calculate cadence metrics
+    if "cadence" in df.columns:
+        avg_cadence = float(df["cadence"].mean()) if df["cadence"].notna().any() else np.nan
+        max_cadence = float(df["cadence"].max()) if df["cadence"].notna().any() else np.nan
+    else:
+        avg_cadence = max_cadence = np.nan
+
+    # Calculate distance metrics (total distance covered)
+    if "distance" in df.columns:
+        distance_series = df["distance"].dropna()
+        if len(distance_series) > 1:
+            total_distance_m = float(distance_series.iloc[-1] - distance_series.iloc[0])
+            total_distance_km = total_distance_m / 1000.0
+        else:
+            total_distance_m = np.nan
+            total_distance_km = np.nan
+    else:
+        total_distance_m = total_distance_km = np.nan
 
     return {
         "avg_hr": float(df["hr"].mean()) if df["hr"].notna().any() else np.nan,
@@ -162,6 +193,17 @@ def _calculate_metrics(df: pd.DataFrame, dur_hr: float, config: AnalysisConfig) 
             if df["hr"].notna().any()
             else 0.0
         ),
+        # Speed metrics
+        "avg_speed_mps": avg_speed_mps,
+        "max_speed_mps": max_speed_mps,
+        "avg_speed_kph": avg_speed_kph,
+        "max_speed_kph": max_speed_kph,
+        # Cadence metrics
+        "avg_cadence": avg_cadence,
+        "max_cadence": max_cadence,
+        # Distance metrics
+        "total_distance_m": total_distance_m,
+        "total_distance_km": total_distance_km,
     }
 
 
@@ -308,6 +350,17 @@ def process_session_data(
         ),
         "TSS": round(metrics["tss"], 1) if np.isfinite(metrics["tss"]) else "",
         "TRIMP": round(metrics["trimp"], 1),
+        # Speed metrics
+        "avg_speed_mps": round(metrics["avg_speed_mps"], 2) if np.isfinite(metrics["avg_speed_mps"]) else "",
+        "max_speed_mps": round(metrics["max_speed_mps"], 2) if np.isfinite(metrics["max_speed_mps"]) else "",
+        "avg_speed_kph": round(metrics["avg_speed_kph"], 2) if np.isfinite(metrics["avg_speed_kph"]) else "",
+        "max_speed_kph": round(metrics["max_speed_kph"], 2) if np.isfinite(metrics["max_speed_kph"]) else "",
+        # Cadence metrics
+        "avg_cadence": round(metrics["avg_cadence"], 1) if np.isfinite(metrics["avg_cadence"]) else "",
+        "max_cadence": int(metrics["max_cadence"]) if np.isfinite(metrics["max_cadence"]) else "",
+        # Distance metrics
+        "total_distance_m": round(metrics["total_distance_m"], 1) if np.isfinite(metrics["total_distance_m"]) else "",
+        "total_distance_km": round(metrics["total_distance_km"], 3) if np.isfinite(metrics["total_distance_km"]) else "",
         # Keep these for deduplication logic
         "_original_file": path,
         "_session_index": session_idx,
@@ -353,6 +406,9 @@ def _extract_records_from_fit(ff: FitFile) -> pd.DataFrame:
                     "time": d["timestamp"],
                     "hr": d.get("heart_rate", np.nan),
                     "power": d.get("power", np.nan),
+                    "speed": d.get("enhanced_speed", d.get("speed", np.nan)),
+                    "cadence": d.get("cadence", np.nan),
+                    "distance": d.get("distance", np.nan),
                 }
             )
     df = pd.DataFrame(recs)
@@ -553,12 +609,46 @@ def _prepare_timezone_aware_index(df):
     return start_utc, end_utc, time_index
 
 
-def _calculate_metrics_original(df, config: AnalysisConfig, start_utc, end_utc) -> Dict[str, Any]:
+def _calculate_metrics_original(df: Any, config: AnalysisConfig, start_utc: Any, end_utc: Any) -> Dict[str, Any]:
     """Calculate all training metrics from dataframe for original function"""
     dur_sec = int((end_utc - start_utc).total_seconds()) + 1
     dur_hr = dur_sec / 3600.0
     npw = np_power(df["power"].fillna(0)) if df["power"].notna().any() else np.nan
     intensity_factor = (npw / config.ftp) if np.isfinite(npw) and config.ftp > 0 else np.nan
+
+    # Calculate speed metrics (m/s and km/h)
+    if "speed" in df.columns:
+        avg_speed_mps = float(df["speed"].mean()) if df["speed"].notna().any() else np.nan
+        max_speed_mps = float(df["speed"].max()) if df["speed"].notna().any() else np.nan
+        avg_speed_kph = avg_speed_mps * 3.6 if np.isfinite(avg_speed_mps) else np.nan
+        max_speed_kph = max_speed_mps * 3.6 if np.isfinite(max_speed_mps) else np.nan
+    else:
+        avg_speed_mps = max_speed_mps = avg_speed_kph = max_speed_kph = np.nan
+
+    # Calculate cadence metrics
+    if "cadence" in df.columns:
+        avg_cadence = float(df["cadence"].mean()) if df["cadence"].notna().any() else np.nan
+        max_cadence = float(df["cadence"].max()) if df["cadence"].notna().any() else np.nan
+    else:
+        avg_cadence = max_cadence = np.nan
+
+    # Calculate distance metrics (total distance covered)
+    if "distance" in df.columns:
+        distance_series = df["distance"].dropna()
+        if len(distance_series) > 1:
+            total_distance_m = float(distance_series.iloc[-1] - distance_series.iloc[0])
+            total_distance_km = total_distance_m / 1000.0
+        else:
+            total_distance_m = np.nan
+            total_distance_km = np.nan
+    else:
+        total_distance_m = total_distance_km = np.nan
+    if len(distance_series) > 1:
+        total_distance_m = float(distance_series.iloc[-1] - distance_series.iloc[0])
+        total_distance_km = total_distance_m / 1000.0
+    else:
+        total_distance_m = np.nan
+        total_distance_km = np.nan
 
     return {
         "dur_sec": dur_sec,
@@ -578,6 +668,17 @@ def _calculate_metrics_original(df, config: AnalysisConfig, start_utc, end_utc) 
             if df["hr"].notna().any()
             else 0.0
         ),
+        # Speed metrics
+        "avg_speed_mps": avg_speed_mps,
+        "max_speed_mps": max_speed_mps,
+        "avg_speed_kph": avg_speed_kph,
+        "max_speed_kph": max_speed_kph,
+        # Cadence metrics
+        "avg_cadence": avg_cadence,
+        "max_cadence": max_cadence,
+        # Distance metrics
+        "total_distance_m": total_distance_m,
+        "total_distance_km": total_distance_km,
     }
 
 
@@ -626,6 +727,17 @@ def summarize_fit_original(
         "IF": round(metrics["IF"], 3) if np.isfinite(metrics["IF"]) else "",
         "TSS": round(metrics["TSS"], 1) if np.isfinite(metrics["TSS"]) else "",
         "TRIMP": round(metrics["TRIMP"], 1),
+        # Speed metrics
+        "avg_speed_mps": round(metrics["avg_speed_mps"], 2) if np.isfinite(metrics["avg_speed_mps"]) else "",
+        "max_speed_mps": round(metrics["max_speed_mps"], 2) if np.isfinite(metrics["max_speed_mps"]) else "",
+        "avg_speed_kph": round(metrics["avg_speed_kph"], 2) if np.isfinite(metrics["avg_speed_kph"]) else "",
+        "max_speed_kph": round(metrics["max_speed_kph"], 2) if np.isfinite(metrics["max_speed_kph"]) else "",
+        # Cadence metrics
+        "avg_cadence": round(metrics["avg_cadence"], 1) if np.isfinite(metrics["avg_cadence"]) else "",
+        "max_cadence": int(metrics["max_cadence"]) if np.isfinite(metrics["max_cadence"]) else "",
+        # Distance metrics
+        "total_distance_m": round(metrics["total_distance_m"], 1) if np.isfinite(metrics["total_distance_m"]) else "",
+        "total_distance_km": round(metrics["total_distance_km"], 3) if np.isfinite(metrics["total_distance_km"]) else "",
     }, df_sets
 
 

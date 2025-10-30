@@ -28,6 +28,8 @@ help:
 	@echo "  make test-unit         Run unit tests only"
 	@echo "  make test-integration  Run integration tests (requires FIT files, slow)"
 	@echo "  make coverage          Generate coverage report"
+	@echo "  make validate-csv      Validate CSV schema"
+	@echo "  make regenerate-csv    Regenerate CSV with fresh modules"
 	@echo ""
 	@echo "Code Quality:"
 	@echo "  make lint              Run all linters"
@@ -116,5 +118,13 @@ sync:
 analyze:
 	@echo "Analyzing FIT files in data/samples/..."
 	./analyze.py data/samples/*.fit --ftp 300 --multisport
+
+validate-csv:
+	@echo "Validating CSV schema..."
+	$(PYTHON) validate_csv.py
+
+regenerate-csv:
+	@echo "Regenerating CSV with fresh modules..."
+	$(PYTHON) validate_csv.py --regenerate
 
 all: clean install-dev test lint
