@@ -188,7 +188,7 @@ class TestLibraryIntegration(unittest.TestCase):
         self.assertGreater(summary["TRIMP"], 0)
         self.assertAlmostEqual(summary["TRIMP"], 112.9, places=1)
 
-        print(f"\n✅ Validated metrics:")
+        print("\n✅ Validated metrics:")
         print(f"   Duration: {summary['duration_min']} min")
         print(f"   Avg HR: {summary['avg_hr']} bpm")
         print(f"   Max HR: {summary['max_hr']} bpm")

@@ -3,6 +3,7 @@ Unit tests for Garmin sync module.
 Tests Garmin Connect integration, file management, and sync logic.
 """
 
+import io
 import os
 import shutil
 import subprocess
@@ -110,7 +111,7 @@ class TestGarminAuthentication(unittest.TestCase):
         mock_garth.resume.side_effect = RuntimeError("Session expired")
 
         # Login should be attempted and will succeed
-        result = authenticate_garmin(email="test@test.com", password="password")
+        authenticate_garmin(email="test@test.com", password="password")
 
         # Should attempt resume
         mock_garth.resume.assert_called_once()
@@ -471,6 +472,188 @@ class TestExerciseSetsAPI(unittest.TestCase):
 
         result = load_exercise_sets_from_json("/nonexistent/file.json")
         self.assertIsNone(result)
+
+
+class TestAuthenticationEdgeCases(unittest.TestCase):
+    """Test authentication edge cases and error paths"""
+
+    @patch("fitanalyzer.sync.garth", None)
+    def test_authenticate_garth_not_available(self):
+        """Test authentication when garth library is not installed (lines 124)"""
+        with self.assertRaises(ImportError) as context:
+            authenticate_garmin()
+        self.assertIn("garth library not available", str(context.exception))
+
+    @patch("fitanalyzer.sync.garth")
+    @patch("fitanalyzer.sync.Path")
+    @patch("fitanalyzer.sync.os.getenv")
+    @patch("fitanalyzer.sync.input")
+    def test_authenticate_with_env_email_no_password(
+        self, mock_input, mock_getenv, mock_path, mock_garth
+    ):
+        """Test authentication with email from environment (lines 142-144)"""
+        mock_token_path = Mock()
+        mock_token_path.exists.return_value = False
+        mock_token_path.parent = Mock()
+        mock_path.return_value.expanduser.return_value = mock_token_path
+
+        # Email from env, password will be prompted
+        def getenv_side_effect(key):
+            if key == "GARMIN_EMAIL":
+                return "env@example.com"
+            return None
+
+        mock_getenv.side_effect = getenv_side_effect
+        mock_input.return_value = "password123"  # getpass returns this
+
+        with patch("fitanalyzer.sync.getpass.getpass", return_value="password123"):
+            authenticate_garmin()
+
+        mock_garth.login.assert_called_once_with("env@example.com", "password123")
+
+    @patch("fitanalyzer.sync.garth")
+    @patch("fitanalyzer.sync.Path")
+    @patch("fitanalyzer.sync.os.getenv")
+    @patch("fitanalyzer.sync.input")
+    def test_authenticate_prompt_email_env_password(
+        self, mock_input, mock_getenv, mock_path, mock_garth
+    ):
+        """Test authentication with password from environment (lines 147-149)"""
+        mock_token_path = Mock()
+        mock_token_path.exists.return_value = False
+        mock_token_path.parent = Mock()
+        mock_path.return_value.expanduser.return_value = mock_token_path
+
+        # Password from env, email will be prompted
+        def getenv_side_effect(key):
+            if key == "GARMIN_PASSWORD":
+                return "env_password"
+            return None
+
+        mock_getenv.side_effect = getenv_side_effect
+        mock_input.return_value = "prompted@example.com"
+
+        authenticate_garmin()
+
+        mock_garth.login.assert_called_once_with("prompted@example.com", "env_password")
+
+    @patch("fitanalyzer.sync.garth")
+    @patch("fitanalyzer.sync.Path")
+    def test_authenticate_login_failure_with_mfa_hint(self, mock_path, mock_garth):
+        """Test authentication failure with MFA error (lines 161-167)"""
+        mock_token_path = Mock()
+        mock_token_path.exists.return_value = False
+        mock_token_path.parent = Mock()
+        mock_path.return_value.expanduser.return_value = mock_token_path
+
+        # Login fails with MFA error
+        mock_garth.login.side_effect = RuntimeError("MFA verification required")
+
+        result = authenticate_garmin(email="test@example.com", password="testpass")
+
+        self.assertFalse(result)
+
+    @patch("fitanalyzer.sync.garth")
+    @patch("fitanalyzer.sync.Path")
+    def test_authenticate_login_generic_failure(self, mock_path, mock_garth):
+        """Test authentication failure without MFA (lines 161-167)"""
+        mock_token_path = Mock()
+        mock_token_path.exists.return_value = False
+        mock_token_path.parent = Mock()
+        mock_path.return_value.expanduser.return_value = mock_token_path
+
+        # Login fails with generic error
+        mock_garth.login.side_effect = ValueError("Invalid credentials")
+
+        result = authenticate_garmin(email="test@example.com", password="testpass")
+
+        self.assertFalse(result)
+
+
+class TestDownloadEdgeCases(unittest.TestCase):
+    """Test download and file handling edge cases"""
+
+    def setUp(self):
+        """Set up test directory"""
+        self.test_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        """Clean up test directory"""
+        shutil.rmtree(self.test_dir)
+
+    def test_extract_fit_from_zip(self):
+        """Test extracting FIT file from ZIP (lines 227-233)"""
+        from fitanalyzer.sync import _extract_fit_from_zip
+        import zipfile
+
+        # Create a mock ZIP with a .fit file
+        fit_content = b".FIT\x00test_data"
+        zip_buffer = io.BytesIO()
+        with zipfile.ZipFile(zip_buffer, "w") as zf:
+            zf.writestr("test_activity.fit", fit_content)
+
+        zip_data = zip_buffer.getvalue()
+
+        # Extract FIT from ZIP
+        result = _extract_fit_from_zip(zip_data)
+        self.assertEqual(result, fit_content)
+
+    def test_extract_fit_not_zip(self):
+        """Test extracting when input is already a FIT file (lines 227-233)"""
+        from fitanalyzer.sync import _extract_fit_from_zip
+
+        # FIT file directly (not zipped)
+        fit_content = b".FIT\x00test_data"
+
+        result = _extract_fit_from_zip(fit_content)
+        self.assertEqual(result, fit_content)
+
+    def test_should_download_activity_new(self):
+        """Test download decision for new activity (lines 265-272)"""
+        from fitanalyzer.sync import _should_download_activity
+
+        activity = {"activityId": 12345}
+        existing = {}
+
+        should_dl, is_update, check_api = _should_download_activity(activity, existing)
+
+        self.assertTrue(should_dl)
+        self.assertFalse(is_update)
+        self.assertFalse(check_api)
+
+    def test_should_download_activity_no_update_timestamp(self):
+        """Test download decision when no update timestamp (lines 277-284)"""
+        from fitanalyzer.sync import _should_download_activity
+        import time
+
+        activity = {"activityId": 12345}  # No updateDate or lastModified
+        existing = {"12345": time.time()}
+
+        should_dl, is_update, check_api = _should_download_activity(activity, existing)
+
+        self.assertFalse(should_dl)
+        self.assertFalse(is_update)
+        self.assertTrue(check_api)  # Should still check API updates
+
+    def test_should_download_activity_updated(self):
+        """Test download decision for updated activity (lines 277-284)"""
+        from fitanalyzer.sync import _should_download_activity
+        import time
+
+        current_time = time.time()
+        older_time = current_time - 3600  # 1 hour ago
+
+        activity = {
+            "activityId": 12345,
+            "updateDate": int(current_time * 1000),  # Now (in ms)
+        }
+        existing = {"12345": older_time}
+
+        should_dl, is_update, check_api = _should_download_activity(activity, existing)
+
+        self.assertTrue(should_dl)
+        self.assertTrue(is_update)
+        self.assertFalse(check_api)
 
 
 if __name__ == "__main__":
