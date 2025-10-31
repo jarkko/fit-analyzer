@@ -7,14 +7,10 @@ This package provides tools for:
 - Calculating performance metrics (NP, TSS, TRIMP, IF)
 """
 
+from .activities import summarize_fit_original, summarize_fit_sessions
 from .credentials import create_env_file as setup_credentials
-from .parser import (
-    np_power,
-    process_session_data,
-    summarize_fit_original,
-    summarize_fit_sessions,
-    trimp_from_hr,
-)
+from .metrics import np_power, trimp_from_hr
+from .sessions import process_session_data
 from .sync import (
     authenticate_garmin,
     download_new_activities,
@@ -31,9 +27,9 @@ __all__ = [
     "process_session_data",
     "np_power",
     "trimp_from_hr",
+    "setup_credentials",
     "authenticate_garmin",
     "download_new_activities",
-    "run_analysis",
     "get_existing_activity_ids",
-    "setup_credentials",
+    "run_analysis",
 ]

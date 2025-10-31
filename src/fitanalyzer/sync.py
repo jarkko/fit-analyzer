@@ -8,7 +8,6 @@ Automatically downloads new activities from Garmin Connect and updates your work
 import argparse
 import getpass
 import io
-import json
 import os
 import subprocess
 import sys
@@ -18,6 +17,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
 from .constants import DEFAULT_FTP, DEFAULT_HR_MAX, DEFAULT_HR_REST, DEFAULT_SYNC_DAYS
+from .strength import load_exercise_sets_from_json, save_exercise_sets_to_json
 
 __all__ = [
     "authenticate_garmin",
@@ -489,45 +489,6 @@ def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
         return None
 
 
-def save_exercise_sets_to_json(fit_file_path: str, exercise_sets: Dict[str, Any]) -> None:
-    """Save exercise sets data to JSON file alongside FIT file.
-
-    Args:
-        fit_file_path: Path to the FIT file
-        exercise_sets: Exercise sets data from API
-    """
-    fit_path = Path(fit_file_path)
-    json_path = fit_path.with_name(f"{fit_path.stem}_exercises.json")
-
-    # Create directory if it doesn't exist
-    json_path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(exercise_sets, f, indent=2)
-
-
-def load_exercise_sets_from_json(fit_file_path: str) -> Optional[Dict[str, Any]]:
-    """Load exercise sets data from JSON file.
-
-    Args:
-        fit_file_path: Path to the FIT file
-
-    Returns:
-        Exercise sets data, or None if file doesn't exist
-    """
-    fit_path = Path(fit_file_path)
-    json_path = fit_path.with_name(f"{fit_path.stem}_exercises.json")
-
-    if not json_path.exists():
-        return None
-
-    try:
-        with open(json_path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return None
-
-
 def _process_activity(
     activity: Dict[str, Any],
     existing_activities: Dict[str, float],
@@ -710,8 +671,8 @@ def run_analysis(
     print("\n📊 Running analysis on all FIT files...")
 
     try:
-        # Import parser module (relative import must be inside function)
-        from . import parser  # pylint: disable=import-outside-toplevel
+        # Import cli module (relative import must be inside function)
+        from . import cli  # pylint: disable=import-outside-toplevel
 
         # Get all FIT files in the directory or use single file
         directory_path = Path(directory)
@@ -735,10 +696,10 @@ def run_analysis(
             args.append("--multisport")
 
         # Parse arguments using parser's argument parser
-        parsed_args = parser.parse_arguments(args)
+        parsed_args = cli.parse_arguments(args)
 
         # Run the parser main logic
-        result = parser.main_with_args(parsed_args)
+        result = cli.main_with_args(parsed_args)
 
         if result == 0:
             print("✅ Analysis complete!")

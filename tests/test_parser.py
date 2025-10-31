@@ -13,16 +13,11 @@ from unittest.mock import MagicMock, Mock, patch
 import numpy as np
 import pandas as pd
 
-from fitanalyzer.parser import (
-    SPORT_MAPPING,
-    SUB_SPORT_MAPPING,
-    AnalysisConfig,
-    np_power,
-    process_session_data,
-    summarize_fit_original,
-    summarize_fit_sessions,
-    trimp_from_hr,
-)
+from fitanalyzer.activities import summarize_fit_original, summarize_fit_sessions
+from fitanalyzer.config import AnalysisConfig
+from fitanalyzer.constants import SPORT_MAPPING, SUB_SPORT_MAPPING
+from fitanalyzer.metrics import np_power, trimp_from_hr
+from fitanalyzer.sessions import process_session_data
 
 
 class TestNormalizedPower(unittest.TestCase):
@@ -153,7 +148,7 @@ class TestSessionDataProcessing(unittest.TestCase):
 class TestFITFileParsing(unittest.TestCase):
     """Test FIT file parsing and analysis"""
 
-    @patch("fitanalyzer.parser.FitFile")
+    @patch("fitanalyzer.activities.FitFile")
     def test_summarize_fit_original_no_data(self, mock_fitfile):
         """Test handling of FIT file with no record data"""
         mock_ff = MagicMock()
@@ -161,11 +156,11 @@ class TestFITFileParsing(unittest.TestCase):
         mock_fitfile.return_value = mock_ff
 
         config = AnalysisConfig(ftp=300, hr_rest=60, hr_max=190, tz_name="UTC")
-        result, df_sets = summarize_fit_original("test.fit", config)
+        result = summarize_fit_original("test.fit", config)
 
         self.assertIsNone(result)
 
-    @patch("fitanalyzer.parser.FitFile")
+    @patch("fitanalyzer.activities.FitFile")
     def test_summarize_fit_sessions_single_session(self, mock_fitfile):
         """Test multisport processing with single session"""
         mock_ff = MagicMock()
@@ -437,8 +432,8 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_summarize_fit_sessions_missing_start_time(self):
         """Test handling of sessions without start_time."""
-        with patch("fitanalyzer.parser.FitFile") as mock_fitfile:
-            with patch("fitanalyzer.parser._extract_sessions_from_fit") as mock_extract:
+        with patch("fitanalyzer.activities.FitFile") as mock_fitfile:
+            with patch("fitanalyzer.activities.extract_sessions_from_fit") as mock_extract:
                 # Session missing start_time
                 mock_extract.return_value = [
                     {"total_timer_time": 1000},  # No start_time
@@ -453,8 +448,8 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_summarize_fit_sessions_zero_timer_time(self):
         """Test handling of sessions with zero total_timer_time."""
-        with patch("fitanalyzer.parser.FitFile") as mock_fitfile:
-            with patch("fitanalyzer.parser._extract_sessions_from_fit") as mock_extract:
+        with patch("fitanalyzer.activities.FitFile") as mock_fitfile:
+            with patch("fitanalyzer.activities.extract_sessions_from_fit") as mock_extract:
                 # Session with zero timer time
                 mock_extract.return_value = [
                     {"start_time": datetime.now(), "total_timer_time": 0},
@@ -467,60 +462,60 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_get_first_valid_value_with_tuple(self):
         """Test _extract_valid_value with tuple input."""
-        from fitanalyzer.parser import _extract_valid_value
+        from fitanalyzer.parser import extract_valid_value
 
         # Valid value in tuple
-        result = _extract_valid_value((1, 2, 3))
+        result = extract_valid_value((1, 2, 3))
         self.assertEqual(result, 1)
 
         # Skip invalid values (65534)
-        result = _extract_valid_value((65534, 100, 200))
+        result = extract_valid_value((65534, 100, 200))
         self.assertEqual(result, 100)
 
         # All invalid
-        result = _extract_valid_value((65534, 65534))
+        result = extract_valid_value((65534, 65534))
         self.assertIsNone(result)
 
         # None in tuple
-        result = _extract_valid_value((None, 100))
+        result = extract_valid_value((None, 100))
         self.assertEqual(result, 100)
 
     def test_get_first_valid_value_with_nan(self):
         """Test _extract_valid_value with NaN and None."""
-        from fitanalyzer.parser import _extract_valid_value
+        from fitanalyzer.parser import extract_valid_value
 
-        result = _extract_valid_value(np.nan)
+        result = extract_valid_value(np.nan)
         self.assertIsNone(result)
 
-        result = _extract_valid_value(None)
+        result = extract_valid_value(None)
         self.assertIsNone(result)
 
     def test_get_first_valid_value_with_invalid_marker(self):
         """Test _extract_valid_value with custom invalid marker."""
-        from fitanalyzer.parser import _extract_valid_value
+        from fitanalyzer.parser import extract_valid_value
 
-        result = _extract_valid_value(65534)
+        result = extract_valid_value(65534)
         self.assertIsNone(result)
 
-        result = _extract_valid_value(100)
+        result = extract_valid_value(100)
         self.assertEqual(result, 100)
 
     def test_get_sport_names_with_string_values(self):
         """Test _get_sport_names when sport/subsport are already strings."""
-        from fitanalyzer.parser import _get_sport_names
+        from fitanalyzer.parser import get_sport_names
 
         sessions = [{"sport": "cycling", "sub_sport": "road"}]
-        sport, subsport = _get_sport_names(sessions)
+        sport, subsport = get_sport_names(sessions)
         self.assertEqual(sport, "cycling")
         self.assertEqual(subsport, "road")
 
     def test_get_sport_names_with_unmapped_codes(self):
         """Test _get_sport_names with codes not in mapping."""
-        from fitanalyzer.parser import _get_sport_names
+        from fitanalyzer.parser import get_sport_names
 
         # Use a code that doesn't exist in mapping
         sessions = [{"sport": 99999, "sub_sport": 88888}]
-        sport, subsport = _get_sport_names(sessions)
+        sport, subsport = get_sport_names(sessions)
         self.assertEqual(sport, "99999")  # Should convert to string
         self.assertEqual(subsport, "88888")
 
@@ -530,7 +525,7 @@ class TestCLIFunctions(unittest.TestCase):
 
     def test_process_multisport_file_with_no_results(self):
         """Test _process_multisport_file when no results returned."""
-        from fitanalyzer.parser import _process_multisport_file
+        from fitanalyzer.cli import _process_multisport_file
 
         args = MagicMock()
         args.ftp = 300
@@ -538,13 +533,13 @@ class TestCLIFunctions(unittest.TestCase):
         args.hrmax = 190
         args.tz = "UTC"
 
-        with patch("fitanalyzer.parser.summarize_fit_sessions", return_value=([], [])):
+        with patch("fitanalyzer.cli.summarize_fit_sessions", return_value=([], [])):
             result = _process_multisport_file("test.fit", args, set())
             self.assertEqual(result, [])
 
     def test_process_multisport_file_with_null_result(self):
         """Test _process_multisport_file with None in results."""
-        from fitanalyzer.parser import _process_multisport_file
+        from fitanalyzer.cli import _process_multisport_file
 
         args = MagicMock()
         args.ftp = 300
@@ -554,7 +549,7 @@ class TestCLIFunctions(unittest.TestCase):
 
         # Return list with None
         with patch(
-            "fitanalyzer.parser.summarize_fit_sessions",
+            "fitanalyzer.cli.summarize_fit_sessions",
             return_value=([None, {"sport": "running"}], []),
         ):
             result = _process_multisport_file("test.fit", args, set())
@@ -563,7 +558,7 @@ class TestCLIFunctions(unittest.TestCase):
 
     def test_process_multisport_file_duplicate_detection(self):
         """Test _process_multisport_file detects duplicates."""
-        from fitanalyzer.parser import _process_multisport_file
+        from fitanalyzer.cli import _process_multisport_file
 
         args = MagicMock()
         args.ftp = 300
@@ -581,7 +576,7 @@ class TestCLIFunctions(unittest.TestCase):
 
         processed = set()
 
-        with patch("fitanalyzer.parser.summarize_fit_sessions", return_value=([session], [])):
+        with patch("fitanalyzer.cli.summarize_fit_sessions", return_value=([session], [])):
             # First call should add it
             result1 = _process_multisport_file("test.fit", args, processed)
             self.assertEqual(len(result1), 1)
@@ -592,7 +587,7 @@ class TestCLIFunctions(unittest.TestCase):
 
     def test_process_single_file(self):
         """Test _process_single_file function."""
-        from fitanalyzer.parser import _process_single_file
+        from fitanalyzer.cli import _process_single_file
 
         args = MagicMock()
         args.ftp = 300
@@ -603,14 +598,14 @@ class TestCLIFunctions(unittest.TestCase):
         summary = {"sport": "cycling", "duration_min": 60.0}
 
         with patch(
-            "fitanalyzer.parser.summarize_fit_original", return_value=(summary, pd.DataFrame())
+            "fitanalyzer.cli.summarize_fit_original", return_value=summary
         ):
             result = _process_single_file("test.fit", args)
             self.assertEqual(result, [summary])
 
     def test_main_with_args_no_files(self):
         """Test main_with_args with no FIT files."""
-        from fitanalyzer.parser import main_with_args
+        from fitanalyzer.cli import main_with_args
 
         args = MagicMock()
         args.fit_files = []
@@ -624,7 +619,7 @@ class TestCLIFunctions(unittest.TestCase):
 
     def test_main_with_args_dump_sets_empty(self):
         """Test main_with_args with dump_sets but no strength data."""
-        from fitanalyzer.parser import main_with_args
+        from fitanalyzer.cli import main_with_args
 
         args = MagicMock()
         args.fit_files = ["test.fit"]
@@ -635,6 +630,7 @@ class TestCLIFunctions(unittest.TestCase):
         args.hrmax = 190
         args.tz = "UTC"
         args.output_dir = "/tmp"
+        args.force = False
 
         summary = {
             "sport": "cycling",
@@ -642,20 +638,23 @@ class TestCLIFunctions(unittest.TestCase):
             "start_time": "10:00:00",
         }
 
-        with patch(
-            "fitanalyzer.parser.summarize_fit_original", return_value=(summary, pd.DataFrame())
-        ):
-            with patch("fitanalyzer.parser._aggregate_strength_sets", return_value=None):
-                with patch("builtins.print"):
-                    result = main_with_args(args)
-                    self.assertEqual(result, 0)
+        with patch("fitanalyzer.cli.summarize_fit_original", return_value=summary):
+            with patch("fitanalyzer.cli.load_existing_analysis", return_value={}):
+                with patch("fitanalyzer.cli.load_existing_rows", return_value=[]):
+                    with patch("fitanalyzer.cli.determine_files_to_process", return_value=(["test.fit"], 0)):
+                        with patch("fitanalyzer.cli.FitFile"):
+                            with patch("fitanalyzer.cli.extract_sets_from_fit", return_value=pd.DataFrame()):
+                                with patch("fitanalyzer.cli.aggregate_strength_sets", return_value=None):
+                                    with patch("builtins.print"):
+                                        result = main_with_args(args)
+                                        self.assertEqual(result, 0)
 
     def test_main_entry_point(self):
         """Test main() entry point."""
-        from fitanalyzer.parser import main
+        from fitanalyzer.cli import main
 
-        with patch("fitanalyzer.parser.parse_arguments") as mock_parse:
-            with patch("fitanalyzer.parser.main_with_args", return_value=0) as mock_main:
+        with patch("fitanalyzer.cli.parse_arguments") as mock_parse:
+            with patch("fitanalyzer.cli.main_with_args", return_value=0) as mock_main:
                 mock_parse.return_value = MagicMock()
                 result = main()
                 self.assertEqual(result, 0)
@@ -668,11 +667,12 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
 
     def test_session_without_start_time_skipped(self):
         """Test that sessions without start_time are skipped (line 105-106)"""
-        from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
+        from fitanalyzer.config import AnalysisConfig
+        from fitanalyzer.activities import summarize_fit_sessions
 
         # Mock the FitFile and _extract_sessions_from_fit to return invalid sessions
-        with patch("fitanalyzer.parser.FitFile") as mock_fitfile, patch(
-            "fitanalyzer.parser._extract_sessions_from_fit"
+        with patch("fitanalyzer.activities.FitFile") as mock_fitfile, patch(
+            "fitanalyzer.activities.extract_sessions_from_fit"
         ) as mock_extract:
 
             # Return sessions with one missing start_time (line 105-106)
@@ -698,11 +698,12 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
 
     def test_session_with_invalid_timer_time(self):
         """Test that sessions with timer_time <= 0 are skipped (line 107-108)"""
-        from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
+        from fitanalyzer.config import AnalysisConfig
+        from fitanalyzer.activities import summarize_fit_sessions
 
         # Mock the FitFile and _extract_sessions_from_fit to return sessions with invalid timer
-        with patch("fitanalyzer.parser.FitFile") as mock_fitfile, patch(
-            "fitanalyzer.parser._extract_sessions_from_fit"
+        with patch("fitanalyzer.activities.FitFile") as mock_fitfile, patch(
+            "fitanalyzer.activities.extract_sessions_from_fit"
         ) as mock_extract:
 
             # Return sessions with invalid timer_time (line 107-108)
@@ -725,47 +726,36 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
             # Results should be empty or minimal
             self.assertIsInstance(results, list)
 
-    def test_extract_metadata_with_dataframe_input(self):
-        """Test _extract_first_session_metadata with DataFrame (lines 451-452)"""
-        from fitanalyzer.parser import _extract_first_session_metadata
-
-        # The code path we're testing: when sessions is a DataFrame, not a list
-        df_sessions = pd.DataFrame(
-            {"sport": ["cycling"], "sub_sport": ["road"], "date": ["2025-01-01"]}
-        )
-
-        # This will hit line 451 (DataFrame check) and 452 (iloc[0])
-        sport, sub_sport, date = _extract_first_session_metadata(df_sessions)
-
-        # The Series from iloc[0] should work in the .get() calls
-        self.assertEqual(sport, "cycling")
-        self.assertEqual(sub_sport, "road")
-        self.assertEqual(date, "2025-01-01")
-
     def test_aggregate_strength_with_empty_sets(self):
-        """Test _aggregate_strength_sets when df_sets is empty (line 505)"""
-        from fitanalyzer.parser import _aggregate_strength_sets, AnalysisConfig
+        """Test aggregate_strength_sets when df_sets is empty (line 505)"""
+        from fitanalyzer.config import AnalysisConfig
+        from fitanalyzer.aggregation import aggregate_strength_sets
 
         config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="UTC")
 
-        # Mock to return empty DataFrame for sets
-        with patch("fitanalyzer.parser._get_session_info") as mock_session:
-            # Return empty DataFrame that will be skipped
-            mock_session.return_value = ([], pd.DataFrame())
+        # Mock FitFile and summarize_fit_original to return empty DataFrames
+        with patch("fitanalyzer.aggregation.FitFile") as mock_fitfile:
+            mock_ff = MagicMock()
+            mock_ff.get_messages.return_value = []  # Single session (not multisport)
+            mock_fitfile.return_value = mock_ff
 
-            with tempfile.TemporaryDirectory() as tmpdir:
-                # Create a dummy file
-                dummy_file = Path(tmpdir) / "test.fit"
-                dummy_file.write_text("")
+            with patch("fitanalyzer.activities.summarize_fit_original") as mock_summary:
+                # Return dict and empty DataFrame - the empty df_sets will be skipped
+                mock_summary.return_value = ({"file": "test.fit"}, pd.DataFrame())
 
-                result = _aggregate_strength_sets([str(dummy_file)], config, False)
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    # Create a dummy file
+                    dummy_file = Path(tmpdir) / "test.fit"
+                    dummy_file.write_text("")
 
-                # Should return None when all sets are empty
-                self.assertIsNone(result)
+                    result = aggregate_strength_sets([str(dummy_file)], config, False)
+
+                    # Should return None when all sets are empty
+                    self.assertIsNone(result)
 
     def test_timezone_aware_timestamps_tz_convert(self):
         """Test _process_timestamps with already timezone-aware timestamps (lines 183-184)"""
-        from fitanalyzer.parser import _process_timestamps
+        from fitanalyzer.sessions import process_timestamps
         import pytz
 
         # Create timezone-aware timestamps (not UTC)
@@ -776,7 +766,7 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
 
         df = pd.DataFrame({"time": times, "power": [200, 210]})
 
-        result = _process_timestamps(df, "UTC")
+        result = process_timestamps(df, "UTC")
 
         # Should use tz_convert to convert to UTC (line 183-184)
         self.assertIsNotNone(result["start_utc"])
@@ -784,14 +774,14 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
 
     def test_timezone_naive_to_utc(self):
         """Test _process_timestamps with naive timestamps (lines 179-180)"""
-        from fitanalyzer.parser import _process_timestamps
+        from fitanalyzer.sessions import process_timestamps
 
         # Create naive (no timezone) timestamps
         times = pd.DatetimeIndex([datetime(2025, 1, 1, 12, 0, 0), datetime(2025, 1, 1, 12, 1, 0)])
 
         df = pd.DataFrame({"time": times, "power": [200, 210]})
 
-        result = _process_timestamps(df, "UTC")
+        result = process_timestamps(df, "UTC")
 
         # Should use tz_localize to add UTC timezone (lines 179-180)
         self.assertIsNotNone(result["start_utc"])
@@ -799,7 +789,7 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
 
     def test_prepare_timezone_aware_index_with_tz_aware_timestamps(self):
         """Test _prepare_timezone_aware_index with timezone-aware timestamps (lines 543-544)"""
-        from fitanalyzer.parser import _prepare_timezone_aware_index
+        from fitanalyzer.activities import _prepare_timezone_aware_index
         import pytz
 
         # Create timezone-aware timestamps (not UTC)
@@ -820,7 +810,7 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
 
     def test_prepare_timezone_aware_index_with_naive_timestamps(self):
         """Test _prepare_timezone_aware_index with naive timestamps (line 549)"""
-        from fitanalyzer.parser import _prepare_timezone_aware_index
+        from fitanalyzer.activities import _prepare_timezone_aware_index
 
         # Create naive (no timezone) timestamps
         times = pd.DatetimeIndex([datetime(2025, 1, 1, 12, 0, 0), datetime(2025, 1, 1, 12, 1, 0)])
@@ -837,7 +827,7 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
 
     def test_multisport_with_dump_sets_flag(self):
         """Test that --dump-sets is skipped when --multisport is used (lines 696-697)"""
-        from fitanalyzer.parser import main_with_args, parse_arguments
+        from fitanalyzer.cli import main_with_args, parse_arguments
 
         with tempfile.TemporaryDirectory() as tmpdir:
             # Use strength training fixture
@@ -867,7 +857,7 @@ class TestSpeedCadenceDistanceExtraction(unittest.TestCase):
 
     def test_extract_records_includes_speed_cadence_distance(self):
         """Test that _extract_records_from_fit includes speed, cadence, and distance"""
-        from fitanalyzer.parser import _extract_records_from_fit
+        from fitanalyzer.parser import extract_records_from_fit
         from fitparse import FitFile
         from unittest.mock import Mock
 
@@ -914,7 +904,7 @@ class TestSpeedCadenceDistanceExtraction(unittest.TestCase):
         mock_fit.get_messages.return_value = mock_messages
 
         # Extract records
-        df = _extract_records_from_fit(mock_fit)
+        df = extract_records_from_fit(mock_fit)
 
         # Verify expected columns exist
         expected_columns = ['time', 'hr', 'power', 'speed', 'cadence', 'distance']
@@ -947,7 +937,7 @@ class TestSpeedCadenceDistanceExtraction(unittest.TestCase):
 
     def test_session_summary_includes_speed_cadence_distance_metrics(self):
         """Test that session summaries include speed, cadence, and distance metrics"""
-        from fitanalyzer.parser import process_session_data, AnalysisConfig
+        from fitanalyzer.sessions import process_session_data, AnalysisConfig
 
         # Create test data with speed/cadence/distance
         test_data = pd.DataFrame({
@@ -993,7 +983,7 @@ class TestSpeedCadenceDistanceExtraction(unittest.TestCase):
 
     def test_handles_missing_speed_cadence_distance_gracefully(self):
         """Test that missing speed/cadence/distance data is handled gracefully"""
-        from fitanalyzer.parser import process_session_data, AnalysisConfig
+        from fitanalyzer.sessions import process_session_data, AnalysisConfig
 
         # Create test data without speed/cadence/distance
         test_data = pd.DataFrame({
@@ -1022,7 +1012,8 @@ class TestSpeedCadenceDistanceExtraction(unittest.TestCase):
 
     def test_real_cycling_fit_file_integration(self):
         """Integration test: Real FIT file should produce speed/cadence/distance metrics"""
-        from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
+        from fitanalyzer.config import AnalysisConfig
+        from fitanalyzer.activities import summarize_fit_sessions
 
         # Test with the cycling test fixture
         config = AnalysisConfig(ftp=250, hr_rest=60, hr_max=190, tz_name='UTC')
@@ -1077,7 +1068,7 @@ class TestElevationMetrics(unittest.TestCase):
             ftp=250, hr_rest=60, hr_max=190, tz_name="Europe/Helsinki"
         )
 
-        result, _ = summarize_fit_original(str(fit_file), config)
+        result = summarize_fit_original(str(fit_file), config)
 
         # Should have elevation-related fields in the output
         self.assertIn("total_ascent_m", result)
@@ -1097,7 +1088,7 @@ class TestElevationMetrics(unittest.TestCase):
             ftp=250, hr_rest=60, hr_max=190, tz_name="Europe/Helsinki"
         )
 
-        result, _ = summarize_fit_original(str(fit_file), config)
+        result = summarize_fit_original(str(fit_file), config)
 
         # Elevation values should be numeric (not empty strings)
         self.assertIsInstance(result["total_ascent_m"], (int, float))
@@ -1126,7 +1117,7 @@ class TestElevationMetrics(unittest.TestCase):
             ftp=250, hr_rest=60, hr_max=190, tz_name="Europe/Helsinki"
         )
 
-        result, _ = summarize_fit_original(str(fit_file), config)
+        result = summarize_fit_original(str(fit_file), config)
 
         # Should have elevation fields but they should be empty
         self.assertIn("total_ascent_m", result)
@@ -1152,7 +1143,7 @@ class TestElevationMetrics(unittest.TestCase):
             ftp=250, hr_rest=60, hr_max=190, tz_name="Europe/Helsinki"
         )
 
-        result, _ = summarize_fit_original(str(fit_file), config)
+        result = summarize_fit_original(str(fit_file), config)
 
         # Check that result dict has elevation fields (these become CSV columns)
         self.assertIn("total_ascent_m", result)
@@ -1160,6 +1151,200 @@ class TestElevationMetrics(unittest.TestCase):
         self.assertIn("avg_altitude_m", result)
         self.assertIn("min_altitude_m", result)
         self.assertIn("max_altitude_m", result)
+
+
+class TestIncrementalAnalysis(unittest.TestCase):
+    """Test incremental analysis (only process new/modified files)"""
+
+    def setUp(self):
+        """Set up test directory and files"""
+        self.test_dir = tempfile.mkdtemp()
+        self.output_dir = Path(self.test_dir) / "output"
+        self.output_dir.mkdir()
+
+    def tearDown(self):
+        """Clean up test directory"""
+        shutil.rmtree(self.test_dir)
+
+    def test_load_existing_analysis_no_csv(self):
+        """Test load_existing_analysis when CSV doesn't exist"""
+        from fitanalyzer.incremental import load_existing_analysis
+
+        csv_path = self.output_dir / "nonexistent.csv"
+        result = load_existing_analysis(csv_path)
+
+        self.assertEqual(result, {})
+
+    def test_load_existing_analysis_with_csv(self):
+        """Test load_existing_analysis with existing CSV"""
+        from fitanalyzer.incremental import load_existing_analysis
+
+        # Create a mock CSV with file and _file_mtime columns
+        csv_path = self.output_dir / "workout_summary.csv"
+        df = pd.DataFrame({
+            "file": ["file1.fit", "file2.fit"],
+            "_file_mtime": [1234567890.0, 1234567900.0],
+            "sport": ["cycling", "running"],
+        })
+        df.to_csv(csv_path, index=False)
+
+        result = load_existing_analysis(csv_path)
+
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result["file1.fit"], 1234567890.0)
+        self.assertEqual(result["file2.fit"], 1234567900.0)
+
+    def test_load_existing_analysis_missing_mtime_column(self):
+        """Test load_existing_analysis with CSV missing _file_mtime column"""
+        from fitanalyzer.incremental import load_existing_analysis
+
+        # Create CSV without _file_mtime column
+        csv_path = self.output_dir / "workout_summary.csv"
+        df = pd.DataFrame({
+            "file": ["file1.fit", "file2.fit"],
+            "sport": ["cycling", "running"],
+        })
+        df.to_csv(csv_path, index=False)
+
+        result = load_existing_analysis(csv_path)
+
+        self.assertEqual(result, {})
+
+    def testneeds_analysis_force_flag(self):
+        """Test that --force flag always returns True"""
+        from fitanalyzer.incremental import needs_analysis
+
+        # Create a test file
+        test_file = Path(self.test_dir) / "test.fit"
+        test_file.touch()
+
+        existing_analysis = {str(test_file): test_file.stat().st_mtime}
+
+        # With force=True, should always need analysis
+        result = needs_analysis(str(test_file), existing_analysis, force=True)
+        self.assertTrue(result)
+
+    def testneeds_analysis_new_file(self):
+        """Test that new files need analysis"""
+        from fitanalyzer.incremental import needs_analysis
+
+        # Create a test file
+        test_file = Path(self.test_dir) / "new.fit"
+        test_file.touch()
+
+        existing_analysis = {}  # Empty - file never analyzed
+
+        result = needs_analysis(str(test_file), existing_analysis, force=False)
+        self.assertTrue(result)
+
+    def testneeds_analysis_unmodified_file(self):
+        """Test that unmodified files don't need analysis"""
+        from fitanalyzer.incremental import needs_analysis
+
+        # Create a test file
+        test_file = Path(self.test_dir) / "unchanged.fit"
+        test_file.touch()
+        mtime = test_file.stat().st_mtime
+
+        existing_analysis = {str(test_file): mtime}
+
+        result = needs_analysis(str(test_file), existing_analysis, force=False)
+        self.assertFalse(result)
+
+    def testneeds_analysis_modified_file(self):
+        """Test that modified files need reanalysis"""
+        from fitanalyzer.incremental import needs_analysis
+        import time
+
+        # Create a test file
+        test_file = Path(self.test_dir) / "modified.fit"
+        test_file.touch()
+        old_mtime = test_file.stat().st_mtime
+
+        # Wait a bit and modify the file
+        time.sleep(0.01)
+        test_file.write_text("modified")
+        new_mtime = test_file.stat().st_mtime
+
+        # Existing analysis has old mtime
+        existing_analysis = {str(test_file): old_mtime}
+
+        result = needs_analysis(str(test_file), existing_analysis, force=False)
+        self.assertTrue(result)
+        self.assertGreater(new_mtime, old_mtime)
+
+    def testneeds_analysis_nonexistent_file(self):
+        """Test that nonexistent files return False"""
+        from fitanalyzer.incremental import needs_analysis
+
+        nonexistent = "/nonexistent/file.fit"
+        existing_analysis = {}
+
+        result = needs_analysis(nonexistent, existing_analysis, force=False)
+        self.assertFalse(result)
+
+    def test_process_single_file_adds_mtime(self):
+        """Test that _process_single_file adds _file_mtime to results"""
+        from fitanalyzer.cli import _process_single_file
+
+        # Use a real test fixture
+        test_file = "tests/fixtures/20684859222_ACTIVITY.fit"
+        if not Path(test_file).exists():
+            self.skipTest(f"Test file {test_file} not found")
+
+        # Create mock args
+        args = Mock()
+        args.ftp = 300
+        args.hrrest = 50
+        args.hrmax = 190
+        args.tz = "UTC"
+
+        results = _process_single_file(test_file, args)
+
+        self.assertEqual(len(results), 1)
+        self.assertIn("_file_mtime", results[0])
+        self.assertIsInstance(results[0]["_file_mtime"], float)
+
+    def test_incremental_analysis_skips_unchanged_files(self):
+        """Integration test: verify unchanged files are skipped"""
+        from fitanalyzer.cli import main_with_args
+
+        # Copy a test fixture to temp directory
+        src_file = Path("tests/fixtures/20684859222_ACTIVITY.fit")
+        if not src_file.exists():
+            self.skipTest(f"Test file {src_file} not found")
+
+        test_file = Path(self.test_dir) / "test_activity.fit"
+        shutil.copy(src_file, test_file)
+
+        # Create mock args
+        args = Mock()
+        args.fit_files = [str(test_file)]
+        args.ftp = 300
+        args.hrrest = 50
+        args.hrmax = 190
+        args.tz = "UTC"
+        args.dump_sets = False
+        args.multisport = False
+        args.output_dir = str(self.output_dir)
+        args.force = False
+
+        # First run - should process the file
+        with patch('builtins.print') as mock_print:
+            main_with_args(args)
+
+        # Verify CSV was created
+        csv_path = self.output_dir / "workout_summary_from_fit.csv"
+        self.assertTrue(csv_path.exists())
+
+        # Second run - should skip the file
+        with patch('builtins.print') as mock_print:
+            main_with_args(args)
+
+            # Check that "Skipping" or "Skipped" message was printed
+            print_calls = [str(call) for call in mock_print.call_args_list]
+            skipped = any("skip" in call.lower() for call in print_calls)
+            self.assertTrue(skipped, f"Expected 'Skipping' message in output. Got: {print_calls}")
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ This module handles all strength training related functionality including:
 - Strength training aggregation across multiple workouts
 """
 
+import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -57,8 +58,25 @@ def _get_garmin_profile() -> Any:
     return _profile_loader.get_profile()
 
 
-def _load_exercise_sets_from_json(fit_file_path: str) -> Optional[Dict[str, Any]]:
-    """Load exercise sets data from JSON file (wrapper to avoid circular import).
+def save_exercise_sets_to_json(fit_file_path: str, exercise_sets: Dict[str, Any]) -> None:
+    """Save exercise sets data to JSON file alongside FIT file.
+
+    Args:
+        fit_file_path: Path to the FIT file
+        exercise_sets: Exercise sets data from API
+    """
+    fit_path = Path(fit_file_path)
+    json_path = fit_path.with_name(f"{fit_path.stem}_exercises.json")
+
+    # Create directory if it doesn't exist
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(exercise_sets, f, indent=2)
+
+
+def load_exercise_sets_from_json(fit_file_path: str) -> Optional[Dict[str, Any]]:
+    """Load exercise sets data from JSON file.
 
     Args:
         fit_file_path: Path to the FIT file
@@ -66,10 +84,17 @@ def _load_exercise_sets_from_json(fit_file_path: str) -> Optional[Dict[str, Any]
     Returns:
         Exercise sets data, or None if file doesn't exist
     """
-    # pylint: disable=import-outside-toplevel
-    from fitanalyzer.sync import load_exercise_sets_from_json
+    fit_path = Path(fit_file_path)
+    json_path = fit_path.with_name(f"{fit_path.stem}_exercises.json")
 
-    return load_exercise_sets_from_json(fit_file_path)
+    if not json_path.exists():
+        return None
+
+    try:
+        with open(json_path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
 def get_specific_exercise_name(category_id: int, subtype_id: int) -> Optional[str]:
@@ -286,7 +311,7 @@ def extract_sets_from_fit(ff: FitFile, fit_file_path: Optional[str] = None) -> p
 
     # Merge API exercise names if available
     if fit_file_path:
-        api_data = _load_exercise_sets_from_json(fit_file_path)
+        api_data = load_exercise_sets_from_json(fit_file_path)
         if api_data:
             df = merge_api_exercise_names(df, api_data)
 
