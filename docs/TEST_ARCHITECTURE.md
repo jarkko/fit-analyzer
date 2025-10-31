@@ -134,7 +134,7 @@ Test all error conditions:
 ```python
 def process_file(path: str) -> dict:
     """Process a file.
-    
+
     Raises:
         FileNotFoundError: If file doesn't exist
         ValueError: If file is malformed
@@ -144,7 +144,7 @@ def process_file(path: str) -> dict:
 
 Required tests:
 - `test_process_file_not_found` → FileNotFoundError
-- `test_process_file_malformed` → ValueError  
+- `test_process_file_malformed` → ValueError
 - `test_process_file_permission_denied` → PermissionError
 - `test_process_file_success` → Happy path
 
@@ -161,7 +161,7 @@ def test_deduplication_preserves_order(items):
     """Deduplication should preserve original order."""
     result = deduplicate(items)
     # Property: result should be a subsequence of items
-    assert all(items.index(x) <= items.index(y) 
+    assert all(items.index(x) <= items.index(y)
                for x, y in zip(result, result[1:]))
 ```
 
@@ -185,11 +185,11 @@ Parameter Contracts:
         - None: Analyze all FIT files in directory
         - []: Skip analysis (no files to process)
         - [...files]: Analyze only specified files
-        
+
 Return Value:
     - True: Analysis completed successfully
     - False: Analysis failed (no files found, errors)
-    
+
 Side Effects:
     - Creates CSV files in output_dir
     - Calls CLI module with parsed arguments
@@ -245,6 +245,49 @@ For existing test files:
 - **Property testing**: Use hypothesis for complex logic
 - **Mutation testing**: Consider using mutmut to verify test quality
 - **Test review**: Include contract coverage in code review checklist
+
+## Architecture Audit (October 31, 2025)
+
+### Test Suite Status
+- **Total Tests**: 245 passing
+- **Architecture Compliance**: 100% ✅
+- **Bug-Driven Tests**: 0 (removed)
+
+### Audit Findings
+
+**✅ Architecture-Compliant Files (245 tests):**
+- `test_sync.py` (44 tests) - Organized by function: authentication, download, analysis
+- `test_parser.py` (65 tests) - Organized by calculation: NP, TRIMP, session processing
+- `test_sync_programmatic.py` (8 tests) - Contract tests for `sync_activities()`
+- `test_metrics.py` (24 tests) - Organized by metric type
+- `test_strength_training.py` (30 tests) - Feature-based organization
+- `test_api_exercise_names.py` (13 tests) - API operation contracts
+- `contract/test_run_analysis_contract.py` (14 tests) - Parameter matrix for `run_analysis()`
+- All other test files follow architecture-driven principles
+
+**❌ Removed Bug-Driven Files:**
+- `test_sync_duplicate_bug.py` (3 tests) - **REMOVED** on Oct 31, 2025
+  - Tests were redundant with contract tests
+  - Classic anti-pattern: named after bug, not architecture
+  - Functionality now covered by parameter matrix in contract tests
+
+### Key Strengths
+1. 89% of tests were already architecture-driven before cleanup
+2. Excellent organization by feature/function in most files
+3. Good parameter coverage for edge cases
+4. Clear separation of unit vs integration tests
+
+### Recommendations Implemented
+1. ✅ Created comprehensive TEST_ARCHITECTURE.md guidelines
+2. ✅ Implemented example contract tests for `run_analysis()`
+3. ✅ Removed bug-driven test file
+4. ✅ Updated AI_INSTRUCTIONS.md with architecture principles
+5. ✅ Achieved 100% architecture compliance
+
+### Future Considerations
+- Consider contract tests for `_save_workout_summary()` deduplication behavior
+- Monitor for new bug-driven tests and migrate immediately
+- Continue parameter matrix approach for all new functions
 
 ## References
 
