@@ -175,7 +175,11 @@ def main_with_args(args):
     # Merge with existing data
     if existing_rows:
         processed_files = set(files_to_process)
-        kept_rows = [r for r in existing_rows if r.get("file") not in processed_files]
+        # Use _original_file to match multisport sessions correctly
+        kept_rows = [
+            r for r in existing_rows 
+            if r.get("_original_file", r.get("file")) not in processed_files
+        ]
         rows = kept_rows + new_rows
     else:
         rows = new_rows

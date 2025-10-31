@@ -29,9 +29,12 @@ def load_existing_analysis(csv_path: Path) -> Dict[str, float]:
             return {}
 
         # Build mapping of file -> mtime
+        # Use _original_file for multisport sessions, fall back to file
         file_mtimes = {}
         for _, row in df_data.iterrows():
-            file_path = row["file"]
+            file_path = row.get("_original_file") if "_original_file" in df_data.columns else row["file"]
+            if pd.isna(file_path):
+                file_path = row["file"]
             mtime = row.get("_file_mtime")
             if pd.notna(mtime):
                 file_mtimes[file_path] = float(mtime)
@@ -72,7 +75,8 @@ def needs_analysis(fit_file: str, existing_analysis: Dict[str, float], force: bo
     if analyzed_mtime is None:
         return True
 
-    return current_mtime > analyzed_mtime
+    # Use 0.01 second tolerance to handle floating point precision issues in CSV
+    return current_mtime > analyzed_mtime + 0.01
 
 
 def load_existing_rows(
