@@ -689,12 +689,22 @@ def run_analysis(
         # Import cli module (relative import must be inside function)
         from . import cli  # pylint: disable=import-outside-toplevel
 
-        # Get all FIT files in the directory or use single file
-        directory_path = Path(directory)
-        if directory_path.is_file() and directory_path.name.endswith("_ACTIVITY.fit"):
-            fit_files = [directory_path]
+        # Determine which files to analyze
+        # If updated_files is provided and not empty, use those
+        # Otherwise, analyze all FIT files in the directory
+        if updated_files:
+            # Only analyze the files that were actually downloaded/updated
+            fit_files = [Path(f) for f in updated_files if Path(f).exists()]
+            if not fit_files:
+                print("⚠️  No updated files to analyze")
+                return True  # Success, just nothing to do
         else:
-            fit_files = list(directory_path.glob("*_ACTIVITY.fit"))
+            # Analyze all files in directory (for analyze_only mode or initial run)
+            directory_path = Path(directory)
+            if directory_path.is_file() and directory_path.name.endswith("_ACTIVITY.fit"):
+                fit_files = [directory_path]
+            else:
+                fit_files = list(directory_path.glob("*_ACTIVITY.fit"))
 
         if not fit_files:
             print("⚠️  No FIT files found to analyze")
