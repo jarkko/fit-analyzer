@@ -16,6 +16,7 @@ from .sync import (
     download_new_activities,
     get_existing_activity_ids,
     run_analysis,
+    sync_activities,
 )
 
 __version__ = "0.1.0"
@@ -32,4 +33,5 @@ __all__ = [
     "download_new_activities",
     "get_existing_activity_ids",
     "run_analysis",
+    "sync_activities",
 ]

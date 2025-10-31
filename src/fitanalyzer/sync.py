@@ -789,44 +789,157 @@ def main() -> int:
     if not directory.is_file():
         directory.mkdir(parents=True, exist_ok=True)
 
-    # Check for garth library
-    if not args.analyze_only:
-        if not check_and_install_garth():
-            return 1
+    # Use the high-level sync_activities function
+    result = sync_activities(
+        email=args.email,
+        password=args.password,
+        days=args.days,
+        limit=args.limit,
+        directory=str(directory),
+        output_dir=args.output_dir,
+        ftp=args.ftp,
+        hrrest=args.hrrest,
+        hrmax=args.hrmax,
+        multisport=not args.no_multisport,
+        analyze_only=args.analyze_only,
+        download_only=args.download_only,
+        force=args.force,
+    )
 
-    # Download activities
-    new_activities = 0
-    updated_files = []
-    if not args.analyze_only:
-        # Authenticate
-        if not authenticate_garmin(args.email, args.password):
-            return 1
-
-        # Download new activities
-        new_activities, updated_files = download_new_activities(
-            days=args.days, limit=args.limit, directory=directory, force=args.force
-        )
-
-    # Run analysis
-    if not args.download_only:
-        run_analysis(
-            directory=str(directory),
-            output_dir=args.output_dir,
-            ftp=args.ftp,
-            hrrest=args.hrrest,
-            hrmax=args.hrmax,
-            multisport=not args.no_multisport,
-            updated_files=updated_files,
-        )
+    if not result["success"]:
+        print(f"\n❌ Error: {result['error']}")
+        return 1
 
     print("\n🎉 Done!")
-    if new_activities > 0:
-        print(f"   Downloaded {new_activities} new activities")
-    output_dir = Path(args.output_dir)
-    print(f"   Summary saved to: {output_dir / 'workout_summary_from_fit.csv'}")
-    print(f"   Strength sets saved to: {output_dir / 'strength_training_summary.csv'}")
+    if result["new_activities"] > 0:
+        print(f"   Downloaded {result['new_activities']} new activities")
+    print(f"   Summary saved to: {result['csv_path']}")
+    print(f"   Strength sets saved to: {result['strength_csv_path']}")
 
     return 0
+
+
+def sync_activities(  # pylint: disable=too-many-arguments,too-many-locals
+    *,
+    email: Optional[str] = None,
+    password: Optional[str] = None,
+    days: int = DEFAULT_SYNC_DAYS,
+    limit: Optional[int] = None,
+    directory: str = ".",
+    output_dir: str = "data",
+    ftp: int = DEFAULT_FTP,
+    hrrest: int = DEFAULT_HR_REST,
+    hrmax: int = DEFAULT_HR_MAX,
+    multisport: bool = True,
+    analyze_only: bool = False,
+    download_only: bool = False,
+    force: bool = False,
+) -> Dict[str, Any]:
+    """High-level function to sync activities from Garmin Connect (incremental by default).
+
+    This is the recommended way to use the sync functionality programmatically.
+    Incremental sync is automatic - only new/changed activities are downloaded and analyzed.
+
+    Example:
+        >>> from fitanalyzer import sync_activities
+        >>>
+        >>> # Simple sync (uses env vars for credentials)
+        >>> result = sync_activities(days=7)
+        >>>
+        >>> # With explicit credentials
+        >>> result = sync_activities(
+        ...     email="user@example.com",
+        ...     password="secret",
+        ...     days=30,
+        ...     directory="./activities",
+        ...     output_dir="./output"
+        ... )
+        >>>
+        >>> print(f"Downloaded {result['new_activities']} new activities")
+        >>> print(f"CSV: {result['csv_path']}")
+
+    Args:
+        email: Garmin Connect email (uses GARMIN_EMAIL env var if None)
+        password: Garmin Connect password (uses GARMIN_PASSWORD env var if None)
+        days: Number of days to sync (default: 30)
+        limit: Maximum number of activities to fetch (default: None = all)
+        directory: Directory to store FIT files (default: ".")
+        output_dir: Directory for CSV output (default: "data")
+        ftp: Functional Threshold Power in watts (default: 300)
+        hrrest: Resting heart rate in bpm (default: 60)
+        hrmax: Maximum heart rate in bpm (default: 190)
+        multisport: Enable multisport session handling (default: True)
+        analyze_only: Skip download, only analyze existing files (default: False)
+        download_only: Only download, skip analysis (default: False)
+        force: Force re-download even if files exist (default: False, incremental)
+
+    Returns:
+        Dict with keys:
+            - success (bool): Whether sync completed successfully
+            - new_activities (int): Number of new activities downloaded
+            - csv_path (str): Path to workout summary CSV
+            - strength_csv_path (str): Path to strength training CSV
+            - error (str): Error message if success=False
+
+    Raises:
+        ImportError: If garth library is not installed
+    """
+    if not check_and_install_garth():
+        return {
+            "success": False,
+            "new_activities": 0,
+            "error": "garth library not available"
+        }
+
+    try:
+        directory_path = Path(directory)
+        directory_path.mkdir(parents=True, exist_ok=True)
+
+        new_activities = 0
+        updated_files = []
+
+        # Download activities
+        if not analyze_only:
+            if not authenticate_garmin(email, password):
+                return {
+                    "success": False,
+                    "new_activities": 0,
+                    "error": "Authentication failed"
+                }
+
+            new_activities, updated_files = download_new_activities(
+                days=days,
+                limit=limit,
+                directory=str(directory_path),
+                force=force
+            )
+
+        # Run analysis
+        if not download_only:
+            run_analysis(
+                directory=str(directory_path),
+                output_dir=output_dir,
+                ftp=ftp,
+                hrrest=hrrest,
+                hrmax=hrmax,
+                multisport=multisport,
+                updated_files=updated_files,
+            )
+
+        output_path = Path(output_dir)
+        return {
+            "success": True,
+            "new_activities": new_activities,
+            "csv_path": str(output_path / "workout_summary_from_fit.csv"),
+            "strength_csv_path": str(output_path / "strength_training_summary.csv"),
+        }
+
+    except Exception as e:  # pylint: disable=broad-except
+        return {
+            "success": False,
+            "new_activities": 0,
+            "error": str(e)
+        }
 
 
 if __name__ == "__main__":
