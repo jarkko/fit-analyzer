@@ -38,7 +38,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "fitanalyzer-parse=fitanalyzer.parser:main",
+            "fitanalyzer-parse=fitanalyzer.cli:main",
             "fitanalyzer-sync=fitanalyzer.sync:main",
             "fitanalyzer-setup=fitanalyzer.credentials:main",
         ],
