@@ -175,9 +175,10 @@ class TestDownloadActivities(unittest.TestCase):
 
         mock_garth.connectapi.return_value = mock_activities
 
-        new_count = download_new_activities(days=7, directory=self.test_dir)
+        new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
         self.assertEqual(new_count, 0)
+        self.assertEqual(updated_files, [])
 
     @patch("fitanalyzer.sync.garth")
     def test_download_with_new_activities(self, mock_garth):
@@ -198,9 +199,10 @@ class TestDownloadActivities(unittest.TestCase):
         mock_garth.connectapi.return_value = mock_activities
         mock_garth.download.return_value = b"fake_fit_data"
 
-        new_count = download_new_activities(days=7, directory=self.test_dir)
+        new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
         self.assertEqual(new_count, 1)
+        self.assertEqual(len(updated_files), 1)
 
         # Check file was created
         expected_file = Path(self.test_dir) / "20765123456_ACTIVITY.fit"
@@ -256,10 +258,11 @@ class TestDownloadActivities(unittest.TestCase):
         mock_garth.download.return_value = b"fake_fit_data"
 
         # Should not raise "can't compare offset-naive and offset-aware datetimes"
-        new_count = download_new_activities(days=7, directory=self.test_dir)
+        new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
         # All 3 should be processed without timezone errors
         self.assertEqual(new_count, 3)
+        self.assertEqual(len(updated_files), 3)
 
 
 class TestAnalysisExecution(unittest.TestCase):

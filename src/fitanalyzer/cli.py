@@ -152,6 +152,52 @@ def _save_workout_summary(rows: List[Dict[str, Any]], output_dir: str, all_sets:
             print(" -", p)
 
 
+def _generate_strength_summary(
+    args, files_to_process: List[str], existing_strength: pd.DataFrame
+) -> pd.DataFrame:
+    """Generate strength training summary for processed files.
+
+    Args:
+        args: Parsed command-line arguments
+        files_to_process: List of files that were processed
+        existing_strength: Existing strength data to merge with
+
+    Returns:
+        DataFrame with strength training summary
+    """
+    config = AnalysisConfig(
+        ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
+    )
+
+    # Merge files to process with API-updated files
+    strength_files_to_process = set(files_to_process)
+    if hasattr(args, 'updated_files') and args.updated_files:
+        strength_files_to_process.update(args.updated_files)
+
+    # Only aggregate sets from files that were actually processed or had API updates
+    new_strength = aggregate_strength_sets(
+        list(strength_files_to_process),
+        config,
+        multisport=args.multisport,
+    )
+
+    # Merge: keep existing rows for unchanged files, add rows for processed files
+    if not existing_strength.empty and new_strength is not None:
+        # Get activity IDs from processed files
+        processed_activity_ids = {
+            Path(f).stem.replace("_ACTIVITY", "") for f in files_to_process
+        }
+        # Keep rows for files that weren't processed
+        kept_rows = existing_strength[
+            ~existing_strength["activity_id"].isin(processed_activity_ids)
+        ]
+        result = pd.concat([kept_rows, new_strength], ignore_index=True)
+        return result.sort_values(["date", "timestamp"], na_position="last")
+    if new_strength is not None:
+        return new_strength
+    return existing_strength
+
+
 def main_with_args(args):
     """Main function that takes parsed arguments"""
     processed_sessions = set()
@@ -177,7 +223,7 @@ def main_with_args(args):
         processed_files = set(files_to_process)
         # Use _original_file to match multisport sessions correctly
         kept_rows = [
-            r for r in existing_rows 
+            r for r in existing_rows
             if r.get("_original_file", r.get("file")) not in processed_files
         ]
         rows = kept_rows + new_rows
@@ -189,17 +235,22 @@ def main_with_args(args):
 
     # Generate consolidated strength training summary if requested
     if args.dump_sets:
-        config = AnalysisConfig(
-            ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
-        )
-        df_strength_summary = aggregate_strength_sets(
-            args.fit_files,
-            config,
-            multisport=args.multisport,
+        csv_path = Path(args.output_dir) / "strength_training_summary.csv"
+
+        # Load existing strength data
+        existing_strength = pd.DataFrame()
+        if csv_path.exists() and not args.force:
+            try:
+                existing_strength = pd.read_csv(csv_path)
+            except (OSError, pd.errors.ParserError):
+                pass
+
+        # Generate strength summary
+        df_strength_summary = _generate_strength_summary(
+            args, files_to_process, existing_strength
         )
 
         if df_strength_summary is not None and not df_strength_summary.empty:
-            csv_path = Path(args.output_dir) / "strength_training_summary.csv"
             csv_path.parent.mkdir(parents=True, exist_ok=True)
             df_strength_summary.to_csv(csv_path, index=False)
             print(f"\n✅ Created: {csv_path}")

@@ -494,6 +494,7 @@ def _process_activity(
     existing_activities: Dict[str, float],
     directory: str,
     counters: Dict[str, int],
+    updated_files: Optional[List[str]] = None,
 ) -> None:
     """Process a single activity (download, update, or skip).
 
@@ -502,10 +503,12 @@ def _process_activity(
         existing_activities: Dict of existing activity IDs
         directory: Directory to save files
         counters: Dict with keys: new_count, updated_count, api_updated_count, skipped_count
+        updated_files: Optional list to track files that were downloaded or had API updates
     """
     activity_id = str(activity["activityId"])
     activity_name = activity.get("activityName", "Unknown")
     activity_date = activity["startTimeLocal"][:10]
+    fit_filename = str(Path(directory) / f"{activity_id}_ACTIVITY.fit")
 
     # Check if we need to download this activity
     should_download, is_update, check_api = _should_download_activity(activity, existing_activities)
@@ -519,11 +522,15 @@ def _process_activity(
                 counters["updated_count"] += 1
             else:
                 counters["new_count"] += 1
+            if updated_files is not None:
+                updated_files.append(fit_filename)
     elif check_api:
         # FIT file exists and up-to-date, but check if exercise data was updated
         if _check_and_update_api_data(activity_id, directory):
             print(f"   📝 Exercise data updated for: {activity_name} [ID: {activity_id}]")
             counters["api_updated_count"] += 1
+            if updated_files is not None:
+                updated_files.append(fit_filename)
         else:
             counters["skipped_count"] += 1
     else:
@@ -535,7 +542,7 @@ def download_new_activities(
     limit: Optional[int] = None,
     directory: str = ".",
     force: bool = False,
-) -> int:
+) -> Tuple[int, List[str]]:
     """Download new and updated activities from Garmin Connect.
 
     Fetches activities from the specified time range and downloads FIT files
@@ -632,9 +639,10 @@ def download_new_activities(
 
         # Download new activities
         counters = {"new_count": 0, "updated_count": 0, "api_updated_count": 0, "skipped_count": 0}
+        updated_files: List[str] = []
 
         for activity in recent_activities:
-            _process_activity(activity, existing_activities, directory, counters)
+            _process_activity(activity, existing_activities, directory, counters, updated_files)
 
         print("\n✅ Download complete!")
         print(f"   New activities: {counters['new_count']}")
@@ -643,16 +651,22 @@ def download_new_activities(
             print(f"   Exercise data updated: {counters['api_updated_count']}")
         print(f"   Skipped (already up-to-date): {counters['skipped_count']}")
 
-        return counters["new_count"] + counters["updated_count"] + counters["api_updated_count"]
+        total_count = (
+            counters["new_count"]
+            + counters["updated_count"]
+            + counters["api_updated_count"]
+        )
+        return (total_count, updated_files)
 
     except (OSError, RuntimeError, ValueError) as e:
         print(f"❌ Error fetching activities: {e}")
-        return 0
+        return (0, [])
 
 
 def run_analysis(
     directory: str = ".",
     output_dir: str = "data",
+    updated_files: Optional[List[str]] = None,
     **kwargs
 ) -> None:
     """Run the FIT file analysis using the parser module.
@@ -660,6 +674,7 @@ def run_analysis(
     Args:
         directory: Directory containing FIT files
         output_dir: Directory for output CSV files
+        updated_files: List of file paths that were updated (downloaded or API changed)
         **kwargs: Additional arguments (ftp, hrrest, hrmax, multisport)
     """
     # Extract kwargs with defaults
@@ -697,6 +712,12 @@ def run_analysis(
 
         # Parse arguments using parser's argument parser
         parsed_args = cli.parse_arguments(args)
+
+        # Add updated_files to parsed_args for strength aggregation
+        if updated_files:
+            parsed_args.updated_files = updated_files
+        else:
+            parsed_args.updated_files = []
 
         # Run the parser main logic
         result = cli.main_with_args(parsed_args)
@@ -775,13 +796,14 @@ def main() -> int:
 
     # Download activities
     new_activities = 0
+    updated_files = []
     if not args.analyze_only:
         # Authenticate
         if not authenticate_garmin(args.email, args.password):
             return 1
 
         # Download new activities
-        new_activities = download_new_activities(
+        new_activities, updated_files = download_new_activities(
             days=args.days, limit=args.limit, directory=directory, force=args.force
         )
 
@@ -794,6 +816,7 @@ def main() -> int:
             hrrest=args.hrrest,
             hrmax=args.hrmax,
             multisport=not args.no_multisport,
+            updated_files=updated_files,
         )
 
     print("\n🎉 Done!")

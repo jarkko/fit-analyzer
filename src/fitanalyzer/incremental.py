@@ -32,7 +32,10 @@ def load_existing_analysis(csv_path: Path) -> Dict[str, float]:
         # Use _original_file for multisport sessions, fall back to file
         file_mtimes = {}
         for _, row in df_data.iterrows():
-            file_path = row.get("_original_file") if "_original_file" in df_data.columns else row["file"]
+            if "_original_file" in df_data.columns:
+                file_path = row.get("_original_file")
+            else:
+                file_path = row["file"]
             if pd.isna(file_path):
                 file_path = row["file"]
             mtime = row.get("_file_mtime")
