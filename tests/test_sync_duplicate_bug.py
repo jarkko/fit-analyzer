@@ -184,3 +184,73 @@ def test_sync_activities_with_api_update_no_duplicates(temp_test_dir):
             assert final_count == initial_count, (
                 f"Expected {initial_count} rows after API update (no duplicates), got {final_count}"
             )
+
+
+def test_sync_with_no_new_files_no_reanalysis(temp_test_dir):
+    """Test that sync with no new downloads doesn't re-analyze all files.
+
+    Bug: When download_new_activities returns (0, []), the empty list
+    is falsy, so run_analysis() falls through and analyzes ALL files.
+    """
+    from fitanalyzer.sync import sync_activities
+
+    fit_dir = temp_test_dir / "fit_files"
+    output_dir = temp_test_dir / "output"
+    output_dir.mkdir()
+
+    csv_path = output_dir / "workout_summary_from_fit.csv"
+
+    # Get list of actual FIT files
+    fit_files = sorted(fit_dir.glob("*_ACTIVITY.fit"))
+
+    # Mock authentication and download
+    with patch('fitanalyzer.sync.check_and_install_garth', return_value=True), \
+         patch('fitanalyzer.sync.authenticate_garmin', return_value=True), \
+         patch('fitanalyzer.sync.download_new_activities') as mock_download:
+
+        # First sync: download all files
+        mock_download.return_value = (3, [str(f) for f in fit_files])
+
+        result1 = sync_activities(
+            email="test@example.com",
+            password="password",
+            directory=str(fit_dir),
+            output_dir=str(output_dir),
+            ftp=300,
+            hrrest=50,
+            hrmax=190,
+        )
+
+        assert result1["success"]
+
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            rows1 = list(reader)
+            initial_count = len(rows1)
+
+        # Second sync: NO new downloads (empty list)
+        mock_download.return_value = (0, [])  # <-- BUG: empty list is falsy
+
+        result2 = sync_activities(
+            email="test@example.com",
+            password="password",
+            directory=str(fit_dir),
+            output_dir=str(output_dir),
+            ftp=300,
+            hrrest=50,
+            hrmax=190,
+        )
+
+        assert result2["success"]
+
+        # Should NOT have re-analyzed anything or changed the CSV
+        with open(csv_path, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            rows2 = list(reader)
+            final_count = len(rows2)
+
+            # Count should be exactly the same
+            assert final_count == initial_count, (
+                f"Expected {initial_count} rows (no changes), got {final_count}. "
+                f"Bug: run_analysis() with empty updated_files=[] re-analyzed all files."
+            )

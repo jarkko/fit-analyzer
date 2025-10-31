@@ -133,7 +133,12 @@ def _save_workout_summary(rows: List[Dict[str, Any]], output_dir: str, all_sets:
         print("No data to output.")
         return
 
-    out = pd.DataFrame(rows).sort_values(["date", "start_time"])
+    # Deduplicate based on file identifier (for multisport: use session identifier)
+    out = pd.DataFrame(rows)
+    # Use 'file' column for deduplication if it exists (unique identifier for each workout/session)
+    if not out.empty and "file" in out.columns:
+        out = out.drop_duplicates(subset=["file"], keep="last")
+    out = out.sort_values(["date", "start_time"])
     csv_path = Path(output_dir) / "workout_summary_from_fit.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
 

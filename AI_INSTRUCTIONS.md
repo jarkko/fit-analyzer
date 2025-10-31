@@ -42,6 +42,14 @@
 - Mock external dependencies (APIs, file I/O when appropriate)
 - Verify both positive and negative cases
 
+### Test Execution
+- **ALWAYS use the venv when running tests**: `.venv/bin/pytest`
+- **ALWAYS run tests in parallel**: Use `-n auto` flag
+- Never call `python`, `pytest`, `pylint`, or other commands directly without venv prefix
+- Example: `.venv/bin/pytest tests/ -n auto`
+- For linting: `.venv/bin/pylint src/fitanalyzer`
+- **Prefer using make tasks**: `make test` (runs tests in parallel with venv), `make lint` (uses venv)
+
 ## Development Workflow
 
 ### Before Making Changes

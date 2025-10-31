@@ -690,9 +690,9 @@ def run_analysis(
         from . import cli  # pylint: disable=import-outside-toplevel
 
         # Determine which files to analyze
-        # If updated_files is provided and not empty, use those
-        # Otherwise, analyze all FIT files in the directory
-        if updated_files:
+        # If updated_files is provided (even if empty), use those
+        # If updated_files is None, analyze all FIT files in the directory
+        if updated_files is not None:
             # Only analyze the files that were actually downloaded/updated
             fit_files = [Path(f) for f in updated_files if Path(f).exists()]
             if not fit_files:
