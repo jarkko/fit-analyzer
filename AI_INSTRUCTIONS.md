@@ -31,10 +31,21 @@
 - **Use TDD approach for bug fixes and new features**
 - Write tests first, then implement the fix
 - All tests must pass before considering work complete
-- Current test count: 90 tests - maintain or increase
+- Current test count: 234 tests - maintain or increase
 - Use pytest for all testing
 - Run `make test` to verify all tests pass
-- We must always keep 100 % code coverage for committed code. Don't come up with excuses for why some file doesn't need good coverage. They all do.
+- We must always keep 100% code coverage for committed code. Don't come up with excuses for why some file doesn't need good coverage. They all do.
+
+### Test Architecture
+- **Tests must be architecture-driven, not bug-driven**
+- See `docs/TEST_ARCHITECTURE.md` for complete guidelines
+- Every function must have contract tests covering:
+  - All parameter combinations (especially None vs empty vs populated)
+  - All return values and error cases
+  - All side effects
+- Use parameter matrix testing for functions with optional parameters
+- Test edge cases: empty collections, None values, boundary conditions
+- Name tests descriptively: `test_empty_updated_files_skips_analysis` not `test_bug_fix`
 
 ### Test Quality
 - Tests should be clear, focused, and well-named
