@@ -34,7 +34,7 @@ result = sync_activities(
 
 if result["success"]:
     print(f"✅ Success! Downloaded {result['new_activities']} activities")
-    
+
     # Use the data
     import pandas as pd
     df = pd.read_csv(result["csv_path"])
@@ -80,17 +80,17 @@ def my_workout_analysis():
     """Integrate sync into your workflow."""
     from fitanalyzer import sync_activities
     import pandas as pd
-    
+
     # Step 1: Sync from Garmin
     result = sync_activities(days=7)
-    
+
     if not result["success"]:
         print(f"Sync failed: {result['error']}")
         return
-    
+
     # Step 2: Load and analyze data
     df = pd.read_csv(result["csv_path"])
-    
+
     # Your custom analysis here
     recent_runs = df[df['sport'] == 'running'].tail(5)
     print(f"Last 5 runs: {recent_runs[['date', 'distance', 'duration']]}")
