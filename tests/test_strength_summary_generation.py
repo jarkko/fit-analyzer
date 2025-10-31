@@ -3,12 +3,9 @@
 import pytest
 import pandas as pd
 from pathlib import Path
-from fitanalyzer.parser import (
-    main_with_args,
-    parse_arguments,
-    _aggregate_strength_sets,
-    AnalysisConfig,
-)
+from fitanalyzer.cli import main_with_args, parse_arguments
+from fitanalyzer.config import AnalysisConfig
+from fitanalyzer.aggregation import aggregate_strength_sets
 
 
 @pytest.fixture(scope="module")
@@ -31,7 +28,7 @@ def multisport_with_strength():
 def multisport_aggregated(multisport_with_strength):
     """Pre-aggregated data from multisport activity."""
     config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki")
-    return _aggregate_strength_sets([multisport_with_strength], config, multisport=False)
+    return aggregate_strength_sets([multisport_with_strength], config, multisport=False)
 
 
 class TestMultisportStrengthExtraction:

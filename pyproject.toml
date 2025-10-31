@@ -92,9 +92,6 @@ jobs = 0  # Use all CPU cores
 persistent = true
 unsafe-load-any-extension = false
 
-[tool.pylint.messages_control]
-disable = ["cyclic-import"]
-
 [tool.pylint.format]
 max-line-length = 100
 indent-string = "    "

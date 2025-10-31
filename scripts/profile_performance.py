@@ -25,7 +25,7 @@ import psutil
 # Add parent directory to path to import fitanalyzer
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from fitanalyzer.parser import summarize_fit_sessions
+from fitanalyzer.workflow import summarize_fit_sessions
 
 
 def get_memory_usage() -> float:

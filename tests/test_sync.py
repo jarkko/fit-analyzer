@@ -282,8 +282,8 @@ class TestAnalysisExecution(unittest.TestCase):
         """Clean up test directory"""
         shutil.rmtree(self.test_dir)
 
-    @patch("fitanalyzer.parser.main_with_args")
-    @patch("fitanalyzer.parser.parse_arguments")
+    @patch("fitanalyzer.cli.main_with_args")
+    @patch("fitanalyzer.cli.parse_arguments")
     def test_run_analysis_success(self, mock_parse, mock_main):
         """Test successful analysis execution"""
         mock_main.return_value = 0
@@ -305,8 +305,8 @@ class TestAnalysisExecution(unittest.TestCase):
         finally:
             shutil.rmtree(empty_dir)
 
-    @patch("fitanalyzer.parser.main_with_args")
-    @patch("fitanalyzer.parser.parse_arguments")
+    @patch("fitanalyzer.cli.main_with_args")
+    @patch("fitanalyzer.cli.parse_arguments")
     def test_run_analysis_script_error(self, mock_parse, mock_main):
         """Test handling of script errors"""
         mock_main.return_value = 1
@@ -316,8 +316,8 @@ class TestAnalysisExecution(unittest.TestCase):
 
         self.assertFalse(result)
 
-    @patch("fitanalyzer.parser.main_with_args")
-    @patch("fitanalyzer.parser.parse_arguments")
+    @patch("fitanalyzer.cli.main_with_args")
+    @patch("fitanalyzer.cli.parse_arguments")
     def test_run_analysis_with_output_dir(self, mock_parse, mock_main):
         """Test analysis with custom output directory"""
         mock_main.return_value = 0
@@ -342,8 +342,8 @@ class TestAnalysisExecution(unittest.TestCase):
         finally:
             shutil.rmtree(output_dir)
 
-    @patch("fitanalyzer.parser.main_with_args")
-    @patch("fitanalyzer.parser.parse_arguments")
+    @patch("fitanalyzer.cli.main_with_args")
+    @patch("fitanalyzer.cli.parse_arguments")
     def test_run_analysis_kwargs_parameters(self, mock_parse, mock_main):
         """Test analysis with parameters passed via kwargs"""
         mock_main.return_value = 0
@@ -379,8 +379,8 @@ class TestAnalysisExecution(unittest.TestCase):
         fit_file = Path(self.test_dir) / "single_ACTIVITY.fit"
         fit_file.touch()
 
-        with patch("fitanalyzer.parser.main_with_args") as mock_main, \
-             patch("fitanalyzer.parser.parse_arguments") as mock_parse:
+        with patch("fitanalyzer.cli.main_with_args") as mock_main, \
+             patch("fitanalyzer.cli.parse_arguments") as mock_parse:
             mock_main.return_value = 0
             mock_parsed_args = Mock()
             mock_parse.return_value = mock_parsed_args
@@ -392,8 +392,8 @@ class TestAnalysisExecution(unittest.TestCase):
 
     def test_run_analysis_default_parameters(self):
         """Test analysis with default parameters"""
-        with patch("fitanalyzer.parser.main_with_args") as mock_main, \
-             patch("fitanalyzer.parser.parse_arguments") as mock_parse:
+        with patch("fitanalyzer.cli.main_with_args") as mock_main, \
+             patch("fitanalyzer.cli.parse_arguments") as mock_parse:
             mock_main.return_value = 0
             mock_parsed_args = Mock()
             mock_parse.return_value = mock_parsed_args
@@ -830,8 +830,8 @@ class TestOutputDirFunctionality(unittest.TestCase):
 
     def test_run_analysis_output_dir_argument_passing(self):
         """Test that output_dir is correctly passed to parser arguments"""
-        with patch("fitanalyzer.parser.main_with_args") as mock_main, \
-             patch("fitanalyzer.parser.parse_arguments") as mock_parse:
+        with patch("fitanalyzer.cli.main_with_args") as mock_main, \
+             patch("fitanalyzer.cli.parse_arguments") as mock_parse:
 
             mock_main.return_value = 0
             mock_parsed_args = Mock()
@@ -879,8 +879,8 @@ class TestOutputDirFunctionality(unittest.TestCase):
         single_file = Path(self.test_dir) / "single_test_ACTIVITY.fit"
         single_file.touch()
 
-        with patch("fitanalyzer.parser.main_with_args") as mock_main, \
-             patch("fitanalyzer.parser.parse_arguments") as mock_parse:
+        with patch("fitanalyzer.cli.main_with_args") as mock_main, \
+             patch("fitanalyzer.cli.parse_arguments") as mock_parse:
 
             mock_main.return_value = 0
             mock_parsed_args = Mock()

@@ -38,12 +38,17 @@ class TestLibraryIntegration(unittest.TestCase):
 
     def test_parse_volleyball_activity(self):
         """Test parsing a volleyball activity with exact value assertions"""
+        from fitanalyzer.strength import extract_sets_from_fit
+        from fitparse import FitFile
+
         fit_file = self.fixtures_dir / "20548472357_ACTIVITY.fit"
         self.assertTrue(fit_file.exists(), f"Test fixture not found: {fit_file}")
 
-        summary, sets = summarize_fit_original(
+        summary = summarize_fit_original(
             str(fit_file), ftp=self.ftp, hr_rest=self.hr_rest, hr_max=self.hr_max
         )
+        ff = FitFile(str(fit_file))
+        sets = extract_sets_from_fit(ff, fit_file_path=str(fit_file))
 
         # Verify it parsed successfully
         self.assertIsNotNone(summary)
@@ -76,7 +81,7 @@ class TestLibraryIntegration(unittest.TestCase):
 
         results = []
         for fit_file in fixture_files:
-            summary, _ = summarize_fit_original(
+            summary = summarize_fit_original(
                 str(fit_file), ftp=self.ftp, hr_rest=self.hr_rest, hr_max=self.hr_max
             )
             self.assertIsNotNone(summary, f"Failed to parse {fit_file.name}")
@@ -104,7 +109,7 @@ class TestLibraryIntegration(unittest.TestCase):
 
         summaries = []
         for fit_file in fixture_files:
-            summary, _ = summarize_fit_original(
+            summary = summarize_fit_original(
                 str(fit_file), ftp=self.ftp, hr_rest=self.hr_rest, hr_max=self.hr_max
             )
             self.assertIsNotNone(summary)
@@ -166,7 +171,7 @@ class TestLibraryIntegration(unittest.TestCase):
         fit_file = self.fixtures_dir / "20548472357_ACTIVITY.fit"
         self.assertTrue(fit_file.exists(), f"Test fixture not found: {fit_file}")
 
-        summary, _ = summarize_fit_original(
+        summary = summarize_fit_original(
             str(fit_file), ftp=self.ftp, hr_rest=self.hr_rest, hr_max=self.hr_max
         )
 

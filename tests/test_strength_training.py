@@ -3,12 +3,9 @@
 import pandas as pd
 import pytest
 from pathlib import Path
-from fitanalyzer.parser import (
-    _aggregate_strength_sets,
-    AnalysisConfig,
-    summarize_fit_original,
-    summarize_fit_sessions,
-)
+from fitanalyzer.activities import summarize_fit_original, summarize_fit_sessions
+from fitanalyzer.config import AnalysisConfig
+from fitanalyzer.aggregation import aggregate_strength_sets
 
 
 @pytest.fixture(scope="module")
@@ -20,7 +17,12 @@ def strength_fit_file():
 @pytest.fixture(scope="module")
 def strength_fit_parsed(strength_fit_file):
     """Pre-parsed strength training FIT file data."""
-    summary, df_sets = summarize_fit_original(strength_fit_file, ftp=300)
+    from fitanalyzer.strength import extract_sets_from_fit
+    from fitparse import FitFile
+
+    summary = summarize_fit_original(strength_fit_file, ftp=300)
+    ff = FitFile(strength_fit_file)
+    df_sets = extract_sets_from_fit(ff, fit_file_path=strength_fit_file)
     return summary, df_sets
 
 
@@ -38,7 +40,7 @@ def multiple_strength_files():
 def aggregated_strength_data(multiple_strength_files):
     """Pre-aggregated strength data from multiple files."""
     config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki")
-    return _aggregate_strength_sets(multiple_strength_files, config, multisport=False)
+    return aggregate_strength_sets(multiple_strength_files, config, multisport=False)
 
 
 @pytest.fixture(scope="module")
@@ -50,7 +52,12 @@ def multisport_with_strength():
 @pytest.fixture(scope="module")
 def multisport_parsed(multisport_with_strength):
     """Pre-parsed multisport FIT file data."""
-    summary, df_sets = summarize_fit_original(multisport_with_strength, ftp=300)
+    from fitanalyzer.strength import extract_sets_from_fit
+    from fitparse import FitFile
+
+    summary = summarize_fit_original(multisport_with_strength, ftp=300)
+    ff = FitFile(multisport_with_strength)
+    df_sets = extract_sets_from_fit(ff, fit_file_path=multisport_with_strength)
     return summary, df_sets
 
 
@@ -101,8 +108,8 @@ class TestStrengthTrainingExtraction:
 class TestStrengthTrainingAggregation:
     """Tests for aggregating strength training data from multiple files."""
 
-    def test_aggregate_strength_sets_returns_dataframe(self, aggregated_strength_data):
-        """Test that _aggregate_strength_sets returns a consolidated DataFrame."""
+    def testaggregate_strength_sets_returns_dataframe(self, aggregated_strength_data):
+        """Test that aggregate_strength_sets returns a consolidated DataFrame."""
         df_summary = aggregated_strength_data
 
         assert df_summary is not None
@@ -175,7 +182,7 @@ class TestStrengthTrainingAggregation:
 
     def test_aggregate_handles_empty_file_list(self):
         """Test that empty file list returns None."""
-        df_summary = _aggregate_strength_sets(
+        df_summary = aggregate_strength_sets(
             [],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
             multisport=False,
@@ -201,7 +208,7 @@ class TestStrengthTrainingMultisport:
     def test_aggregate_works_with_multisport_flag(self, multiple_strength_files):
         """Test that aggregation works correctly with multisport=True."""
         # This test needs to actually call the function with multisport=True
-        df_summary = _aggregate_strength_sets(
+        df_summary = aggregate_strength_sets(
             multiple_strength_files,
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
             multisport=True,
@@ -276,7 +283,7 @@ class TestMultisportStrengthExtraction:
     def test_multisport_strength_extraction_with_aggregate(self, multisport_with_strength):
         """Test that strength sets can be extracted from multisport files."""
         # This test needs to call the function directly with multisport=True
-        df_summary = _aggregate_strength_sets(
+        df_summary = aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
             multisport=True,
@@ -293,7 +300,7 @@ class TestMultisportStrengthExtraction:
     def test_multisport_strength_has_exercise_names(self, multisport_with_strength):
         """Test that strength sets from multisport files include exercise names."""
         # This test needs to call the function directly with multisport=True
-        df_summary = _aggregate_strength_sets(
+        df_summary = aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
             multisport=True,
@@ -309,7 +316,7 @@ class TestMultisportStrengthExtraction:
     def test_multisport_preserves_session_information(self, multisport_with_strength):
         """Test that multisport files preserve correct session/sport information."""
         # This test needs to call the function directly with multisport=True
-        df_summary = _aggregate_strength_sets(
+        df_summary = aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
             multisport=True,
@@ -493,7 +500,7 @@ class TestStrengthEdgeCasesForFullCoverage:
         }
 
         with patch(
-            "fitanalyzer.strength._load_exercise_sets_from_json", return_value=mock_api_data
+            "fitanalyzer.strength.load_exercise_sets_from_json", return_value=mock_api_data
         ):
             # This should hit line 288 (merge_api_exercise_names call)
             df = extract_sets_from_fit(ff, fit_file)

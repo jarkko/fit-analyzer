@@ -14,7 +14,8 @@ import os
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
+from fitanalyzer.config import AnalysisConfig
+from fitanalyzer.activities import summarize_fit_sessions
 
 
 class TestCSVIntegration(unittest.TestCase):

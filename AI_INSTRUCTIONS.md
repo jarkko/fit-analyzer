@@ -3,8 +3,11 @@
 ## Code Quality Standards
 
 ### Linting and Style
-- **Never disable linting rules without explicit permission**
-- Always refactor code to fix linting warnings properly instead of suppressing them. You must not come up with excuses for why some suppression is fine.
+- **NEVER disable warnings or linting rules**
+- Do not use `# pylint: disable=`, `# noqa:`, or similar suppression comments
+- Do not suggest disabling warnings in configuration files
+- Always fix the actual issue that causes the warning
+- If you think a warning should be disabled, you are wrong - fix the code instead
 - Maintain 10.00/10 pylint score. Nothing below that is fine, not even 9.99.
 - Follow PEP 8 and all configured flake8 rules
 - Run `make lint` before considering work complete

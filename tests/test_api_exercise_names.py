@@ -9,7 +9,7 @@ from fitanalyzer.sync import (
     save_exercise_sets_to_json,
     load_exercise_sets_from_json,
 )
-from fitanalyzer.parser import merge_api_exercise_names
+from fitanalyzer.strength import merge_api_exercise_names
 
 
 @pytest.fixture

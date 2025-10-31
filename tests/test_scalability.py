@@ -11,7 +11,7 @@ from shutil import copy2
 
 import pytest
 
-from fitanalyzer.parser import summarize_fit_sessions
+from fitanalyzer.activities import summarize_fit_sessions
 
 
 @pytest.mark.slow
