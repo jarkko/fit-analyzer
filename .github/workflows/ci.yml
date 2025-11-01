@@ -120,10 +120,10 @@ jobs:
           # Extract test count from pytest results
           TEST_COUNT=$(grep -oP 'tests="[0-9]+"' pytest-results.xml | grep -oP '[0-9]+')
           echo "Test count: $TEST_COUNT"
-          
+
           # Update README badge
           sed -i "s/tests-[0-9]\+%20passed/tests-${TEST_COUNT}%20passed/g" README.md
-          
+
           # Check if there were changes
           if git diff --quiet README.md; then
             echo "No changes to README.md"
@@ -170,6 +170,10 @@ jobs:
       - name: Check code formatting with black
         run: |
           black --check src/ tests/
+
+      - name: Run type checking with mypy
+        run: |
+          make type-check
 
   security:
     name: Security Scan
