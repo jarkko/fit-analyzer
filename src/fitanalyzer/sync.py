@@ -351,7 +351,7 @@ def _exercise_names_differ(
     return False
 
 
-def _check_and_update_api_data(activity_id: int, directory: str) -> bool:
+def _check_and_update_api_data(activity_id: str, directory: str) -> bool:
     """Check if API exercise data needs updating and update if necessary.
 
     Args:
@@ -400,17 +400,17 @@ def _check_and_update_api_data(activity_id: int, directory: str) -> bool:
 
 
 def _download_single_activity(
-    activity_id: int, activity_name: str, activity_date: str, directory: str
+    activity_id: str, activity_name: str, activity_date: str, directory: str
 ) -> bool:
     """Download a single activity and save to file"""
     try:
         print(f"   ⬇️  Downloading: {activity_name} ({activity_date}) [ID: {activity_id}]")
 
         # Download FIT file using garth.download
-        zip_data = garth.download(f"/download-service/files/activity/{activity_id}")
+        fit_data = garth.download(f"/download-service/files/activity/{activity_id}")
 
         # Garmin returns a ZIP file, so we need to extract the FIT file
-        fit_data = _extract_fit_from_zip(zip_data)
+        fit_data = _extract_fit_from_zip(fit_data)
 
         if fit_data is None:
             print(f"      ⚠️  No .fit file found in ZIP for activity {activity_id}")
@@ -454,11 +454,13 @@ def _fetch_exercise_sets_for_activity(activity_id: int) -> Optional[Dict[str, An
     return None
 
 
-def _get_child_activity_ids(activity_details: Dict[str, Any]) -> List[Any]:
+def _get_child_activity_ids(
+    activity_details: Dict[str, Any] | List[Any],
+) -> List[Any]:
     """Extract child activity IDs from activity details.
 
     Args:
-        activity_details: Activity details from API
+        activity_details: Activity details from API (can be dict or list)
 
     Returns:
         List of child activity IDs, or empty list if none
@@ -468,11 +470,13 @@ def _get_child_activity_ids(activity_details: Dict[str, Any]) -> List[Any]:
 
     # Try direct childIds first (from activity list API)
     if "childIds" in activity_details:
-        return activity_details.get("childIds", [])
+        child_ids = activity_details.get("childIds", [])
+        return child_ids if isinstance(child_ids, list) else []
 
     # Fall back to metadataDTO.childIds (from activity details API)
     metadata = activity_details.get("metadataDTO", {})
-    return metadata.get("childIds", [])
+    child_ids_meta = metadata.get("childIds", [])
+    return child_ids_meta if isinstance(child_ids_meta, list) else []
 
 
 def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
@@ -538,23 +542,20 @@ def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
         - Weight values in kilograms, reps as floating point
     """
     if garth is None:
-        return None
+        return None  # type: ignore[unreachable]
 
     try:
         # Get activity details to check for child activities (multisport)
         activity_details = garth.connectapi(f"/activity-service/activity/{activity_id}")
+        child_ids = _get_child_activity_ids(activity_details)
 
-        # Check for child activities if we got valid activity details
-        if isinstance(activity_details, dict):
-            child_ids = _get_child_activity_ids(activity_details)
+        # Try child activities first (for multisport)
+        for child_id in child_ids:
+            result = _fetch_exercise_sets_for_activity(child_id)
+            if result:
+                return result
 
-            # Try child activities first (for multisport)
-            for child_id in child_ids:
-                result = _fetch_exercise_sets_for_activity(child_id)
-                if result:
-                    return result
-
-        # Try the main activity (either no children or child fetch failed)
+        # Try the main activity if no children or no child had exercise sets
         return _fetch_exercise_sets_for_activity(activity_id)
 
     except (GarthHTTPError, KeyError, TypeError) as e:
@@ -578,7 +579,7 @@ def _process_activity(
         counters: Dict with keys: new_count, updated_count, api_updated_count, skipped_count
         updated_files: Optional list to track files that were downloaded or had API updates
     """
-    activity_id = int(activity["activityId"])
+    activity_id = str(activity["activityId"])
     activity_name = activity.get("activityName", "Unknown")
     activity_date = activity["startTimeLocal"][:10]
     fit_filename = str(Path(directory) / f"{activity_id}_ACTIVITY.fit")
@@ -610,7 +611,7 @@ def _process_activity(
         counters["skipped_count"] += 1
 
 
-def _identify_multisport_parents(activities: List[Dict[str, Any]]) -> set[int]:
+def _identify_multisport_parents(activities: List[Dict[str, Any]]) -> set:
     """Identify parent multisport activities that should be skipped.
 
     Args:
@@ -631,7 +632,7 @@ def _process_activities(
     activities: List[Dict[str, Any]],
     existing: Dict[str, float],
     directory: str,
-    parent_ids: set[int],
+    parent_ids: set,
 ) -> Tuple[Dict[str, int], List[str]]:
     """Process and download activities.
 
@@ -774,11 +775,7 @@ def download_new_activities(
 
         if not activities:
             print("   No activities found")
-            return (0, [])
-
-        # Ensure activities is a list (garth.connectapi can return dict or list)
-        if isinstance(activities, dict):
-            activities = [activities]
+            return 0
 
         # Filter by date and identify multisport parents
         recent_activities = _filter_recent_activities(activities, days)
@@ -806,8 +803,8 @@ def run_analysis(
     directory: str = ".",
     output_dir: str = "data",
     updated_files: Optional[List[str]] = None,
-    **kwargs: Any,
-) -> bool:
+    **kwargs,
+) -> None:
     """Run the FIT file analysis using the parser module.
 
     Args:
@@ -1005,9 +1002,9 @@ class SyncConfig:
     def __post_init__(self) -> None:
         """Initialize nested params if not provided."""
         if self.analysis is None:
-            self.analysis = AnalysisParams()
+            self.analysis = AnalysisParams()  # type: ignore[unreachable]
         if self.mode is None:
-            self.mode = SyncMode()
+            self.mode = SyncMode()  # type: ignore[unreachable]
 
 
 def sync_activities(config: Optional[SyncConfig] = None, /, **kwargs: Any) -> Dict[str, Any]:

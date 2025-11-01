@@ -92,7 +92,7 @@ def load_exercise_sets_from_json(fit_file_path: str) -> Optional[Dict[str, Any]]
 
     try:
         with open(json_path, "r", encoding="utf-8") as f:
-            return json.load(f)
+            return json.load(f)  # type: ignore[no-any-return]
     except (json.JSONDecodeError, OSError):
         return None
 

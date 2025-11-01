@@ -99,7 +99,7 @@ def calculate_tsb(ctl: np.ndarray, atl: np.ndarray) -> np.ndarray:
     if len(ctl) != len(atl):
         raise ValueError("CTL and ATL arrays must have the same length")
 
-    return ctl - atl
+    return ctl - atl  # type: ignore[no-any-return]
 
 
 def _create_daily_dataframe(

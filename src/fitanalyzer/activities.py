@@ -106,7 +106,7 @@ def summarize_fit_sessions(
     return results, []
 
 
-def _prepare_timezone_aware_index(df: pd.DataFrame) -> Tuple[datetime, datetime, pd.Series]:
+def _prepare_timezone_aware_index(df: pd.DataFrame) -> Tuple[datetime, datetime]:
     """Convert dataframe time column to timezone-aware UTC index"""
     start_utc, end_utc = convert_timestamps_to_utc(df)
 

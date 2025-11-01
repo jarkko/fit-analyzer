@@ -99,7 +99,7 @@ format:
 
 type-check:
 	@echo "Running mypy..."
-	@$(MYPY) src/fitanalyzer --ignore-missing-imports --check-untyped-defs --no-implicit-optional || (echo "⚠️  Type check found issues (non-blocking)" && exit 0)
+	@$(MYPY) src/fitanalyzer --strict --ignore-missing-imports
 	@echo ""
 	@echo "✅ Type checks complete!"
 

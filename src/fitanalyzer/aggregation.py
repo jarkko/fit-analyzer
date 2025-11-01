@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 def process_file_for_sets(
     fit_file: str, config: "AnalysisConfig", multisport: bool
-) -> tuple[dict[str, Any], pd.DataFrame]:
+) -> Tuple[List[Any], pd.DataFrame]:
     """Process a single file and return sessions and sets for strength training aggregation."""
     # Get FIT file and extract sets
     ff = FitFile(fit_file)
@@ -55,9 +55,7 @@ def process_file_for_sets(
     return df_sessions, df_sets
 
 
-def extract_session_metadata(
-    df_sessions: pd.DataFrame | dict[str, Any] | list[Any],
-) -> tuple[str, str, Any]:
+def extract_session_metadata(df_sessions: pd.DataFrame) -> SetMetadata:
     """Extract metadata from the first session."""
     sport = "unknown"
     sub_sport = "unknown"
@@ -69,7 +67,7 @@ def extract_session_metadata(
     elif isinstance(df_sessions, list) and df_sessions:
         first_session = df_sessions[0]
     elif isinstance(df_sessions, pd.DataFrame) and not df_sessions.empty:
-        first_session = df_sessions.iloc[0]
+        first_session = df_sessions.iloc[0].to_dict()  # Convert Series to dict
 
     if first_session is not None:
         sport = first_session.get("sport", "unknown")
@@ -79,7 +77,7 @@ def extract_session_metadata(
     return sport, sub_sport, date
 
 
-def create_set_record(row: pd.Series, idx: int, metadata: SetMetadata) -> Dict[str, Any]:
+def create_set_record(row, idx: int, metadata) -> Dict[str, Any]:
     """Create a dictionary record for a single set."""
     return {
         "activity_id": metadata.activity_id,
@@ -139,7 +137,9 @@ def aggregate_strength_sets(
         # Add metadata to each active set
         for idx, row in df_sets.iterrows():
             if row.get("set_type") == "active":
-                all_strength_data.append(create_set_record(row, int(idx), metadata))
+                # iterrows() returns Hashable but we know it's int, so cast it
+                set_idx: int = int(idx) if not isinstance(idx, int) else idx  # type: ignore[call-overload]
+                all_strength_data.append(create_set_record(row, set_idx, metadata))
 
     if not all_strength_data:
         return None

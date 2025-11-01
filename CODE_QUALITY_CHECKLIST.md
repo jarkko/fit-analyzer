@@ -23,8 +23,8 @@ This installs the pre-commit hook that automatically:
 # 1. Run code formatter
 make format
 
-# 2. Run all quality checks
-make lint && make test
+# 2. Run all quality checks (including type checking)
+make quality && make test
 
 # 3. Push
 git push
@@ -44,8 +44,8 @@ git add -A
 git commit -m "your changes"
 
 # 2. Run pre-push checklist (see above)
-.venv/bin/black src/ tests/
-make lint && make test
+make format
+make quality && make test
 
 # 3. Push to main
 git push
@@ -121,14 +121,17 @@ git push origin vX.Y.Z
 
 ### MyPy (Static Type Analysis)
 - **Purpose**: Type safety, prevent runtime errors
-- **Standard**: Strict mode with gradual typing
-- **Command**: `mypy src/fitanalyzer --strict --ignore-missing-imports`
+- **Standard**: Strict mode configuration
+- **Command**: `make type-check` or `mypy src/fitanalyzer`
+- **Configuration**: See `[tool.mypy]` in `pyproject.toml`
 - **Checks**:
   - Type annotations consistency
-  - Type errors
-  - Optional handling
+  - Type errors and mismatches
+  - Optional/None handling
   - Return type correctness
-- **Status**: ⚠️ Partially implemented (should be in CI)
+  - Generic type parameters
+- **Target**: Zero type errors (100% compliant)
+- **Status**: ✅ Required for all PRs and releases
 
 ## 4. Testing
 

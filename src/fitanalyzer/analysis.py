@@ -159,7 +159,7 @@ def _calc_power_metrics(df: Any, ftp: float) -> Dict[str, float]:
     if not power_data.empty:
         avg_power = power_data.mean()
         max_power = power_data.max()
-        npw = np_power(power_data.values)
+        npw = np_power(power_data)  # Pass Series directly, not .values
         intensity_factor = (npw / ftp) if ftp > 0 else np.nan
         tss = ((len(power_data) * npw * intensity_factor) / (ftp * 36.0)) if ftp > 0 else np.nan
     else:
@@ -179,7 +179,7 @@ def _calc_hr_metrics(df: Any, hr_rest: int, hr_max: int) -> Dict[str, float]:
     if not hr_data.empty:
         avg_hr = hr_data.mean()
         max_hr = hr_data.max()
-        trimp_val = trimp_from_hr(hr_data.values, hr_rest, hr_max)
+        trimp_val = trimp_from_hr(hr_data, hr_rest, hr_max)  # Pass Series directly, not .values
     else:
         avg_hr = max_hr = trimp_val = np.nan
     return {
