@@ -120,7 +120,7 @@ quality: lint type-check
 	@echo ""
 	@echo "══════════════════════════════════════════════════════════════"
 
-pre-commit: format quality test
+pre-commit: format quality coverage
 	@echo ""
 	@echo "══════════════════════════════════════════════════════════════"
 	@echo "  ✅ ALL PRE-COMMIT CHECKS PASSED"

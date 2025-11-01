@@ -665,6 +665,73 @@ class TestCLIFunctions(unittest.TestCase):
                 mock_parse.assert_called_once()
                 mock_main.assert_called_once()
 
+    def test_csv_output_always_sorted_chronologically(self):
+        """Test that CSV output is always sorted by start_time for efficient binary search."""
+        from fitanalyzer.cli import _save_workout_summary
+
+        # Create rows in non-chronological order (simulating incremental sync with older data)
+        rows = [
+            {"file": "file3.fit", "date": "2025-01-15", "start_time": "2025-01-15 10:00:00"},
+            {"file": "file1.fit", "date": "2025-01-01", "start_time": "2025-01-01 08:00:00"},
+            {"file": "file4.fit", "date": "2025-01-20", "start_time": "2025-01-20 14:30:00"},
+            {"file": "file2.fit", "date": "2025-01-10", "start_time": "2025-01-10 12:00:00"},
+            # Add edge case: same day, different times
+            {"file": "file5.fit", "date": "2025-01-01", "start_time": "2025-01-01 14:00:00"},
+        ]
+
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("builtins.print"):
+                _save_workout_summary(rows, tmpdir, [])
+
+            # Read the CSV and verify sorting
+            csv_path = Path(tmpdir) / "workout_summary_from_fit.csv"
+            self.assertTrue(csv_path.exists())
+
+            df = pd.read_csv(csv_path)
+            start_times = df["start_time"].tolist()
+
+            # Should be sorted chronologically by start_time (includes date + time)
+            expected_order = [
+                "2025-01-01 08:00:00",
+                "2025-01-01 14:00:00",  # Same day, later time
+                "2025-01-10 12:00:00",
+                "2025-01-15 10:00:00",
+                "2025-01-20 14:30:00",
+            ]
+            self.assertEqual(start_times, expected_order)
+
+            # Verify start_times are monotonically increasing (binary search compatible)
+            for i in range(len(start_times) - 1):
+                self.assertLessEqual(start_times[i], start_times[i + 1])
+
+    def test_start_time_always_present_in_output(self):
+        """Test that start_time is always present in summarized output (required for sorting)."""
+        from fitanalyzer.cli import _process_single_file
+
+        args = MagicMock()
+        args.ftp = 300
+        args.hrrest = 50
+        args.hrmax = 190
+        args.tz = "UTC"
+
+        # Mock summarize_fit_original to return minimal valid summary
+        summary = {
+            "sport": "cycling",
+            "date": "2025-01-01",
+            "start_time": "2025-01-01 10:00:00",  # Required field
+            "duration_min": 30.0,
+        }
+
+        with patch("fitanalyzer.cli.summarize_fit_original", return_value=summary):
+            result = _process_single_file("test.fit", args)
+            self.assertEqual(len(result), 1)
+            self.assertIn("start_time", result[0])
+            self.assertIsNotNone(result[0]["start_time"])
+            # Verify format is sortable (YYYY-MM-DD HH:MM:SS)
+            self.assertRegex(result[0]["start_time"], r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$")
+
 
 class TestEdgeCasesForFullCoverage(unittest.TestCase):
     """Additional edge case tests to achieve 100% coverage"""

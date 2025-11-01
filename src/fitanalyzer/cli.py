@@ -221,7 +221,10 @@ def _save_workout_summary(rows: List[Dict[str, Any]], output_dir: str, all_sets:
     # Use 'file' column for deduplication if it exists (unique identifier for each workout/session)
     if not out.empty and "file" in out.columns:
         out = out.drop_duplicates(subset=["file"], keep="last")
-    out = out.sort_values(["date", "start_time"])
+    # Sort by start_time (YYYY-MM-DD HH:MM:SS format sorts correctly lexicographically)
+    # This ensures chronological order for efficient binary search lookups
+    # na_position='last' ensures rows with missing timestamps appear at the end
+    out = out.sort_values("start_time", na_position="last")
 
     # Calculate training load metrics (CTL, ATL, TSB) if TSS or TRIMP data is available
     if not out.empty and "date" in out.columns:
