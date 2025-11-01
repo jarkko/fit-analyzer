@@ -139,16 +139,14 @@ class TestMultisportModeRemoved(unittest.TestCase):
         self.assertFalse(_is_multisport_file(single_sport_file))
 
 
-class TestMultisportFileDuplication(unittest.TestCase):
-    """Test that multisport files are not processed multiple times.
-    
-    Note: The actual behavior is already tested via debug_duplicate_bug.py
-    and integration tests. The fixes are:
-    - _process_files() tracks processed_files to avoid reprocessing
-    - _process_multisport_file() adds _original_file for proper merge
-    - Input deduplication prevents duplicate file arguments
-    """
-    pass
+# Note: Multisport file deduplication behavior is tested via:
+# - debug_duplicate_bug.py (demonstrates the fix works)
+# - Integration tests in test_strength_training.py
+# - Input deduplication tests above
+# The fixes include:
+# - _process_files() tracks processed_files to avoid reprocessing
+# - _process_multisport_file() adds _original_file for proper incremental merge
+# - parse_arguments() deduplicates input file list
 
 
 if __name__ == "__main__":

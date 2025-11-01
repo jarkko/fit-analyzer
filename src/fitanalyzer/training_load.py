@@ -218,10 +218,10 @@ def calculate_training_load_metrics(
     # When multiple workouts on same day, they all get the same daily metrics
     df_sorted[date_column] = pd.to_datetime(df_sorted[date_column])
     daily_df[date_column] = pd.to_datetime(daily_df[date_column])
-    
+
     # Create a dict mapping from date to metrics (one entry per date)
     metrics_dict = daily_df.groupby(date_column)[["ctl", "atl", "tsb"]].last().to_dict('index')
-    
+
     # Map metrics to each workout
     df_sorted["ctl"] = df_sorted[date_column].apply(lambda d: metrics_dict.get(d, {}).get("ctl", 0))
     df_sorted["atl"] = df_sorted[date_column].apply(lambda d: metrics_dict.get(d, {}).get("atl", 0))

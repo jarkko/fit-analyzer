@@ -115,13 +115,15 @@ def _process_single_file(fit_file, args):
 
 def _is_multisport_file(fit_file: str) -> bool:
     """Check if a FIT file contains multiple sessions (multisport)."""
+    # pylint: disable=import-outside-toplevel
+    from fitanalyzer.parser import extract_sessions_from_fit
+
     try:
-        from fitanalyzer.parser import extract_sessions_from_fit
         ff = FitFile(fit_file)
         sessions = list(extract_sessions_from_fit(ff))
         return len(sessions) > 1
-    except Exception:
-        # If we can't read sessions, treat as single sport
+    except (OSError, ValueError, KeyError, AttributeError):
+        # If we can't read the file or parse sessions, treat as single sport
         return False
 
 
