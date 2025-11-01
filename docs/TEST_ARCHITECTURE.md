@@ -249,14 +249,14 @@ For existing test files:
 ## Architecture Audit (October 31, 2025)
 
 ### Test Suite Status
-- **Total Tests**: 276 passing
-- **Test Coverage**: 94.34%
+- **Total Tests**: 298 passing
+- **Test Coverage**: 94.96%
 - **Architecture Compliance**: 100% ✅
 - **Bug-Driven Tests**: 0 (removed)
 
 ### Audit Findings
 
-**✅ Architecture-Compliant Files (276 tests):**
+**✅ Architecture-Compliant Files (298 tests):**
 - `test_sync.py` (44 tests) - Organized by function: authentication, download, analysis
 - `test_parser.py` (65 tests) - Organized by calculation: NP, TRIMP, session processing
 - `test_sync_programmatic.py` (8 tests) - Contract tests for `sync_activities()`
@@ -265,6 +265,8 @@ For existing test files:
 - `test_api_exercise_names.py` (13 tests) - API operation contracts
 - `contract/test_run_analysis_contract.py` (14 tests) - Parameter matrix for `run_analysis()`
 - `contract/test_analysis_metrics_contract.py` (31 tests) - Complete coverage of metric calculations
+- `contract/test_aggregation_contract.py` (8 tests) - Session metadata extraction contracts
+- `contract/test_incremental_contract.py` (14 tests) - Incremental analysis and file tracking
 - All other test files follow architecture-driven principles
 
 **❌ Removed Bug-Driven Files:**
@@ -286,7 +288,21 @@ For existing test files:
 4. ✅ Updated AI_INSTRUCTIONS.md with architecture principles
 5. ✅ Achieved 100% architecture compliance
 6. ✅ Added complete contract tests for `analysis.py` metric functions (31 tests)
-7. ✅ Improved test coverage to 94.34%
+7. ✅ Added contract tests for `aggregation.py` (8 tests) and `incremental.py` (14 tests)
+8. ✅ Improved test coverage to 94.96%
+
+### Files with 100% Coverage
+- `aggregation.py` ✅
+- `analysis.py` ✅
+- `activities.py` ✅
+- `config.py` ✅
+- `constants.py` ✅
+- `credentials.py` ✅
+- `exceptions.py` ✅
+- `formatting.py` ✅
+- `metrics.py` ✅
+- `parser.py` ✅
+- `sessions.py` ✅
 
 ### Future Considerations
 - Consider contract tests for `_save_workout_summary()` deduplication behavior
