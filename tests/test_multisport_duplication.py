@@ -110,14 +110,14 @@ class TestMultisportDuplication(unittest.TestCase):
             # Verify the parent (20744294782) was NOT downloaded
             downloaded_ids = [call[0][0] for call in mock_download.call_args_list]
             self.assertNotIn(
-                "20744294782",
+                20744294782,
                 downloaded_ids,
                 "Parent multisport activity should be skipped",
             )
 
             # Verify the children WERE downloaded
-            self.assertIn("20744294788", downloaded_ids, "Child 1 (cycling) should be downloaded")
-            self.assertIn("20744294802", downloaded_ids, "Child 2 (strength) should be downloaded")
+            self.assertIn(20744294788, downloaded_ids, "Child 1 (cycling) should be downloaded")
+            self.assertIn(20744294802, downloaded_ids, "Child 2 (strength) should be downloaded")
 
 
 if __name__ == "__main__":

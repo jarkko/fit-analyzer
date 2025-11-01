@@ -400,7 +400,7 @@ def _check_and_update_api_data(activity_id: int, directory: str) -> bool:
 
 
 def _download_single_activity(
-    activity_id: str, activity_name: str, activity_date: str, directory: str
+    activity_id: int, activity_name: str, activity_date: str, directory: str
 ) -> bool:
     """Download a single activity and save to file"""
     try:
@@ -575,7 +575,7 @@ def _process_activity(
         counters: Dict with keys: new_count, updated_count, api_updated_count, skipped_count
         updated_files: Optional list to track files that were downloaded or had API updates
     """
-    activity_id = str(activity["activityId"])
+    activity_id = int(activity["activityId"])
     activity_name = activity.get("activityName", "Unknown")
     activity_date = activity["startTimeLocal"][:10]
     fit_filename = str(Path(directory) / f"{activity_id}_ACTIVITY.fit")
