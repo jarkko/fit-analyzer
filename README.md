@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/jarkko/fit-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/jarkko/fit-analyzer/actions/workflows/ci.yml)
 [![Python Version](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/downloads/)
-[![Tests](https://img.shields.io/badge/tests-321%20passed-brightgreen)](./tests/)
+[![Tests](https://img.shields.io/badge/tests-339%20passed-brightgreen)](./tests/)
 [![codecov](https://codecov.io/gh/jarkko/fit-analyzer/branch/main/graph/badge.svg)](https://codecov.io/gh/jarkko/fit-analyzer)
 [![Code style: pylint](https://img.shields.io/badge/code%20quality-10.00%2F10-brightgreen)](https://pylint.org/)
 [![Type Checked](https://img.shields.io/badge/type%20checked-mypy%20strict-blue)](https://mypy.readthedocs.io/)

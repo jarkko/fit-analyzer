@@ -116,6 +116,7 @@ jobs:
 
       - name: Update test count badge
         if: matrix.python-version == '3.13' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true  # Don't fail CI if push is rejected by branch protection
         run: |
           # Extract test count from pytest results
           TEST_COUNT=$(grep -oP 'tests="[0-9]+"' pytest-results.xml | grep -oP '[0-9]+')
@@ -132,7 +133,7 @@ jobs:
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git add README.md
             git commit -m "chore: Update test count badge to $TEST_COUNT [skip ci]"
-            git push
+            git push || echo "⚠️  Could not push badge update (branch protection). This is expected."
           fi
 
   lint:

@@ -2,6 +2,19 @@
 
 This document outlines all code quality standards and checks for this project. Run `make quality` to execute all checks.
 
+## 🪝 ONE-TIME SETUP: Install Git Hooks
+
+**Run this once after cloning the repository:**
+
+```bash
+./scripts/install_hooks.sh
+```
+
+This installs the pre-commit hook that automatically:
+- Runs tests before each commit
+- Updates the test count badge in README.md
+- Includes the badge update in your commit
+
 ## ⚠️ CRITICAL: PRE-PUSH CHECKLIST
 
 **NEVER push to main without running these checks locally first:**
@@ -13,14 +26,13 @@ This document outlines all code quality standards and checks for this project. R
 # 2. Run all quality checks
 make lint && make test
 
-# 3. Verify CI will pass (optional but recommended)
-# Check that all required checks are green before pushing
-
-# 4. Only then push
+# 3. Push
 git push
 ```
 
 **WHY:** Branch protection requires all CI checks to pass. Pushing failing code wastes CI resources and creates noise in the commit history.
+
+**NOTE:** The pre-commit hook handles the test count badge update automatically. You don't need to manually update it.
 
 ## ⚠️ CRITICAL: RELEASE PROCESS
 

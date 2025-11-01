@@ -1,0 +1,8 @@
+#!/bin/bash
+# Pre-commit hook to update test count badge
+# Runs tests and updates the badge so it's included in the commit
+
+scripts/update_test_badge.sh
+
+# Exit with 0 to allow commit to continue
+exit 0
