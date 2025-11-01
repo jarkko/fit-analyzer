@@ -86,9 +86,12 @@ def extract_valid_value(value: Any, invalid_value: int = 65534) -> Optional[int]
     if isinstance(value, tuple):
         for v in value:
             if v is not None and v != invalid_value:
-                return v
+                return int(v) if isinstance(v, (int, float)) else None
         return None
-    return value if value != invalid_value else None
+    # Check if value is the invalid marker
+    if value == invalid_value:
+        return None
+    return int(value) if isinstance(value, (int, float)) else None
 
 
 def get_sport_names(sessions: List[Dict[str, Any]]) -> Tuple[str, str]:

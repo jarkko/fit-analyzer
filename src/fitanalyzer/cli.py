@@ -58,7 +58,7 @@ def parse_arguments(args: list[str] | None = None) -> argparse.Namespace:
 
 
 def _process_multisport_file(
-    fit_file: str, args: argparse.Namespace, processed_sessions: set[str]
+    fit_file: str, args: argparse.Namespace, processed_sessions: set[tuple[Any, ...]]
 ) -> list[dict[str, Any]]:
     """Process a multisport FIT file and return new rows"""
     results, _ = summarize_fit_sessions(
@@ -101,8 +101,8 @@ def _process_multisport_file(
     return new_rows
 
 
-def _process_single_file(fit_file: str, args: argparse.Namespace) -> dict[str, Any] | None:
-    """Process a single FIT file and return summary"""
+def _process_single_file(fit_file: str, args: argparse.Namespace) -> list[dict[str, Any]]:
+    """Process a single-sport FIT file and return a list of summary dicts"""
     summary = summarize_fit_original(
         fit_file, ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
     )
@@ -130,7 +130,7 @@ def _is_multisport_file(fit_file: str) -> bool:
 
 
 def _process_files(
-    files_to_process: List[str], args: argparse.Namespace, processed_sessions: set[str]
+    files_to_process: List[str], args: argparse.Namespace, processed_sessions: set[tuple[Any, ...]]
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
     """Process all files that need analysis.
 
@@ -253,7 +253,7 @@ def _generate_strength_summary(
 
 def main_with_args(args: argparse.Namespace) -> int:
     """Main function that takes parsed arguments"""
-    processed_sessions: set[str] = set()
+    processed_sessions: set[tuple[Any, ...]] = set()
     csv_path = Path(args.output_dir) / "workout_summary_from_fit.csv"
 
     # Load existing analysis for incremental processing

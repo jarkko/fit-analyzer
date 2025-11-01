@@ -6,10 +6,13 @@ combining parsed data with session processing to create activity summaries.
 """
 
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from pandas import Series
 from dateutil import tz
 from fitparse import FitFile
 
@@ -106,8 +109,14 @@ def summarize_fit_sessions(
     return results, []
 
 
-def _prepare_timezone_aware_index(df: pd.DataFrame) -> Tuple[datetime, datetime]:
-    """Convert dataframe time column to timezone-aware UTC index"""
+def _prepare_timezone_aware_index(
+    df: pd.DataFrame,
+) -> Tuple[datetime, datetime, "Series[Any]"]:
+    """Prepare timezone-aware time index for the dataframe.
+
+    Returns:
+        Tuple of (start_utc, end_utc, time_index)
+    """
     start_utc, end_utc = convert_timestamps_to_utc(df)
 
     # Set index with timezone handling

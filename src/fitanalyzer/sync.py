@@ -37,7 +37,7 @@ __all__ = [
 # Try to import garth at module level
 try:
     import garth
-    from garth.http import GarthHTTPError as _GarthHTTPError
+    from garth.http import GarthHTTPError as _GarthHTTPError  # type: ignore[attr-defined]
 
     GARTH_AVAILABLE = True
     GarthHTTPError = _GarthHTTPError
@@ -158,7 +158,7 @@ def _perform_login(email: str, password: str, token_path: Path) -> bool:
     """
     try:
         print("🔐 Authenticating with Garmin Connect...")
-        garth.login(email, password)
+        garth.login(email, password)  # type: ignore[no-untyped-call]
 
         # Save credentials for next time
         token_path.parent.mkdir(parents=True, exist_ok=True)
@@ -351,7 +351,7 @@ def _exercise_names_differ(
     return False
 
 
-def _check_and_update_api_data(activity_id: str, directory: str) -> bool:
+def _check_and_update_api_data(activity_id: int, directory: str) -> bool:
     """Check if API exercise data needs updating and update if necessary.
 
     Args:
@@ -400,17 +400,17 @@ def _check_and_update_api_data(activity_id: str, directory: str) -> bool:
 
 
 def _download_single_activity(
-    activity_id: str, activity_name: str, activity_date: str, directory: str
+    activity_id: int, activity_name: str, activity_date: str, directory: str
 ) -> bool:
     """Download a single activity and save to file"""
     try:
         print(f"   ⬇️  Downloading: {activity_name} ({activity_date}) [ID: {activity_id}]")
 
         # Download FIT file using garth.download
-        fit_data = garth.download(f"/download-service/files/activity/{activity_id}")
+        zip_data = garth.download(f"/download-service/files/activity/{activity_id}")
 
         # Garmin returns a ZIP file, so we need to extract the FIT file
-        fit_data = _extract_fit_from_zip(fit_data)
+        fit_data = _extract_fit_from_zip(zip_data)
 
         if fit_data is None:
             print(f"      ⚠️  No .fit file found in ZIP for activity {activity_id}")
@@ -547,7 +547,7 @@ def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
     try:
         # Get activity details to check for child activities (multisport)
         activity_details = garth.connectapi(f"/activity-service/activity/{activity_id}")
-        child_ids = _get_child_activity_ids(activity_details)
+        child_ids = _get_child_activity_ids(activity_details) if activity_details else []
 
         # Try child activities first (for multisport)
         for child_id in child_ids:
@@ -579,7 +579,7 @@ def _process_activity(
         counters: Dict with keys: new_count, updated_count, api_updated_count, skipped_count
         updated_files: Optional list to track files that were downloaded or had API updates
     """
-    activity_id = str(activity["activityId"])
+    activity_id = int(activity["activityId"])
     activity_name = activity.get("activityName", "Unknown")
     activity_date = activity["startTimeLocal"][:10]
     fit_filename = str(Path(directory) / f"{activity_id}_ACTIVITY.fit")
@@ -611,7 +611,7 @@ def _process_activity(
         counters["skipped_count"] += 1
 
 
-def _identify_multisport_parents(activities: List[Dict[str, Any]]) -> set:
+def _identify_multisport_parents(activities: List[Dict[str, Any]]) -> set[int]:
     """Identify parent multisport activities that should be skipped.
 
     Args:
@@ -632,7 +632,7 @@ def _process_activities(
     activities: List[Dict[str, Any]],
     existing: Dict[str, float],
     directory: str,
-    parent_ids: set,
+    parent_ids: set[int],
 ) -> Tuple[Dict[str, int], List[str]]:
     """Process and download activities.
 
@@ -775,7 +775,11 @@ def download_new_activities(
 
         if not activities:
             print("   No activities found")
-            return 0
+            return (0, [])
+
+        # Convert dict to list if needed
+        if isinstance(activities, dict):
+            activities = [activities]
 
         # Filter by date and identify multisport parents
         recent_activities = _filter_recent_activities(activities, days)
@@ -803,9 +807,12 @@ def run_analysis(
     directory: str = ".",
     output_dir: str = "data",
     updated_files: Optional[List[str]] = None,
-    **kwargs,
-) -> None:
+    **kwargs: Any,
+) -> bool:
     """Run the FIT file analysis using the parser module.
+
+    Returns:
+        True if analysis completed successfully, False otherwise
 
     Args:
         directory: Directory containing FIT files

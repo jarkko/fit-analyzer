@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 
 def process_file_for_sets(
     fit_file: str, config: "AnalysisConfig", multisport: bool
-) -> Tuple[List[Any], pd.DataFrame]:
-    """Process a single file and return sessions and sets for strength training aggregation."""
+) -> Tuple[Dict[str, Any], pd.DataFrame]:
+    """Process a single file and return session dict and sets DataFrame for strength training aggregation."""
     # Get FIT file and extract sets
     ff = FitFile(fit_file)
     df_sets = extract_sets_from_fit(ff, fit_file_path=fit_file)
@@ -55,8 +55,14 @@ def process_file_for_sets(
     return df_sessions, df_sets
 
 
-def extract_session_metadata(df_sessions: pd.DataFrame) -> SetMetadata:
-    """Extract metadata from the first session."""
+def extract_session_metadata(
+    df_sessions: pd.DataFrame | dict[str, Any] | list[Any],
+) -> tuple[str, str, Any]:
+    """Extract metadata from the first session.
+
+    Returns:
+        Tuple of (sport, sub_sport, date)
+    """
     sport = "unknown"
     sub_sport = "unknown"
     date = None
@@ -77,7 +83,7 @@ def extract_session_metadata(df_sessions: pd.DataFrame) -> SetMetadata:
     return sport, sub_sport, date
 
 
-def create_set_record(row, idx: int, metadata) -> Dict[str, Any]:
+def create_set_record(row: pd.Series, idx: int, metadata: SetMetadata) -> Dict[str, Any]:
     """Create a dictionary record for a single set."""
     return {
         "activity_id": metadata.activity_id,
@@ -137,9 +143,8 @@ def aggregate_strength_sets(
         # Add metadata to each active set
         for idx, row in df_sets.iterrows():
             if row.get("set_type") == "active":
-                # iterrows() returns Hashable but we know it's int, so cast it
-                set_idx: int = int(idx) if not isinstance(idx, int) else idx  # type: ignore[call-overload]
-                all_strength_data.append(create_set_record(row, set_idx, metadata))
+                # iterrows() returns Hashable but we know it's int
+                all_strength_data.append(create_set_record(row, int(idx), metadata))  # type: ignore[call-overload]
 
     if not all_strength_data:
         return None
