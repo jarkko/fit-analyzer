@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fitanalyzer"
-version = "0.2.0"
+version = "0.3.0"
 description = "A Python library for analyzing Garmin FIT files and calculating training metrics"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -98,6 +98,30 @@ indent-string = "    "
 
 [tool.pylint.basic]
 good-names = ["i", "j", "k", "ex", "Run", "_", "df", "s", "d", "f", "ff", "np", "pd"]
+
+[tool.pylint.design]
+# Enforce function and class complexity limits
+max-args = 5              # Maximum number of function arguments
+max-locals = 15           # Maximum number of local variables
+max-returns = 6           # Maximum number of return statements
+max-branches = 12         # Maximum number of branches (if/elif/else)
+max-statements = 50       # Maximum number of statements in a function
+max-parents = 7           # Maximum number of parent classes
+max-attributes = 7        # Maximum number of instance attributes
+min-public-methods = 0    # Minimum number of public methods (0 = no limit)
+max-public-methods = 20   # Maximum number of public methods
+max-bool-expr = 5         # Maximum number of boolean expressions
+
+[tool.pylint.refactoring]
+# Enforce function length limits
+max-nested-blocks = 3     # Maximum nesting level (forces flat code)
+
+[tool.pylint.messages_control]
+# Enable all default checks, disable only when absolutely necessary
+# Note: too-many-lines is disabled for sync.py which is a CLI entrypoint module
+disable = [
+    "too-many-lines",     # Module length is less critical than function complexity
+]
 
 [tool.mypy]
 # MyPy type checking configuration

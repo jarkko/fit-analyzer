@@ -12,6 +12,7 @@ import os
 import subprocess
 import sys
 import zipfile
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -26,6 +27,10 @@ __all__ = [
     "fetch_exercise_sets_from_api",
     "save_exercise_sets_to_json",
     "load_exercise_sets_from_json",
+    "sync_activities",
+    "SyncConfig",
+    "AnalysisParams",
+    "SyncMode",
     "main",
 ]
 
@@ -78,6 +83,93 @@ def check_and_install_garth() -> bool:
     return False
 
 
+def _try_resume_session(token_path: Path) -> bool:
+    """Try to resume an existing Garmin session.
+
+    Args:
+        token_path: Path to the stored session token.
+
+    Returns:
+        True if session resumed successfully, False otherwise.
+    """
+    if not token_path.exists():
+        return False
+
+    try:
+        garth.resume(str(token_path))
+        # Test if session is valid
+        _ = garth.client.username
+        print("✅ Resumed existing Garmin Connect session")
+        return True
+    except (OSError, RuntimeError, ValueError, AttributeError) as e:
+        print(f"⚠️  Saved session expired or invalid: {e}")
+        print("   Need to re-authenticate...")
+        return False
+
+
+def _get_credential(value: Optional[str], env_var: str, prompt: str, secure: bool = False) -> str:
+    """Get a credential from value, environment variable, or user input.
+
+    Args:
+        value: Explicit value provided.
+        env_var: Environment variable name to check.
+        prompt: User prompt if value not found.
+        secure: If True, use getpass for secure input.
+
+    Returns:
+        The credential value.
+    """
+    if value:
+        return value
+
+    env_value = os.getenv(env_var)
+    if env_value:
+        return env_value
+
+    if secure:
+        return getpass.getpass(prompt)
+    return input(prompt)
+
+
+def _handle_auth_error(error: Exception) -> None:
+    """Handle authentication errors with helpful messages.
+
+    Args:
+        error: The exception that occurred during authentication.
+    """
+    print(f"❌ Authentication failed: {error}")
+    error_str = str(error).lower()
+    if "mfa" in error_str or "verification" in error_str:
+        print("\n💡 If you have MFA enabled, you may need to:")
+        print("   1. Generate an app-specific password in your Garmin account")
+        print("   2. Or disable MFA temporarily during first setup")
+
+
+def _perform_login(email: str, password: str, token_path: Path) -> bool:
+    """Perform Garmin login and save session.
+
+    Args:
+        email: Garmin account email.
+        password: Garmin account password.
+        token_path: Path to save session token.
+
+    Returns:
+        True if login successful, False otherwise.
+    """
+    try:
+        print("🔐 Authenticating with Garmin Connect...")
+        garth.login(email, password)
+
+        # Save credentials for next time
+        token_path.parent.mkdir(parents=True, exist_ok=True)
+        garth.save(str(token_path))
+        print("✅ Authentication successful! Session saved.")
+        return True
+    except (OSError, RuntimeError, ValueError) as e:
+        _handle_auth_error(e)
+        return False
+
+
 def authenticate_garmin(
     email: Optional[str] = None, password: Optional[str] = None, token_store: str = "~/.garth"
 ) -> bool:
@@ -127,45 +219,17 @@ def authenticate_garmin(
     token_path = Path(token_store).expanduser()
 
     # Try to resume existing session
-    if token_path.exists():
-        try:
-            garth.resume(str(token_path))
-            # Test if session is valid
-            _ = garth.client.username
-            print("✅ Resumed existing Garmin Connect session")
-            return True
-        except (OSError, RuntimeError, ValueError, AttributeError) as e:
-            print(f"⚠️  Saved session expired or invalid: {e}")
-            print("   Need to re-authenticate...")
-
-    # Need new authentication
-    if not email:
-        email = os.getenv("GARMIN_EMAIL")
-        if not email:
-            email = input("Garmin Connect email: ")
-
-    if not password:
-        password = os.getenv("GARMIN_PASSWORD")
-        if not password:
-            password = getpass.getpass("Garmin Connect password: ")
-
-    try:
-        print("🔐 Authenticating with Garmin Connect...")
-        garth.login(email, password)
-
-        # Save credentials for next time
-        token_path.parent.mkdir(parents=True, exist_ok=True)
-        garth.save(str(token_path))
-        print("✅ Authentication successful! Session saved.")
+    if _try_resume_session(token_path):
         return True
 
-    except (OSError, RuntimeError, ValueError) as e:
-        print(f"❌ Authentication failed: {e}")
-        if "MFA" in str(e) or "verification" in str(e).lower():
-            print("\n💡 If you have MFA enabled, you may need to:")
-            print("   1. Generate an app-specific password in your Garmin account")
-            print("   2. Or disable MFA temporarily during first setup")
-        return False
+    # Get credentials
+    email = _get_credential(email, "GARMIN_EMAIL", "Garmin Connect email: ")
+    password = _get_credential(
+        password, "GARMIN_PASSWORD", "Garmin Connect password: ", secure=True
+    )
+
+    # Perform login
+    return _perform_login(email, password, token_path)
 
 
 def get_existing_activity_ids(directory: str = ".") -> Dict[str, float]:
@@ -797,22 +861,29 @@ def main() -> int:
     if not directory.is_file():
         directory.mkdir(parents=True, exist_ok=True)
 
-    # Use the high-level sync_activities function
-    result = sync_activities(
-        email=args.email,
-        password=args.password,
-        days=args.days,
-        limit=args.limit,
-        directory=str(directory),
-        output_dir=args.output_dir,
+    # Build configuration from CLI arguments
+    analysis_params = AnalysisParams(
         ftp=args.ftp,
         hrrest=args.hrrest,
         hrmax=args.hrmax,
         multisport=not args.no_multisport,
+    )
+    mode = SyncMode(
         analyze_only=args.analyze_only,
         download_only=args.download_only,
         force=args.force,
     )
+    config = SyncConfig(
+        directory=str(directory),
+        output_dir=args.output_dir,
+        days=args.days,
+        limit=args.limit,
+        analysis=analysis_params,
+        mode=mode,
+    )
+
+    # Use the high-level sync_activities function
+    result = sync_activities(config, email=args.email, password=args.password)
 
     if not result["success"]:
         print(f"\n❌ Error: {result['error']}")
@@ -827,21 +898,51 @@ def main() -> int:
     return 0
 
 
-def sync_activities(  # pylint: disable=too-many-arguments,too-many-locals
-    *,
-    email: Optional[str] = None,
-    password: Optional[str] = None,
-    days: int = DEFAULT_SYNC_DAYS,
-    limit: Optional[int] = None,
-    directory: str = ".",
-    output_dir: str = "data",
-    ftp: int = DEFAULT_FTP,
-    hrrest: int = DEFAULT_HR_REST,
-    hrmax: int = DEFAULT_HR_MAX,
-    multisport: bool = True,
-    analyze_only: bool = False,
-    download_only: bool = False,
-    force: bool = False,
+@dataclass
+class AnalysisParams:
+    """Parameters for activity analysis."""
+
+    ftp: int = DEFAULT_FTP
+    hrrest: int = DEFAULT_HR_REST
+    hrmax: int = DEFAULT_HR_MAX
+    multisport: bool = True
+
+
+@dataclass
+class SyncMode:
+    """Synchronization mode flags."""
+
+    analyze_only: bool = False
+    download_only: bool = False
+    force: bool = False
+
+
+@dataclass
+class SyncConfig:
+    """Configuration for activity synchronization."""
+
+    # Directories
+    directory: str = "."
+    output_dir: str = "data"
+
+    # Sync parameters
+    days: int = DEFAULT_SYNC_DAYS
+    limit: Optional[int] = None
+
+    # Nested configurations
+    analysis: AnalysisParams = None  # type: ignore[assignment]
+    mode: SyncMode = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        """Initialize nested params if not provided."""
+        if self.analysis is None:
+            self.analysis = AnalysisParams()
+        if self.mode is None:
+            self.mode = SyncMode()
+
+
+def sync_activities(
+    config: Optional[SyncConfig] = None, /, **kwargs: Any
 ) -> Dict[str, Any]:
     """High-level function to sync activities from Garmin Connect (incremental by default).
 
@@ -849,9 +950,9 @@ def sync_activities(  # pylint: disable=too-many-arguments,too-many-locals
     Incremental sync is automatic - only new/changed activities are downloaded and analyzed.
 
     Example:
-        >>> from fitanalyzer import sync_activities
+        >>> from fitanalyzer import sync_activities, SyncConfig
         >>>
-        >>> # Simple sync (uses env vars for credentials)
+        >>> # Simple sync (uses env vars for credentials and defaults)
         >>> result = sync_activities(days=7)
         >>>
         >>> # With explicit credentials
@@ -863,23 +964,29 @@ def sync_activities(  # pylint: disable=too-many-arguments,too-many-locals
         ...     output_dir="./output"
         ... )
         >>>
+        >>> # Advanced: using config object for full control
+        >>> from fitanalyzer import AnalysisParams, SyncMode
+        >>> config = SyncConfig(
+        ...     directory="./activities",
+        ...     output_dir="./data",
+        ...     days=30,
+        ...     analysis=AnalysisParams(ftp=250, hrmax=185),
+        ...     mode=SyncMode(force=True)
+        ... )
+        >>> result = sync_activities(config, email="user@example.com")
+        >>>
         >>> print(f"Downloaded {result['new_activities']} new activities")
         >>> print(f"CSV: {result['csv_path']}")
 
     Args:
-        email: Garmin Connect email (uses GARMIN_EMAIL env var if None)
-        password: Garmin Connect password (uses GARMIN_PASSWORD env var if None)
-        days: Number of days to sync (default: 30)
-        limit: Maximum number of activities to fetch (default: None = all)
-        directory: Directory to store FIT files (default: ".")
-        output_dir: Directory for CSV output (default: "data")
-        ftp: Functional Threshold Power in watts (default: 300)
-        hrrest: Resting heart rate in bpm (default: 60)
-        hrmax: Maximum heart rate in bpm (default: 190)
-        multisport: Enable multisport session handling (default: True)
-        analyze_only: Skip download, only analyze existing files (default: False)
-        download_only: Only download, skip analysis (default: False)
-        force: Force re-download even if files exist (default: False, incremental)
+        config: Optional SyncConfig object for advanced configuration. If provided,
+                keyword arguments override config values.
+        **kwargs: Keyword arguments for quick configuration:
+            - email: Garmin Connect email (uses GARMIN_EMAIL env var if None)
+            - password: Garmin Connect password (uses GARMIN_PASSWORD env var if None)
+            - days: Number of days to sync (default: 30)
+            - directory: Directory to store FIT files (default: ".")
+            - output_dir: Directory for CSV output (default: "data")
 
     Returns:
         Dict with keys:
@@ -892,47 +999,91 @@ def sync_activities(  # pylint: disable=too-many-arguments,too-many-locals
     Raises:
         ImportError: If garth library is not installed
     """
+    # Extract authentication from kwargs
+    email = kwargs.pop("email", None)
+    password = kwargs.pop("password", None)
+
+    # Start with provided config or create default
+    if config is None:
+        config = SyncConfig()
+
+    # Override config with any explicit keyword arguments
+    for key, value in kwargs.items():
+        if value is not None and hasattr(config, key):
+            setattr(config, key, value)
+
+    return _sync_with_config(config, email=email, password=password)
+
+
+def _sync_with_config(
+    config: SyncConfig, email: Optional[str] = None, password: Optional[str] = None
+) -> Dict[str, Any]:
+    """Internal sync implementation using configuration object."""
     if not check_and_install_garth():
         return {"success": False, "new_activities": 0, "error": "garth library not available"}
 
     try:
-        directory_path = Path(directory)
+        directory_path = Path(config.directory)
         directory_path.mkdir(parents=True, exist_ok=True)
 
-        new_activities = 0
-        updated_files = []
+        # Download phase
+        new_activities, updated_files = _download_phase(config, directory_path, email, password)
 
-        # Download activities
-        if not analyze_only:
-            if not authenticate_garmin(email, password):
-                return {"success": False, "new_activities": 0, "error": "Authentication failed"}
+        # Analysis phase
+        if not config.mode.download_only:
+            _analysis_phase(config, directory_path, updated_files)
 
-            new_activities, updated_files = download_new_activities(
-                days=days, limit=limit, directory=str(directory_path), force=force
-            )
-
-        # Run analysis
-        if not download_only:
-            run_analysis(
-                directory=str(directory_path),
-                output_dir=output_dir,
-                ftp=ftp,
-                hrrest=hrrest,
-                hrmax=hrmax,
-                multisport=multisport,
-                updated_files=updated_files,
-            )
-
-        output_path = Path(output_dir)
-        return {
-            "success": True,
-            "new_activities": new_activities,
-            "csv_path": str(output_path / "workout_summary_from_fit.csv"),
-            "strength_csv_path": str(output_path / "strength_training_summary.csv"),
-        }
+        return _create_success_result(config.output_dir, new_activities)
 
     except Exception as e:  # pylint: disable=broad-except
         return {"success": False, "new_activities": 0, "error": str(e)}
+
+
+def _download_phase(
+    config: SyncConfig, directory_path: Path, email: Optional[str], password: Optional[str]
+) -> Tuple[int, List[str]]:
+    """Handle the download phase of synchronization.
+
+    Returns:
+        Tuple of (new_activities_count, updated_files_list)
+    """
+    if config.mode.analyze_only:
+        return 0, []
+
+    if not authenticate_garmin(email, password):
+        raise RuntimeError("Authentication failed")
+
+    new_activities, updated_files = download_new_activities(
+        days=config.days,
+        limit=config.limit,
+        directory=str(directory_path),
+        force=config.mode.force,
+    )
+    return new_activities, updated_files
+
+
+def _analysis_phase(config: SyncConfig, directory_path: Path, updated_files: List[str]) -> None:
+    """Handle the analysis phase of synchronization."""
+    run_analysis(
+        directory=str(directory_path),
+        output_dir=config.output_dir,
+        ftp=config.analysis.ftp,
+        hrrest=config.analysis.hrrest,
+        hrmax=config.analysis.hrmax,
+        multisport=config.analysis.multisport,
+        updated_files=updated_files,
+    )
+
+
+def _create_success_result(output_dir: str, new_activities: int) -> Dict[str, Any]:
+    """Create a success result dictionary."""
+    output_path = Path(output_dir)
+    return {
+        "success": True,
+        "new_activities": new_activities,
+        "csv_path": str(output_path / "workout_summary_from_fit.csv"),
+        "strength_csv_path": str(output_path / "strength_training_summary.csv"),
+    }
 
 
 if __name__ == "__main__":

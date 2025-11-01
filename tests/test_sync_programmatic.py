@@ -10,7 +10,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from fitanalyzer.sync import sync_activities
+from fitanalyzer.sync import AnalysisParams, SyncConfig, SyncMode, sync_activities
 
 
 class TestSyncActivitiesProgrammatic(unittest.TestCase):
@@ -66,9 +66,12 @@ class TestSyncActivitiesProgrammatic(unittest.TestCase):
         mock_check.return_value = True
         mock_analysis.return_value = True
 
-        result = sync_activities(
-            analyze_only=True, directory=self.test_dir, output_dir=self.output_dir
+        config = SyncConfig(
+            directory=self.test_dir,
+            output_dir=self.output_dir,
+            mode=SyncMode(analyze_only=True),
         )
+        result = sync_activities(config)
 
         # Should not authenticate if analyze_only
         mock_auth.assert_not_called()
@@ -85,9 +88,12 @@ class TestSyncActivitiesProgrammatic(unittest.TestCase):
         mock_auth.return_value = True
         mock_download.return_value = (3, [])
 
-        result = sync_activities(
-            download_only=True, directory=self.test_dir, output_dir=self.output_dir
+        config = SyncConfig(
+            directory=self.test_dir,
+            output_dir=self.output_dir,
+            mode=SyncMode(download_only=True),
         )
+        result = sync_activities(config)
 
         # Should download
         mock_download.assert_called_once()
@@ -147,10 +153,10 @@ class TestSyncActivitiesProgrammatic(unittest.TestCase):
         self.assertEqual(call_kwargs["updated_files"], updated_files)
 
     def test_keyword_only_arguments(self):
-        """Test that all arguments must be keyword-only."""
-        # This should raise TypeError if positional args are used
+        """Test that config must be positional but credentials keyword-only."""
+        # This should raise TypeError if email/password are positional
         with self.assertRaises(TypeError):
-            sync_activities("email@test.com", "password")  # type: ignore
+            sync_activities(None, "email@test.com", "password")  # type: ignore
 
 
 if __name__ == "__main__":

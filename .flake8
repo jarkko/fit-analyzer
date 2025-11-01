@@ -27,8 +27,8 @@ ignore =
 # Error codes to specifically check
 select = E,W,F,C
 
-# Complexity settings
-max-complexity = 15
+# Complexity settings - enforce simpler functions (aligned with pylint max-branches=12)
+max-complexity = 10
 
 # Per-file ignores
 per-file-ignores =
