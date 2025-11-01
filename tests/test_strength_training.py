@@ -43,7 +43,7 @@ def multiple_strength_files():
 def aggregated_strength_data(multiple_strength_files):
     """Pre-aggregated strength data from multiple files."""
     config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki")
-    return aggregate_strength_sets(multiple_strength_files, config, multisport=False)
+    return aggregate_strength_sets(multiple_strength_files, config)
 
 
 @pytest.fixture(scope="module")
@@ -189,7 +189,6 @@ class TestStrengthTrainingAggregation:
         df_summary = aggregate_strength_sets(
             [],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=False,
         )
 
         assert df_summary is None
@@ -210,12 +209,11 @@ class TestStrengthTrainingMultisport:
     """Tests for strength training in multisport activities."""
 
     def test_aggregate_works_with_multisport_flag(self, multiple_strength_files):
-        """Test that aggregation works correctly with multisport=True."""
-        # This test needs to actually call the function with multisport=True
+        """Test that aggregation auto-detects multisport files."""
+        # Multisport parameter removed - now auto-detects
         df_summary = aggregate_strength_sets(
             multiple_strength_files,
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=True,
         )
 
         # Should still return valid data
@@ -285,12 +283,11 @@ class TestMultisportStrengthExtraction:
         assert len(strength_sessions) > 0, "Expected at least one strength training session"
 
     def test_multisport_strength_extraction_with_aggregate(self, multisport_with_strength):
-        """Test that strength sets can be extracted from multisport files."""
-        # This test needs to call the function directly with multisport=True
+        """Test that strength sets can be extracted from multisport files (auto-detected)."""
+        # Multisport detection is now automatic
         df_summary = aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=True,
         )
 
         # Should extract strength sets from the multisport file
@@ -302,12 +299,11 @@ class TestMultisportStrengthExtraction:
         assert (df_summary["sub_sport"] == "strength_training").any()
 
     def test_multisport_strength_has_exercise_names(self, multisport_with_strength):
-        """Test that strength sets from multisport files include exercise names."""
-        # This test needs to call the function directly with multisport=True
+        """Test that strength sets from multisport files include exercise names (auto-detected)."""
+        # Multisport detection is now automatic
         df_summary = aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=True,
         )
 
         # Should have exercise_name column
@@ -318,12 +314,11 @@ class TestMultisportStrengthExtraction:
         assert len(named_exercises) > 0
 
     def test_multisport_preserves_session_information(self, multisport_with_strength):
-        """Test that multisport files preserve correct session/sport information."""
-        # This test needs to call the function directly with multisport=True
+        """Test that multisport files preserve correct session/sport information (auto-detected)."""
+        # Multisport detection is now automatic
         df_summary = aggregate_strength_sets(
             [multisport_with_strength],
             AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki"),
-            multisport=True,
         )
 
         # All extracted sets should be from strength training session

@@ -752,7 +752,7 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
                     dummy_file = Path(tmpdir) / "test.fit"
                     dummy_file.write_text("")
 
-                    result = aggregate_strength_sets([str(dummy_file)], config, False)
+                    result = aggregate_strength_sets([str(dummy_file)], config)
 
                     # Should return None when all sets are empty
                     self.assertIsNone(result)
@@ -832,15 +832,16 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
         self.assertIsNotNone(time_index)
 
     def test_multisport_with_dump_sets_flag(self):
-        """Test that --dump-sets is skipped when --multisport is used (lines 696-697)"""
+        """Test that --dump-sets is skipped for multisport files (auto-detected)"""
         from fitanalyzer.cli import main_with_args, parse_arguments
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            # Use strength training fixture
+            # Use multisport fixture (20744294788_ACTIVITY.fit has multiple sessions)
             test_file = "tests/fixtures/20744294788_ACTIVITY.fit"
 
+            # No --multisport flag needed - auto-detects multisport files
             args = parse_arguments(
-                [test_file, "--multisport", "--dump-sets", "--ftp", "300", "--output-dir", tmpdir]
+                [test_file, "--dump-sets", "--ftp", "300", "--output-dir", tmpdir]
             )
 
             result = main_with_args(args)
@@ -848,12 +849,12 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
             # Should complete successfully
             self.assertEqual(result, 0)
 
-            # When multisport is True, the per-file dump-sets is skipped
+            # When file is multisport (auto-detected), the per-file dump-sets is skipped
             # So we shouldn't have individual set CSV files
             output_path = Path(tmpdir)
             set_files = list(output_path.glob("*_sets.csv"))
 
-            # With multisport, sets are only in the aggregated output
+            # With multisport files, sets are only in the aggregated output
             # Individual set files shouldn't be created
             self.assertEqual(len(set_files), 0)
 

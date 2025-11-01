@@ -305,5 +305,5 @@ class TestRunAnalysisKwargsContract:
         assert "50" in args
         assert "--hrmax" in args
         assert "190" in args
-        # multisport default is True
-        assert "--multisport" in args
+        # multisport flag removed - now auto-detects
+        assert "--multisport" not in args

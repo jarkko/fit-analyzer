@@ -35,14 +35,26 @@ def parse_arguments(args=None):
     ap.add_argument("--hrmax", type=int, default=190)
     ap.add_argument("--tz", type=str, default="Europe/Helsinki")
     ap.add_argument("--dump-sets", action="store_true", help="Save strength training sets to CSV")
-    ap.add_argument(
-        "--multisport", action="store_true", help="Process multisport activities by session"
-    )
     ap.add_argument("--output-dir", type=str, default="data", help="Directory for output CSV files")
     ap.add_argument(
         "--force", action="store_true", help="Force reanalysis of all files (ignore cache)"
     )
-    return ap.parse_args(args)
+    parsed = ap.parse_args(args)
+
+    # Deduplicate fit_files list (preserve order)
+    seen = set()
+    unique_files = []
+    for f in parsed.fit_files:
+        if f not in seen:
+            seen.add(f)
+            unique_files.append(f)
+
+    if len(unique_files) < len(parsed.fit_files):
+        duplicates_count = len(parsed.fit_files) - len(unique_files)
+        print(f"⚠️  Removed {duplicates_count} duplicate file(s) from input list")
+
+    parsed.fit_files = unique_files
+    return parsed
 
 
 def _process_multisport_file(fit_file, args, processed_sessions):
@@ -64,6 +76,8 @@ def _process_multisport_file(fit_file, args, processed_sessions):
 
         # Add file modification time for incremental analysis
         result["_file_mtime"] = file_mtime
+        # Track original file for proper incremental merge
+        result["_original_file"] = fit_file
 
         # Create a unique key for this session
         session_key = (
@@ -99,18 +113,42 @@ def _process_single_file(fit_file, args):
     return [summary] if summary else []
 
 
+def _is_multisport_file(fit_file: str) -> bool:
+    """Check if a FIT file contains multiple sessions (multisport)."""
+    try:
+        from fitanalyzer.parser import extract_sessions_from_fit
+        ff = FitFile(fit_file)
+        sessions = list(extract_sessions_from_fit(ff))
+        return len(sessions) > 1
+    except Exception:
+        # If we can't read sessions, treat as single sport
+        return False
+
+
 def _process_files(
     files_to_process: List[str], args, processed_sessions: set
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
-    """Process all files that need analysis."""
+    """Process all files that need analysis.
+
+    Automatically detects multisport files and processes them appropriately.
+    """
     rows = []
     all_sets = []
+    processed_files = set()  # Track which files we've already processed
 
     for fit_file in files_to_process:
+        # Skip if we've already processed this exact file
+        if fit_file in processed_files:
+            print(f"⏭️  Skipping already processed file: {fit_file}")
+            continue
+
+        processed_files.add(fit_file)
         print(f"📊 Analyzing: {fit_file}")
 
-        # Process based on mode
-        if args.multisport:
+        # Automatically detect multisport files
+        is_multisport = _is_multisport_file(fit_file)
+
+        if is_multisport:
             new_rows = _process_multisport_file(fit_file, args, processed_sessions)
             rows.extend(new_rows)
         else:
@@ -118,7 +156,7 @@ def _process_files(
             rows.extend(new_rows)
 
         # Handle strength sets if requested (only for single-sport files)
-        if args.dump_sets and not args.multisport:
+        if args.dump_sets and not is_multisport:
             ff = FitFile(fit_file)
             df_sets = extract_sets_from_fit(ff, fit_file_path=fit_file)
             csv_file = save_strength_sets_csv(fit_file, df_sets)
@@ -188,10 +226,10 @@ def _generate_strength_summary(
         strength_files_to_process.update(args.updated_files)
 
     # Only aggregate sets from files that were actually processed or had API updates
+    # Note: multisport detection is now automatic in aggregate_strength_sets
     new_strength = aggregate_strength_sets(
         list(strength_files_to_process),
         config,
-        multisport=args.multisport,
     )
 
     # Merge: keep existing rows for unchanged files, add rows for processed files

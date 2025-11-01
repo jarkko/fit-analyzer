@@ -30,7 +30,7 @@ def multisport_with_strength():
 def multisport_aggregated(multisport_with_strength):
     """Pre-aggregated data from multisport activity."""
     config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki")
-    return aggregate_strength_sets([multisport_with_strength], config, multisport=False)
+    return aggregate_strength_sets([multisport_with_strength], config)
 
 
 class TestMultisportStrengthExtraction:

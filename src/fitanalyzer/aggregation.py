@@ -96,15 +96,16 @@ def create_set_record(row, idx: int, metadata) -> Dict[str, Any]:
 
 
 def aggregate_strength_sets(
-    fit_files: list[str], config: "AnalysisConfig", multisport: bool = False
+    fit_files: list[str], config: "AnalysisConfig"
 ) -> Optional[pd.DataFrame]:
     """
     Aggregate strength training sets from multiple FIT files into a single DataFrame.
 
+    Automatically detects multisport files and handles them appropriately.
+
     Args:
         fit_files: List of FIT file paths to process
         config: Analysis configuration with ftp, hr_rest, hr_max, tz_name
-        multisport: Whether to use multisport processing
 
     Returns:
         DataFrame with columns: activity_id, file, date, sport, sub_sport, set_number,
@@ -113,7 +114,8 @@ def aggregate_strength_sets(
     all_strength_data = []
 
     for fit_file in fit_files:
-        df_sessions, df_sets = process_file_for_sets(fit_file, config, multisport)
+        # Auto-detect multisport (parameter removed, always auto-detect)
+        df_sessions, df_sets = process_file_for_sets(fit_file, config, multisport=False)
 
         # Skip if no strength sets found
         if df_sets is None or (isinstance(df_sets, pd.DataFrame) and df_sets.empty):

@@ -807,13 +807,12 @@ def run_analysis(
         directory: Directory containing FIT files
         output_dir: Directory for output CSV files
         updated_files: List of file paths that were updated (downloaded or API changed)
-        **kwargs: Additional arguments (ftp, hrrest, hrmax, multisport)
+        **kwargs: Additional arguments (ftp, hrrest, hrmax)
     """
     # Extract kwargs with defaults
     ftp = kwargs.get("ftp", DEFAULT_FTP)
     hrrest = kwargs.get("hrrest", DEFAULT_HR_REST)
     hrmax = kwargs.get("hrmax", DEFAULT_HR_MAX)
-    multisport = kwargs.get("multisport", True)
 
     print("\n📊 Running analysis on all FIT files...")
 
@@ -849,8 +848,6 @@ def run_analysis(
         args.extend(["--hrmax", str(hrmax)])
         args.extend(["--output-dir", str(output_dir)])
         args.append("--dump-sets")  # Always save strength training sets
-        if multisport:
-            args.append("--multisport")
 
         # Parse arguments using parser's argument parser
         parsed_args = cli.parse_arguments(args)
@@ -902,9 +899,6 @@ def main() -> int:
     parser.add_argument("--hrrest", type=int, default=50, help="Resting heart rate (default: 50)")
     parser.add_argument("--hrmax", type=int, default=190, help="Maximum heart rate (default: 190)")
     parser.add_argument(
-        "--no-multisport", action="store_true", help="Disable multisport session separation"
-    )
-    parser.add_argument(
         "--download-only", action="store_true", help="Only download, don't run analysis"
     )
     parser.add_argument(
@@ -936,7 +930,6 @@ def main() -> int:
         ftp=args.ftp,
         hrrest=args.hrrest,
         hrmax=args.hrmax,
-        multisport=not args.no_multisport,
     )
     mode = SyncMode(
         analyze_only=args.analyze_only,
@@ -975,7 +968,6 @@ class AnalysisParams:
     ftp: int = DEFAULT_FTP
     hrrest: int = DEFAULT_HR_REST
     hrmax: int = DEFAULT_HR_MAX
-    multisport: bool = True
 
 
 @dataclass
@@ -1138,7 +1130,6 @@ def _analysis_phase(config: SyncConfig, directory_path: Path, updated_files: Lis
         ftp=config.analysis.ftp,
         hrrest=config.analysis.hrrest,
         hrmax=config.analysis.hrmax,
-        multisport=config.analysis.multisport,
         updated_files=updated_files,
     )
 
