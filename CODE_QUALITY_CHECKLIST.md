@@ -2,6 +2,23 @@
 
 This document outlines all code quality standards and checks for this project. Run `make quality` to execute all checks.
 
+## ⚠️ CRITICAL: PRE-PUSH CHECKLIST
+
+**NEVER push to main without running these checks locally first:**
+
+```bash
+# 1. Run all quality checks
+make lint && make test
+
+# 2. Verify CI will pass (optional but recommended)
+# Check that all required checks are green before pushing
+
+# 3. Only then push
+git push
+```
+
+**WHY:** Branch protection requires all CI checks to pass. Pushing failing code wastes CI resources and creates noise in the commit history.
+
 ## 1. Code Style & Formatting
 
 ### Black (Auto-formatter)
