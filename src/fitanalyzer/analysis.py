@@ -13,6 +13,29 @@ import pandas as pd
 from fitanalyzer.metrics import np_power, trimp_from_hr
 
 
+def calculate_all_data_metrics(df: Any) -> Dict[str, float]:
+    """Calculate all data metrics (speed, cadence, distance, elevation) from dataframe.
+
+    This is the single source of truth for calculating data metrics across
+    both single-sport and multisport activities.
+
+    Args:
+        df: DataFrame with speed, cadence, distance, altitude columns
+
+    Returns:
+        Dictionary with all calculated data metrics
+    """
+    metrics = {}
+    for calc_func in [
+        calc_speed_metrics,
+        calc_cadence_metrics,
+        calc_distance_metrics,
+        calc_elevation_metrics,
+    ]:
+        metrics.update(calc_func(df))
+    return metrics
+
+
 def calc_speed_metrics(df: Any) -> Dict[str, float]:
     """Calculate speed metrics from dataframe.
 

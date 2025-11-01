@@ -12,16 +12,14 @@ import numpy as np
 import pandas as pd
 from dateutil import tz
 
+from fitanalyzer.analysis import calculate_all_data_metrics
 from fitanalyzer.config import AnalysisConfig
 from fitanalyzer.constants import SPORT_MAPPING, SUB_SPORT_MAPPING
 from fitanalyzer.formatting import (
     calculate_basic_hr_power_metrics,
     convert_timestamps_to_utc,
-    format_cadence_metrics,
-    format_distance_metrics,
-    format_hr_power_metrics,
+    format_all_data_metrics,
     format_metric_value,
-    format_speed_metrics,
 )
 from fitanalyzer.metrics import np_power, trimp_from_hr
 
@@ -76,67 +74,44 @@ def create_file_display(path: str, session_idx: int, sport: str, subsport: str) 
 def calculate_session_metrics(
     df: pd.DataFrame, dur_hr: float, config: AnalysisConfig
 ) -> Dict[str, float]:
-    """Calculate power, heart rate, speed, cadence, and distance metrics from session data.
+    """Calculate power, heart rate, speed, cadence, distance, and elevation metrics.
 
     Args:
-        df: Resampled DataFrame with hr, power, speed, cadence, distance columns
+        df: Resampled DataFrame with hr, power, speed, cadence, distance, altitude
         dur_hr: Duration in hours
         config: Analysis configuration with ftp, hr_rest, hr_max
 
     Returns:
-        Dictionary with all calculated metrics including speed, cadence, distance
+        Dictionary with all metrics: speed, cadence, distance, elevation
     """
     npw = np_power(df["power"].fillna(0)) if df["power"].notna().any() else np.nan
     intensity_factor = (npw / config.ftp) if np.isfinite(npw) and config.ftp > 0 else np.nan
 
-    # Calculate speed metrics (raw values)
-    has_speed = "speed" in df.columns and df["speed"].notna().any()
-    avg_speed_mps = float(df["speed"].mean()) if has_speed else np.nan
-    max_speed_mps = float(df["speed"].max()) if has_speed else np.nan
+    # Calculate all data metrics using shared function
+    metrics = calculate_all_data_metrics(df)
 
-    # Calculate cadence metrics (raw values)
-    has_cadence = "cadence" in df.columns and df["cadence"].notna().any()
-    avg_cadence = float(df["cadence"].mean()) if has_cadence else np.nan
-    max_cadence = float(df["cadence"].max()) if has_cadence else np.nan
+    # Add power and timing metrics
+    metrics.update(
+        {
+            "npw": npw,
+            "intensity_factor": intensity_factor,
+            "tss": (
+                ((dur_hr * npw * intensity_factor) / config.ftp * 100)
+                if np.all(np.isfinite([dur_hr, npw, intensity_factor])) and config.ftp > 0
+                else np.nan
+            ),
+            "trimp": (
+                trimp_from_hr(df["hr"].ffill(), hr_rest=config.hr_rest, hr_max=config.hr_max)
+                if df["hr"].notna().any()
+                else 0.0
+            ),
+        }
+    )
 
-    # Calculate distance metrics (raw values)
-    total_distance_m = np.nan
-    if "distance" in df.columns:
-        distance_series = df["distance"].dropna()
-        if len(distance_series) > 1:
-            total_distance_m = float(distance_series.iloc[-1] - distance_series.iloc[0])
+    # Add basic HR and power metrics
+    metrics.update(calculate_basic_hr_power_metrics(df))
 
-    # Build result dictionary with raw metrics
-    result = {
-        "npw": npw,
-        "intensity_factor": intensity_factor,
-        "tss": (
-            ((dur_hr * npw * intensity_factor) / config.ftp * 100)
-            if np.all(np.isfinite([dur_hr, npw, intensity_factor])) and config.ftp > 0
-            else np.nan
-        ),
-        "trimp": (
-            trimp_from_hr(df["hr"].ffill(), hr_rest=config.hr_rest, hr_max=config.hr_max)
-            if df["hr"].notna().any()
-            else 0.0
-        ),
-        # Speed metrics (raw)
-        "avg_speed_mps": avg_speed_mps,
-        "max_speed_mps": max_speed_mps,
-        "avg_speed_kph": avg_speed_mps * 3.6 if np.isfinite(avg_speed_mps) else np.nan,
-        "max_speed_kph": max_speed_mps * 3.6 if np.isfinite(max_speed_mps) else np.nan,
-        # Cadence metrics (raw)
-        "avg_cadence": avg_cadence,
-        "max_cadence": max_cadence,
-        # Distance metrics (raw)
-        "total_distance_m": total_distance_m,
-        "total_distance_km": total_distance_m / 1000.0 if np.isfinite(total_distance_m) else np.nan,
-    }
-
-    # Add basic HR and power metrics (raw)
-    result.update(calculate_basic_hr_power_metrics(df))
-
-    return result
+    return metrics
 
 
 def process_session_data(
@@ -222,10 +197,7 @@ def process_session_data(
         "_session_index": session_idx,
     }
 
-    # Add formatted metrics using helper functions
-    result.update(format_hr_power_metrics(metrics))
-    result.update(format_speed_metrics(metrics))
-    result.update(format_cadence_metrics(metrics))
-    result.update(format_distance_metrics(metrics))
+    # Add formatted metrics using shared helper function
+    result.update(format_all_data_metrics(metrics))
 
     return result

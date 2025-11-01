@@ -13,26 +13,22 @@ import pandas as pd
 from dateutil import tz
 from fitparse import FitFile
 
-from fitanalyzer.analysis import (
-    calc_cadence_metrics,
-    calc_distance_metrics,
-    calc_elevation_metrics,
-    calc_speed_metrics,
-)
+from fitanalyzer.analysis import calculate_all_data_metrics
 from fitanalyzer.config import AnalysisConfig
 from fitanalyzer.constants import DEFAULT_FTP, DEFAULT_HR_MAX, DEFAULT_HR_REST, DEFAULT_TIMEZONE
 from fitanalyzer.formatting import (
     calculate_basic_hr_power_metrics,
     convert_timestamps_to_utc,
-    format_cadence_metrics,
-    format_distance_metrics,
-    format_elevation_metrics,
-    format_hr_power_metrics,
+    format_all_data_metrics,
     format_metric_value,
-    format_speed_metrics,
 )
 from fitanalyzer.metrics import np_power, trimp_from_hr
-from fitanalyzer.parser import extract_records_from_fit, extract_sessions_from_fit, get_sport_names
+from fitanalyzer.parser import (
+    create_record_dict,
+    extract_records_from_fit,
+    extract_sessions_from_fit,
+    get_sport_names,
+)
 from fitanalyzer.sessions import process_session_data
 
 if TYPE_CHECKING:
@@ -81,17 +77,10 @@ def summarize_fit_sessions(
         if (session_timer_time := session.get("total_timer_time", 0)) <= 0:
             continue
 
-        # Process this session's data
+        # Extract records for this session using shared record creation logic
         if (
             recs := [
-                {
-                    "time": d["timestamp"],
-                    "hr": d.get("heart_rate", np.nan),
-                    "power": d.get("power", np.nan),
-                    "speed": d.get("speed", np.nan),
-                    "cadence": d.get("cadence", np.nan),
-                    "distance": d.get("distance", np.nan),
-                }
+                create_record_dict(d)
                 for m in ff.get_messages("record")
                 if (d := {d.name: d.value for d in m})
                 and "timestamp" in d
@@ -138,16 +127,8 @@ def _calculate_metrics_original(
     npw = np_power(df["power"].fillna(0)) if df["power"].notna().any() else np.nan
     intensity_factor = (npw / config.ftp) if np.isfinite(npw) and config.ftp > 0 else np.nan
 
-    # Use common metric calculation, then add duration-specific metrics
-    metrics = {}
-    for key in ["speed", "cadence", "distance", "elevation"]:
-        fn = {
-            "speed": calc_speed_metrics,
-            "cadence": calc_cadence_metrics,
-            "distance": calc_distance_metrics,
-            "elevation": calc_elevation_metrics,
-        }[key]
-        metrics.update(fn(df))
+    # Calculate all data metrics using shared function
+    metrics = calculate_all_data_metrics(df)
 
     # Calculate basic HR and power metrics
     basic_metrics = calculate_basic_hr_power_metrics(df)
@@ -220,11 +201,7 @@ def summarize_fit_original(
         "TRIMP": round(metrics["TRIMP"], 1),
     }
 
-    # Add formatted metrics using helper functions
-    result.update(format_hr_power_metrics(metrics))
-    result.update(format_speed_metrics(metrics))
-    result.update(format_cadence_metrics(metrics))
-    result.update(format_distance_metrics(metrics))
-    result.update(format_elevation_metrics(metrics))
+    # Add formatted metrics using shared helper function
+    result.update(format_all_data_metrics(metrics))
 
     return result

@@ -150,3 +150,24 @@ def format_hr_power_metrics(metrics: Dict[str, float]) -> Dict[str, Any]:
         "max_power_w": format_metric_value(metrics.get("max_p", np.nan), 1),
         "np_w": format_metric_value(metrics.get("npw", np.nan), 1),
     }
+
+
+def format_all_data_metrics(metrics: Dict[str, float]) -> Dict[str, Any]:
+    """Format all data metrics (HR, power, speed, cadence, distance, elevation).
+
+    This is the single source of truth for formatting all data metrics
+    consistently across single-sport and multisport activities.
+
+    Args:
+        metrics: Dictionary containing all calculated metrics
+
+    Returns:
+        Dictionary with all formatted metrics
+    """
+    result = {}
+    result.update(format_hr_power_metrics(metrics))
+    result.update(format_speed_metrics(metrics))
+    result.update(format_cadence_metrics(metrics))
+    result.update(format_distance_metrics(metrics))
+    result.update(format_elevation_metrics(metrics))
+    return result

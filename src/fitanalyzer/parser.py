@@ -21,7 +21,31 @@ __all__ = [
     "extract_records_from_fit",
     "extract_valid_value",
     "get_sport_names",
+    "create_record_dict",
 ]
+
+
+def create_record_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Create a standardized record dictionary from FIT message data.
+
+    This is the single source of truth for record field extraction,
+    ensuring consistency across all record processing.
+
+    Args:
+        d: Dictionary of FIT message data (field name -> value)
+
+    Returns:
+        Standardized record dictionary with time, hr, power, speed, cadence, distance, altitude
+    """
+    return {
+        "time": d["timestamp"],
+        "hr": d.get("heart_rate", np.nan),
+        "power": d.get("power", np.nan),
+        "speed": d.get("enhanced_speed", d.get("speed", np.nan)),
+        "cadence": d.get("cadence", np.nan),
+        "distance": d.get("distance", np.nan),
+        "altitude": d.get("enhanced_altitude", d.get("altitude", np.nan)),
+    }
 
 
 def extract_sessions_from_fit(ff: FitFile) -> List[Dict[str, Any]]:
@@ -54,17 +78,7 @@ def extract_records_from_fit(ff: FitFile) -> pd.DataFrame:
     for m in ff.get_messages("record"):
         d = {d.name: d.value for d in m}
         if "timestamp" in d:
-            recs.append(
-                {
-                    "time": d["timestamp"],
-                    "hr": d.get("heart_rate", np.nan),
-                    "power": d.get("power", np.nan),
-                    "speed": d.get("enhanced_speed", d.get("speed", np.nan)),
-                    "cadence": d.get("cadence", np.nan),
-                    "distance": d.get("distance", np.nan),
-                    "altitude": d.get("enhanced_altitude", d.get("altitude", np.nan)),
-                }
-            )
+            recs.append(create_record_dict(d))
     df = pd.DataFrame(recs)
     if not df.empty:
         df = df.sort_values("time")

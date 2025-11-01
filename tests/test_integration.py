@@ -167,6 +167,44 @@ class TestLibraryIntegration(unittest.TestCase):
         print(f"   Session 1: {sessions[0]['sport']} ({sessions[0]['duration_min']} min)")
         print(f"   Session 2: {sessions[1]['sport']} ({sessions[1]['duration_min']} min)")
 
+    def test_multisport_sessions_have_all_fields(self):
+        """Test that multisport sessions have all the same fields as single-sport activities.
+
+        Bug: Multisport sessions were missing fields like elevation data because they
+        used a simplified record extraction that didn't include all FIT file fields.
+        """
+        fit_file = self.fixtures_dir / "20744294788_ACTIVITY.fit"
+        self.assertTrue(fit_file.exists(), f"Test fixture not found: {fit_file}")
+
+        # Get multisport sessions
+        multisport_sessions, _ = summarize_fit_sessions(
+            str(fit_file), ftp=self.ftp, hr_rest=self.hr_rest, hr_max=self.hr_max
+        )
+
+        # Get a single-sport session for comparison
+        single_sport_file = self.fixtures_dir / "20747700969_ACTIVITY.fit"
+        single_sport_result = summarize_fit_original(
+            str(single_sport_file), ftp=self.ftp, hr_rest=self.hr_rest, hr_max=self.hr_max
+        )
+
+        # Multisport sessions should have all the same fields as single-sport
+        # (except for internal fields like _original_file, _session_index)
+        single_sport_fields = {k for k in single_sport_result.keys() if not k.startswith("_")}
+
+        for idx, session in enumerate(multisport_sessions):
+            session_fields = {k for k in session.keys() if not k.startswith("_")}
+            missing_fields = single_sport_fields - session_fields
+
+            self.assertEqual(
+                missing_fields,
+                set(),
+                f"Session {idx} ({session.get('sport')}) missing fields: {missing_fields}",
+            )
+
+        print(f"\n✅ Multisport sessions have all fields that single-sport activities have")
+        print(f"   Fields: {len(single_sport_fields)} common fields")
+        print(f"   Includes: elevation, speed, cadence, distance, power, HR metrics")
+
     def test_metric_calculations(self):
         """Test that metrics are calculated correctly with exact values"""
         fit_file = self.fixtures_dir / "20548472357_ACTIVITY.fit"
