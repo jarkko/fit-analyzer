@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fitanalyzer"
-version = "0.4.0"
+version = "0.4.1"
 description = "A Python library for analyzing Garmin FIT files and calculating training metrics"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -125,7 +125,7 @@ disable = [
 
 [tool.mypy]
 # MyPy type checking configuration
-python_version = "3.10"
+python_version = "0.4.1"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -158,7 +158,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 # Pytest configuration
-minversion = "8.0"
+minversion = "0.4.1"
 addopts = [
     "-ra",
     "-q",
