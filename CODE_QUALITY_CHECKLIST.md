@@ -21,7 +21,7 @@ This installs the pre-commit hook that automatically:
 
 ```bash
 # 1. Run code formatter
-.venv/bin/black src/ tests/
+make format
 
 # 2. Run all quality checks
 make lint && make test

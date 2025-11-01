@@ -90,10 +90,10 @@ lint:
 
 format:
 	@echo "Running black..."
-	$(BLACK) --line-length 100 src/fitanalyzer tests/
+	$(BLACK) --line-length 100 src/fitanalyzer tests/ scripts/*.py
 	@echo ""
 	@echo "Running isort..."
-	$(ISORT) --profile black --line-length 100 src/fitanalyzer tests/
+	$(ISORT) --profile black --line-length 100 src/fitanalyzer tests/ scripts/*.py
 	@echo ""
 	@echo "✅ Code formatted!"
 
