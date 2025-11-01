@@ -242,10 +242,10 @@ class TestCalculateTrainingLoadMetricsContract:
 
         result = calculate_training_load_metrics(df, load_column="tss")
 
-        # Result should be sorted by date
-        assert result["date"].iloc[0] == "2025-01-01"
-        assert result["date"].iloc[1] == "2025-01-02"
-        assert result["date"].iloc[2] == "2025-01-03"
+        # Result should be sorted by date (dates are now converted to Timestamp)
+        assert str(result["date"].iloc[0].date()) == "2025-01-01"
+        assert str(result["date"].iloc[1].date()) == "2025-01-02"
+        assert str(result["date"].iloc[2].date()) == "2025-01-03"
 
     def test_uses_trimp_when_tss_not_available(self):
         """Contract: Falls back to TRIMP if TSS not available."""

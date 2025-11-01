@@ -102,14 +102,61 @@ def calculate_tsb(ctl: np.ndarray, atl: np.ndarray) -> np.ndarray:
     return ctl - atl
 
 
+def _create_daily_dataframe(
+    df: pd.DataFrame, load_column: str = "tss", date_column: str = "date"
+) -> pd.DataFrame:
+    """Create a daily DataFrame with rest days filled in as zero load.
+
+    Takes a DataFrame with workouts and creates a new DataFrame with one row
+    per day, filling gaps with zero training load for rest days.
+
+    Args:
+        df: DataFrame with workout data
+        load_column: Name of column containing training load
+        date_column: Name of column containing workout dates
+
+    Returns:
+        DataFrame with daily rows, rest days have zero load
+    """
+    if df.empty:
+        return df.copy()
+
+    # Sort by date
+    df_sorted = df.sort_values(date_column).copy()
+
+    # Convert dates to datetime if they aren't already
+    df_sorted[date_column] = pd.to_datetime(df_sorted[date_column])
+
+    # Create date range from first to last workout
+    min_date = df_sorted[date_column].min()
+    max_date = df_sorted[date_column].max()
+    all_dates = pd.date_range(start=min_date, end=max_date, freq="D")
+
+    # Create daily dataframe with all dates
+    daily_df = pd.DataFrame({date_column: all_dates})
+
+    # Merge with original data, filling missing values with 0
+    daily_df = daily_df.merge(
+        df_sorted[[date_column, load_column]], on=date_column, how="left"
+    )
+    daily_df[load_column] = daily_df[load_column].fillna(0)
+
+    return daily_df
+
+
 def calculate_training_load_metrics(
     df: pd.DataFrame, load_column: str = "tss", date_column: str = "date"
 ) -> pd.DataFrame:
     """Calculate CTL, ATL, and TSB for a DataFrame of workouts.
 
     Takes a DataFrame with workout data and adds cumulative training load metrics.
-    Workouts are sorted by date before calculation. Date gaps are handled by
-    assuming zero training load on missing days.
+    Workouts are sorted by date before calculation. Date gaps are filled with
+    zero training load for rest days, allowing proper decay of ATL/CTL.
+
+    IMPORTANT: This function now accounts for rest days! If you have workouts
+    separated by multiple days, the ATL and CTL will properly decay during
+    the rest period. This fixes the bug where consecutive workouts in the data
+    were treated as consecutive days even if they had rest days between them.
 
     Args:
         df: DataFrame with workout data
@@ -118,6 +165,8 @@ def calculate_training_load_metrics(
 
     Returns:
         DataFrame with added columns: 'ctl', 'atl', 'tsb'
+        Note: Returns only workout days (not rest days), but calculations
+        include rest day decay.
 
     Raises:
         KeyError: If required columns are missing
@@ -139,18 +188,29 @@ def calculate_training_load_metrics(
     # Sort by date to ensure chronological order
     df_sorted = df.sort_values(date_column).copy()
 
-    # Extract training loads as list, converting to numeric and filling missing/invalid with 0
+    # Convert to numeric, filling missing/invalid with 0
     df_sorted[load_column] = pd.to_numeric(df_sorted[load_column], errors="coerce").fillna(0)
-    training_loads = df_sorted[load_column].tolist()
 
-    # Calculate metrics
+    # Create daily dataframe with rest days filled in
+    daily_df = _create_daily_dataframe(df_sorted, load_column, date_column)
+
+    # Extract training loads as list (now includes rest days)
+    training_loads = daily_df[load_column].tolist()
+
+    # Calculate metrics (now properly accounts for rest day decay)
     ctl = calculate_ctl(training_loads)
     atl = calculate_atl(training_loads)
     tsb = calculate_tsb(ctl, atl)
 
-    # Add to DataFrame, rounded to 4 decimal places for readability
-    df_sorted["ctl"] = np.round(ctl, 4)
-    df_sorted["atl"] = np.round(atl, 4)
-    df_sorted["tsb"] = np.round(tsb, 4)
+    # Add metrics to daily dataframe
+    daily_df["ctl"] = np.round(ctl, 4)
+    daily_df["atl"] = np.round(atl, 4)
+    daily_df["tsb"] = np.round(tsb, 4)
 
-    return df_sorted
+    # Merge back to original workout data (only workout days, not rest days)
+    df_sorted[date_column] = pd.to_datetime(df_sorted[date_column])
+    result = df_sorted.merge(
+        daily_df[[date_column, "ctl", "atl", "tsb"]], on=date_column, how="left"
+    )
+
+    return result
