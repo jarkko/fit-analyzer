@@ -15,24 +15,44 @@ This installs the pre-commit hook that automatically:
 - Updates the test count badge in README.md
 - Includes the badge update in your commit
 
-## ⚠️ CRITICAL: PRE-PUSH CHECKLIST
+## ⚠️ CRITICAL: PRE-COMMIT/PRE-PUSH CHECKLIST
 
-**NEVER push to main without running these checks locally first:**
+**THE AUTOMATED WAY (ENFORCED):**
+
+The pre-commit hook automatically runs these checks before EVERY commit:
+1. Auto-formats code (`make format`)
+2. Runs linting (`make lint`)
+3. Runs type checking (`make type-check`)
+4. Runs all tests (`make test`)
+5. Updates test badge
+
+**If any check fails, the commit is BLOCKED.**
+
+**THE MANUAL WAY (if you need to verify before committing):**
 
 ```bash
-# 1. Run code formatter
-make format
+# Run ALL checks in one command (same as pre-commit hook)
+make pre-commit
 
-# 2. Run all quality checks (including type checking)
-make quality && make test
+# Or run individually:
+make format          # Auto-format code
+make quality         # Run lint + type-check
+make test           # Run all tests
 
-# 3. Push
+# Then commit and push
+git add -A
+git commit -m "your message"
 git push
 ```
 
-**WHY:** Branch protection requires all CI checks to pass. Pushing failing code wastes CI resources and creates noise in the commit history.
+**WHY:** 
+- Pre-commit hook prevents bad code from being committed in the first place
+- No more "oops, forgot to run tests" moments
+- No more breaking CI after push
+- No more wasted CI resources
+- No more embarrassing reverts
 
-**NOTE:** The pre-commit hook handles the test count badge update automatically. You don't need to manually update it.
+**NOTE:** The hook is in `.git/hooks/pre-commit` and runs automatically. You can't commit without passing all checks.
 
 ## ⚠️ CRITICAL: RELEASE PROCESS
 

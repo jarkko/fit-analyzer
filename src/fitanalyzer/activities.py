@@ -10,9 +10,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-
-if TYPE_CHECKING:
-    from pandas import Series
 from dateutil import tz
 from fitparse import FitFile
 
@@ -37,6 +34,9 @@ from fitanalyzer.formatting import (
 from fitanalyzer.metrics import np_power, trimp_from_hr
 from fitanalyzer.parser import extract_records_from_fit, extract_sessions_from_fit, get_sport_names
 from fitanalyzer.sessions import process_session_data
+
+if TYPE_CHECKING:
+    from pandas import Series
 
 __all__ = [
     "summarize_fit_sessions",

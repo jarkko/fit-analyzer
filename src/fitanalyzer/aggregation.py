@@ -6,7 +6,7 @@ specifically for strength training set aggregation.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import pandas as pd
 from dateutil import tz as dateutil_tz
@@ -23,7 +23,10 @@ if TYPE_CHECKING:
 def process_file_for_sets(
     fit_file: str, config: "AnalysisConfig", multisport: bool
 ) -> Tuple[Dict[str, Any], pd.DataFrame]:
-    """Process a single file and return session dict and sets DataFrame for strength training aggregation."""
+    """Process a single file and return session dict and sets DataFrame.
+
+    For strength training aggregation.
+    """
     # Get FIT file and extract sets
     ff = FitFile(fit_file)
     df_sets = extract_sets_from_fit(ff, fit_file_path=fit_file)
@@ -144,7 +147,9 @@ def aggregate_strength_sets(
         for idx, row in df_sets.iterrows():
             if row.get("set_type") == "active":
                 # iterrows() returns Hashable but we know it's int
-                all_strength_data.append(create_set_record(row, int(idx), metadata))  # type: ignore[call-overload]
+                all_strength_data.append(
+                    create_set_record(row, int(idx), metadata)  # type: ignore[call-overload]
+                )
 
     if not all_strength_data:
         return None

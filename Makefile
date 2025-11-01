@@ -33,7 +33,8 @@ help:
 	@echo "  make regenerate-csv    Regenerate CSV with fresh modules"
 	@echo ""
 	@echo "Code Quality:"
-	@echo "  make quality           Run all quality checks (lint + type-check) [RECOMMENDED]"
+	@echo "  make pre-commit        🚀 Run ALL checks before commit (format + quality + tests)"
+	@echo "  make quality           Run quality checks (lint + type-check)"
 	@echo "  make lint              Run linters (flake8 + pylint)"
 	@echo "  make type-check        Run type checking (mypy)"
 	@echo "  make format            Auto-format code (black + isort)"
@@ -118,6 +119,15 @@ quality: lint type-check
 	@echo "Run 'make security' to run security scans"
 	@echo ""
 	@echo "══════════════════════════════════════════════════════════════"
+
+pre-commit: format quality test
+	@echo ""
+	@echo "══════════════════════════════════════════════════════════════"
+	@echo "  ✅ ALL PRE-COMMIT CHECKS PASSED"
+	@echo "══════════════════════════════════════════════════════════════"
+	@echo ""
+	@echo "Safe to commit and push!"
+	@echo ""
 
 security:
 	@echo "Running Bandit security scan..."
