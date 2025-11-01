@@ -57,7 +57,7 @@ jobs:
       - name: Run tests with coverage (Python 3.13)
         if: matrix.python-version == '3.13'
         run: |
-          pytest tests/ -v --cov=src/fitanalyzer --cov-report=term-missing --cov-report=html --junitxml=pytest-results.xml
+          pytest tests/ -n auto -v --cov=src/fitanalyzer --cov-report=term-missing --cov-report=html --junitxml=pytest-results.xml
 
       - name: Run fast tests (Python 3.10-3.12)
         if: matrix.python-version != '3.13' && github.event_name != 'schedule'
