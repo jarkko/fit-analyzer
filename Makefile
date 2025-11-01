@@ -120,7 +120,11 @@ quality: lint type-check
 	@echo ""
 	@echo "══════════════════════════════════════════════════════════════"
 
-pre-commit: format quality coverage
+check-version:
+	@echo "Checking version consistency..."
+	@$(PYTHON) scripts/check_version.py
+
+pre-commit: check-version format quality coverage
 	@echo ""
 	@echo "══════════════════════════════════════════════════════════════"
 	@echo "  ✅ ALL PRE-COMMIT CHECKS PASSED"

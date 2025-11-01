@@ -8,9 +8,19 @@ from setuptools import find_packages, setup
 this_directory = Path(__file__).parent
 long_description = (this_directory / "README.md").read_text()
 
+# Read version from pyproject.toml (single source of truth)
+try:
+    import tomllib  # Python 3.11+
+except ModuleNotFoundError:
+    import tomli as tomllib  # Fallback for older Python
+
+with open(this_directory / "pyproject.toml", "rb") as f:
+    pyproject = tomllib.load(f)
+    version = pyproject["project"]["version"]
+
 setup(
     name="fitanalyzer",
-    version="0.4.0",
+    version=version,
     author="FIT Analyzer Contributors",
     description="A Python library for analyzing Garmin FIT files and calculating training metrics",
     long_description=long_description,
