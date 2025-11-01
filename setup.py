@@ -10,7 +10,7 @@ long_description = (this_directory / "README.md").read_text()
 
 setup(
     name="fitanalyzer",
-    version="0.3.7",
+    version="0.4.0",
     author="FIT Analyzer Contributors",
     description="A Python library for analyzing Garmin FIT files and calculating training metrics",
     long_description=long_description,
