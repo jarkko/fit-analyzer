@@ -54,14 +54,21 @@ git push
 gh run list --limit 1
 # Verify status shows ✓ (checkmark) not X or *
 
-# 5. Only after CI passes, bump version and tag
+# 5. Only after CI passes, bump version
 # Update setup.py and pyproject.toml version
 git add setup.py pyproject.toml
 git commit -m "Bump version to X.Y.Z"
-git tag -a vX.Y.Z -m "Release vX.Y.Z - description"
+git push
 
-# 6. Push commit and tag
-git push && git push --tags
+# 6. Generate release notes
+./scripts/generate_release_notes.sh X.Y.Z
+# Review and edit RELEASE_NOTES_X.Y.Z.md
+
+# 7. Create tag with release notes
+git tag -a vX.Y.Z -F RELEASE_NOTES_X.Y.Z.md
+
+# 8. Push tag
+git push origin vX.Y.Z
 
 # The release workflow will:
 # - Verify CI passed for this commit
@@ -69,7 +76,7 @@ git push && git push --tags
 # - Create GitHub release if CI passed
 ```
 
-**WHY:** The release workflow now checks if CI passed before creating a release. This prevents releasing broken code.
+**WHY:** The release workflow checks if CI passed before creating a release. This prevents releasing broken code. Release notes are auto-generated from commits since the last tag.
 
 ## 1. Code Style & Formatting
 
