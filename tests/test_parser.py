@@ -1363,6 +1363,62 @@ class TestIncrementalAnalysis(unittest.TestCase):
             self.assertTrue(skipped, f"Expected 'Skipping' message in output. Got: {print_calls}")
 
 
+class TestFTPExtraction(unittest.TestCase):
+    """Test FTP extraction from FIT files"""
+
+    def setUp(self):
+        """Set up test environment"""
+        self.fixtures_dir = Path(__file__).parent / "fixtures"
+
+    def test_extract_ftp_from_fit_file(self):
+        """Test that FTP can be extracted from FIT file zones_target message"""
+        from fitparse import FitFile
+
+        from fitanalyzer.parser import extract_ftp_from_fit
+
+        # Use a real test file
+        fit_file = self.fixtures_dir / "20747700969_ACTIVITY.fit"
+        self.assertTrue(fit_file.exists(), f"Test fixture not found: {fit_file}")
+
+        ff = FitFile(str(fit_file))
+        ftp = extract_ftp_from_fit(ff)
+
+        # Should extract FTP from zones_target
+        self.assertIsNotNone(ftp, "FTP should be extracted from FIT file")
+        self.assertIsInstance(ftp, (int, float))
+        self.assertGreater(ftp, 0, "FTP should be positive")
+        self.assertEqual(ftp, 270, "Expected FTP of 270W from test file")
+
+    def test_extract_ftp_missing_zones_target(self):
+        """Test FTP extraction when zones_target message is missing"""
+        from fitanalyzer.parser import extract_ftp_from_fit
+
+        # Create a mock FitFile with no zones_target
+        mock_ff = Mock()
+        mock_ff.get_messages.return_value = []
+
+        ftp = extract_ftp_from_fit(mock_ff)
+
+        # Should return None when zones_target is missing
+        self.assertIsNone(ftp, "Should return None when zones_target is missing")
+
+    def test_extract_ftp_missing_ftp_field(self):
+        """Test FTP extraction when functional_threshold_power field is missing"""
+        from fitanalyzer.parser import extract_ftp_from_fit
+
+        # Create a mock zones_target message without FTP
+        mock_msg = Mock()
+        mock_msg.get_values.return_value = {"max_heart_rate": 190}
+
+        mock_ff = Mock()
+        mock_ff.get_messages.return_value = [mock_msg]
+
+        ftp = extract_ftp_from_fit(mock_ff)
+
+        # Should return None when FTP field is missing
+        self.assertIsNone(ftp, "Should return None when FTP field is missing")
+
+
 if __name__ == "__main__":
     # Run tests with verbose output
     unittest.main(verbosity=2)

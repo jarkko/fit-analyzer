@@ -5,6 +5,7 @@ This directory contains FIT files used for deterministic integration testing.
 ## Files
 
 ### 20548472357_ACTIVITY.fit
+
 - **Sport:** Volleyball
 - **Date:** 2025-09-30
 - **Duration:** 134.6 minutes
@@ -15,6 +16,7 @@ This directory contains FIT files used for deterministic integration testing.
 - **Purpose:** Tests single-sport activity parsing, HR metrics, TRIMP calculation
 
 ### 20744294788_ACTIVITY.fit
+
 - **Type:** Multisport activity
 - **Sessions:**
   1. **Cycling** (indoor_cycling): 10.0 min, HR 114.7 bpm
@@ -22,6 +24,7 @@ This directory contains FIT files used for deterministic integration testing.
 - **Purpose:** Tests multisport session separation, session parsing
 
 ### 20747700969_ACTIVITY.fit
+
 - **Sport:** Cycling
 - **Date:** 2025-10-20
 - **Duration:** 30.0 minutes
@@ -32,6 +35,7 @@ This directory contains FIT files used for deterministic integration testing.
 ## Usage
 
 These fixtures are used by `tests/test_integration.py` for:
+
 - Deterministic testing with exact value assertions
 - Fast test execution (no dependency on large sample directory)
 - Reproducible test results across environments
@@ -39,12 +43,14 @@ These fixtures are used by `tests/test_integration.py` for:
 ## Test Parameters
 
 All tests use consistent parameters:
+
 - **FTP:** 300 watts
 - **HR Rest:** 50 bpm
 - **HR Max:** 190 bpm
 - **Timezone:** Europe/Helsinki
 
 ### 20684859222_ACTIVITY.fit
+
 - **Sport:** Cycling (indoor_cycling)
 - **Date:** 2025-10-14
 - **Duration:** 30.0 minutes
@@ -56,6 +62,7 @@ All tests use consistent parameters:
 - **Purpose:** Tests speed/cadence/distance metrics for cycling activities
 
 ### 20544585388_ACTIVITY.fit
+
 - **Sport:** Running (trail)
 - **Date:** 2025-09-30
 - **Duration:** 26.0 minutes
@@ -67,6 +74,7 @@ All tests use consistent parameters:
 - **Purpose:** Tests elevation metrics (GPS/altitude data) for running activities
 
 ### 20794985860_ACTIVITY.fit
+
 - **Sport:** Training (strength_training)
 - **Date:** 2025-10-25
 - **Duration:** 47.5 minutes
@@ -76,6 +84,7 @@ All tests use consistent parameters:
 ## Adding New Fixtures
 
 When adding new test fixtures:
+
 1. Copy the FIT file to this directory
 2. Document its characteristics in this README
 3. Add corresponding tests with exact value assertions in `test_integration.py`

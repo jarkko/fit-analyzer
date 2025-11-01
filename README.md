@@ -62,6 +62,7 @@ Or with custom options:
 ```
 
 This will:
+
 1. Connect to Garmin Connect and download new activities
 2. Save FIT files to `data/samples/`
 3. Analyze all activities and update `workout_summary_from_fit.csv`
@@ -138,12 +139,13 @@ This generates two outputs:
    - Aggregates all active sets from multiple workouts
    - Columns: `activity_id`, `file`, `date`, `sport`, `sub_sport`, `set_number`, `set_type`, `exercise_name`, `category`, `category_subtype`, `repetitions`, `weight`, `duration`, `timestamp`
    - `exercise_name` uses **two-level naming system**:
-     * **Specific names** when your watch records detailed exercise data: "Barbell Power Clean", "Ghd Back Extensions", "Single Arm Neutral Grip Dumbbell Row"
-     * **Category names** as fallback when only high-level data available: "Olympic Lift", "Hyperextension", "Row"
-     * See [EXERCISE_MAPPINGS.md](EXERCISE_MAPPINGS.md) for complete mapping of 53 categories and 1,846+ specific exercises
+     - **Specific names** when your watch records detailed exercise data: "Barbell Power Clean", "Ghd Back Extensions", "Single Arm Neutral Grip Dumbbell Row"
+     - **Category names** as fallback when only high-level data available: "Olympic Lift", "Hyperextension", "Row"
+     - See [EXERCISE_MAPPINGS.md](EXERCISE_MAPPINGS.md) for complete mapping of 53 categories and 1,846+ specific exercises
    - Perfect for tracking strength training progress over time
 
 Example output:
+
 ```
 Total: 72 strength training sets from 3 workouts.
 
@@ -264,6 +266,7 @@ Provides a better representation of the true physiological demands of a workout 
 ### Intensity Factor (IF)
 
 The ratio of Normalized Power to FTP (Functional Threshold Power):
+
 - IF < 0.75: Recovery rides
 - IF 0.75-0.85: Endurance rides
 - IF 0.85-0.95: Tempo rides
@@ -273,6 +276,7 @@ The ratio of Normalized Power to FTP (Functional Threshold Power):
 ### Training Stress Score (TSS)
 
 Quantifies the training load of a workout:
+
 - TSS < 150: Low training load
 - TSS 150-300: Medium training load
 - TSS 300-450: High training load

@@ -8,6 +8,7 @@ Garmin FIT files use a **two-level hierarchical system** for exercise naming:
 2. **Subtype Level** - Specific exercise variations within each category (1,846+ variations)
 
 The strength training analyzer extracts the most specific name available:
+
 - If `category_subtype` is provided → Use **specific exercise name** (e.g., "Barbell Power Clean")
 - If only `category` is available → Use **category name** (e.g., "Olympic Lift")
 
@@ -34,13 +35,14 @@ The strength training analyzer extracts the most specific name available:
 - **Package**: `garmin-fit-sdk` version 21.178.0
 - **Profile Version**: 21.178.0
 - **Last Updated**: October 23, 2025
-- **Official Documentation**: https://developer.garmin.com/fit
+- **Official Documentation**: <https://developer.garmin.com/fit>
 
 ## Exercise Categories (Level 1)
 
 The library recognizes **53 high-level categories**:
 
 ### Strength Training (Traditional)
+
 - Bench Press (0)
 - Squat (28)
 - Deadlift (8)
@@ -48,6 +50,7 @@ The library recognizes **53 high-level categories**:
 - Olympic Lift (18)
 
 ### Upper Body
+
 - Pull Up (21)
 - Push Up (22)
 - Row (23)
@@ -59,6 +62,7 @@ The library recognizes **53 high-level categories**:
 - Flye (9)
 
 ### Lower Body
+
 - Calf Raise (1)
 - Leg Curl (15)
 - Leg Raise (16)
@@ -68,12 +72,14 @@ The library recognizes **53 high-level categories**:
 - Hyperextension (13)
 
 ### Core
+
 - Sit Up (27)
 - Crunch (6)
 - Plank (19)
 - Core (5)
 
 ### Cardio & Conditioning
+
 - Cardio (2)
 - Run (32)
 - Run Indoor (52)
@@ -84,6 +90,7 @@ The library recognizes **53 high-level categories**:
 - Stair Stepper (47)
 
 ### Functional & Alternative
+
 - Carry (3)
 - Chop (4)
 - Total Body (29)
@@ -101,12 +108,14 @@ The library recognizes **53 high-level categories**:
 - Tire (50)
 
 ### Specialized
+
 - Move (35) - Mobility exercises
 - Pose (36) - Yoga/flexibility poses
 - Cardio Sensors (34)
 - Shoulder Stability (25)
 
 ### Unknown
+
 - Unknown (65534) - Garmin's unknown/unset category value
 
 ## Updating the Mappings
@@ -114,11 +123,13 @@ The library recognizes **53 high-level categories**:
 If you need to update the exercise mappings to match a newer version of the Garmin FIT SDK:
 
 1. Install the latest Garmin FIT SDK:
+
    ```bash
    pip install --upgrade garmin-fit-sdk
    ```
 
 2. Run the generation script:
+
    ```bash
    python generate_exercise_mapping.py
    ```
@@ -126,6 +137,7 @@ If you need to update the exercise mappings to match a newer version of the Garm
 3. Copy the output to `src/fitanalyzer/constants.py`, replacing the existing `EXERCISE_CATEGORY_MAPPING` dictionary.
 
 4. Run tests to ensure compatibility:
+
    ```bash
    make test
    make lint

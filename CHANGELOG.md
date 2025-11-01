@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.2.0] - 2025-11-01
 
 ### Added
+
 - **Training Load Metrics (CTL/ATL/TSB)** - Comprehensive fitness and fatigue tracking based on the Banister Fitness-Fatigue Model
   - CTL (Chronic Training Load): 42-day exponentially weighted fitness metric
   - ATL (Acute Training Load): 7-day exponentially weighted fatigue metric
@@ -19,11 +20,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 21 comprehensive contract tests for training load calculations
 
 ### Changed
+
 - Workout summary CSV now includes three new columns: `ctl`, `atl`, `tsb`
 - Improved test coverage from 95.13% to 95.25%
 - Enhanced CLI to gracefully handle missing training load data
 
 ### Technical
+
 - Test suite expanded: 300 → 321 tests (all passing)
 - Maintained 10.00/10 pylint score
 - Full TDD approach: tests written before implementation
@@ -32,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] - 2025-10-31
 
 ### Initial Release
+
 - FIT file parsing and analysis
 - Session-based metrics calculation
 - Strength training set extraction

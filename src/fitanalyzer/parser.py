@@ -22,6 +22,7 @@ __all__ = [
     "extract_valid_value",
     "get_sport_names",
     "create_record_dict",
+    "extract_ftp_from_fit",
 ]
 
 
@@ -132,3 +133,20 @@ def get_sport_names(sessions: List[Dict[str, Any]]) -> Tuple[str, str]:
         session_subsport = raw_subsport
 
     return session_sport, session_subsport
+
+
+def extract_ftp_from_fit(ff: FitFile) -> Optional[float]:
+    """Extract Functional Threshold Power (FTP) from FIT file zones_target message.
+
+    Args:
+        ff: FitFile object from fitparse
+
+    Returns:
+        FTP value in watts if found, None otherwise
+    """
+    for msg in ff.get_messages("zones_target"):
+        data = msg.get_values()
+        ftp = data.get("functional_threshold_power")
+        if ftp is not None:
+            return float(ftp)
+    return None

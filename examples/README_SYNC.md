@@ -99,12 +99,14 @@ def my_workout_analysis():
 ## Options
 
 ### Analyze Only (Skip Download)
+
 ```python
 result = sync_activities(analyze_only=True)
 # Only analyzes existing FIT files, doesn't download new ones
 ```
 
 ### Download Only (Skip Analysis)
+
 ```python
 result = sync_activities(download_only=True)
 # Only downloads FIT files, doesn't generate CSVs

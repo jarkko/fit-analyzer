@@ -11,6 +11,7 @@ This document outlines all code quality standards and checks for this project. R
 ```
 
 This installs the pre-commit hook that automatically:
+
 - Runs tests before each commit
 - Updates the test count badge in README.md
 - Includes the badge update in your commit
@@ -20,6 +21,7 @@ This installs the pre-commit hook that automatically:
 **THE AUTOMATED WAY (ENFORCED):**
 
 The pre-commit hook automatically runs these checks before EVERY commit:
+
 1. Auto-formats code (`make format`)
 2. Runs linting (`make lint`)
 3. Runs type checking (`make type-check`)
@@ -46,6 +48,7 @@ git push
 ```
 
 **WHY:**
+
 - Pre-commit hook prevents bad code from being committed in the first place
 - No more "oops, forgot to run tests" moments
 - No more breaking CI after push
@@ -101,12 +104,14 @@ git push origin vX.Y.Z
 ## 1. Code Style & Formatting
 
 ### Black (Auto-formatter)
+
 - **Purpose**: Consistent code formatting
 - **Standard**: Line length 100
 - **Command**: `make format` or `black --check src/ tests/`
 - **Status**: ✅ Automated in CI
 
 ### isort (Import Sorting)
+
 - **Purpose**: Consistent import organization
 - **Standard**: Black-compatible profile
 - **Command**: `isort --check-only --profile black src/ tests/`
@@ -115,6 +120,7 @@ git push origin vX.Y.Z
 ## 2. Linting & Code Quality
 
 ### Flake8 (Style Guide Enforcement)
+
 - **Purpose**: PEP 8 compliance, code smells
 - **Configuration**: Max line length 100
 - **Command**: `flake8 src/ tests/ --max-line-length=100`
@@ -126,6 +132,7 @@ git push origin vX.Y.Z
 - **Status**: ✅ Automated in CI
 
 ### Pylint (Comprehensive Analysis)
+
 - **Purpose**: Deep code analysis, best practices
 - **Target**: 10.00/10 score
 - **Command**: `pylint src/fitanalyzer --rcfile=pyproject.toml`
@@ -140,6 +147,7 @@ git push origin vX.Y.Z
 ## 3. Type Checking
 
 ### MyPy (Static Type Analysis)
+
 - **Purpose**: Type safety, prevent runtime errors
 - **Standard**: Strict mode configuration
 - **Command**: `make type-check` or `mypy src/fitanalyzer`
@@ -156,6 +164,7 @@ git push origin vX.Y.Z
 ## 4. Testing
 
 ### Pytest (Test Framework)
+
 - **Coverage Target**: ≥95% (currently 95.25%)
 - **Test Count**: 321 tests
 - **Command**: `make test` or `pytest tests/ -n auto`
@@ -166,6 +175,7 @@ git push origin vX.Y.Z
 - **Status**: ✅ Automated in CI (4 Python versions)
 
 ### Coverage (Code Coverage Analysis)
+
 - **Minimum**: 82.5% enforced in CI, 95% recommended
 - **Command**: `make coverage`
 - **Reports**:
@@ -177,6 +187,7 @@ git push origin vX.Y.Z
 ## 5. Security
 
 ### Bandit (Security Linter)
+
 - **Purpose**: Detect security vulnerabilities in code
 - **Level**: Medium-High severity (-ll flag)
 - **Command**: `bandit -r src/ -ll -f screen`
@@ -189,6 +200,7 @@ git push origin vX.Y.Z
 - **Status**: ✅ Automated in CI
 
 ### Safety (Dependency Security)
+
 - **Purpose**: Check dependencies for known CVEs
 - **Command**: `safety check --output=text`
 - **Checks**:
@@ -199,6 +211,7 @@ git push origin vX.Y.Z
 ## 6. Documentation
 
 ### Docstrings
+
 - **Standard**: Google style docstrings
 - **Required for**:
   - All public functions
@@ -209,6 +222,7 @@ git push origin vX.Y.Z
 - **Status**: ✅ Enforced by pylint
 
 ### README.md
+
 - **Requirements**:
   - Clear project description
   - Installation instructions
@@ -218,6 +232,7 @@ git push origin vX.Y.Z
 - **Status**: ✅ Maintained
 
 ### Type Hints
+
 - **Standard**: PEP 484 type hints
 - **Required for**:
   - All function signatures
@@ -229,12 +244,14 @@ git push origin vX.Y.Z
 ## 7. Project Structure
 
 ### Package Structure
+
 - ✅ Proper `__init__.py` files
 - ✅ Clear module separation
 - ✅ Logical package hierarchy
 - ✅ No circular imports
 
 ### Configuration Files
+
 - ✅ `pyproject.toml` - Modern Python packaging
 - ✅ `setup.py` - Legacy compatibility
 - ✅ `requirements.txt` - Production dependencies
@@ -245,6 +262,7 @@ git push origin vX.Y.Z
 ## 8. Git & Version Control
 
 ### Commit Standards
+
 - **Format**: Conventional Commits (feat, fix, docs, etc.)
 - **Requirements**:
   - Clear, descriptive messages
@@ -253,6 +271,7 @@ git push origin vX.Y.Z
 - **Status**: ✅ Followed
 
 ### Branch Protection
+
 - **Main branch**: Protected
 - **Requirements**:
   - CI must pass (6 checks)
@@ -262,6 +281,7 @@ git push origin vX.Y.Z
 ## 9. Continuous Integration
 
 ### GitHub Actions
+
 - ✅ **Tests**: 4 Python versions (3.10-3.13)
 - ✅ **Code Quality**: Flake8, Pylint, Black
 - ✅ **Security**: Bandit, Safety
@@ -270,6 +290,7 @@ git push origin vX.Y.Z
 - ⚠️ **Type Check**: Should add MyPy
 
 ### Automated Updates
+
 - ✅ Test count badge
 - ✅ Coverage badge (Codecov)
 - ✅ CI status badge
@@ -277,11 +298,13 @@ git push origin vX.Y.Z
 ## 10. Performance
 
 ### Test Performance
+
 - ✅ Parallel execution with pytest-xdist
 - ✅ Fast tests (<20 seconds for full suite)
 - ✅ Optimized CI with caching
 
 ### Code Performance
+
 - ✅ Efficient algorithms
 - ✅ Proper use of generators
 - ✅ Minimal memory footprint
@@ -290,12 +313,14 @@ git push origin vX.Y.Z
 ## 11. Dependencies
 
 ### Dependency Management
+
 - ✅ Pinned versions in requirements.txt
 - ✅ Minimal dependency count
 - ✅ Regular updates via Dependabot
 - ✅ Security scanning
 
 ### Version Compatibility
+
 - ✅ Python 3.10+ support
 - ✅ Tested on multiple Python versions
 - ✅ Clear compatibility documentation
@@ -303,11 +328,13 @@ git push origin vX.Y.Z
 ## Quick Reference
 
 ### Complete Quality Check
+
 ```bash
 make quality  # Run all quality checks (recommended before commit)
 ```
 
 ### Individual Checks
+
 ```bash
 make lint          # Flake8 + Pylint
 make format        # Black + isort (auto-fix)
@@ -317,6 +344,7 @@ make security      # Bandit + Safety
 ```
 
 ### CI Replication
+
 ```bash
 # Run everything CI runs locally:
 make quality
@@ -345,6 +373,7 @@ make security
 These checks require human analysis and cannot be automated. Review before declaring code ready:
 
 ### Pythonic Code Quality
+
 - [ ] **Simplicity over Cleverness**: Is the solution straightforward? Could a junior developer understand it?
 - [ ] **Explicit is Better Than Implicit**: Are assumptions clear? No hidden magic?
 - [ ] **Readability Counts**: Can you understand the code without comments? Are names self-documenting?
@@ -352,6 +381,7 @@ These checks require human analysis and cannot be automated. Review before decla
 - [ ] **Beautiful is Better Than Ugly**: Does the code flow naturally? Is the structure elegant?
 
 ### Architecture & Design
+
 - [ ] **Separation of Concerns**: Are responsibilities clearly divided?
 - [ ] **DRY (Don't Repeat Yourself)**: Is there unnecessary duplication?
 - [ ] **SOLID Principles**: Single responsibility, open/closed, Liskov substitution, interface segregation, dependency inversion
@@ -361,6 +391,7 @@ These checks require human analysis and cannot be automated. Review before decla
 - [ ] **Naming Consistency**: Do similar things have similar names? Is terminology consistent across the codebase?
 
 ### Code Patterns
+
 - [ ] **Appropriate Data Structures**: Using the right tool for the job (dict vs list vs set vs deque)?
 - [ ] **Proper Exception Handling**: Catching specific exceptions, not swallowing errors, meaningful error messages
 - [ ] **Resource Management**: Using context managers (with statements) for files, connections
@@ -369,6 +400,7 @@ These checks require human analysis and cannot be automated. Review before decla
 - [ ] **Built-ins First**: Using Python's built-in functions before writing custom solutions
 
 ### Test Quality
+
 - [ ] **Test Names as Documentation**: Do test names clearly explain what's being tested?
 - [ ] **Arrange-Act-Assert**: Is test structure clear?
 - [ ] **One Concept Per Test**: Does each test verify one specific behavior?
@@ -379,6 +411,7 @@ These checks require human analysis and cannot be automated. Review before decla
 - [ ] **Test Fixtures**: Are test fixtures reusable and well-organized (conftest.py)?
 
 ### Code Review Questions
+
 - [ ] **Would You Want to Maintain This?**: Imagine coming back to this code in 6 months
 - [ ] **Is It Obvious What Changed?**: Can you understand git diffs easily?
 - [ ] **Performance Implications**: Are there obvious performance issues? O(n²) where O(n) would work?
@@ -388,6 +421,7 @@ These checks require human analysis and cannot be automated. Review before decla
 - [ ] **Thread Safety**: If applicable, are shared resources properly protected?
 
 ### Documentation Quality
+
 - [ ] **Self-Documenting Code**: Can you understand the code without reading docstrings?
 - [ ] **Docstring Necessity**: Are docstrings explaining *why*, not *what* (which should be obvious)?
 - [ ] **API Documentation**: Is the public API clearly documented with examples?
@@ -396,6 +430,7 @@ These checks require human analysis and cannot be automated. Review before decla
 - [ ] **Type Hints as Documentation**: Do type hints make the API clearer?
 
 ### Python Philosophy (The Zen of Python)
+
 - [ ] **Beautiful is better than ugly**
 - [ ] **Explicit is better than implicit**
 - [ ] **Simple is better than complex**
@@ -410,6 +445,7 @@ These checks require human analysis and cannot be automated. Review before decla
 - [ ] **There should be one-- and preferably only one --obvious way to do it**
 
 ### Code Smells to Watch For
+
 - ❌ Functions longer than ~30 lines
 - ❌ Classes with more than ~7-10 methods
 - ❌ More than 3 levels of indentation
@@ -425,6 +461,7 @@ These checks require human analysis and cannot be automated. Review before decla
 - ❌ Import * (except in `__init__.py` for API exposure)
 
 ### Final "Guido Test" Questions
+
 1. **Would this be accepted in a CPython PR?**
 2. **Does this follow Python community best practices?**
 3. **Is this code I'd be proud to show other Python developers?**
@@ -442,6 +479,7 @@ These checks require human analysis and cannot be automated. Review before decla
 ## Standards References
 
 ### Official Python Standards
+
 - **PEP 8**: Style Guide for Python Code
 - **PEP 20**: The Zen of Python (`python -m this`)
 - **PEP 257**: Docstring Conventions
@@ -449,6 +487,7 @@ These checks require human analysis and cannot be automated. Review before decla
 - **PEP 518**: pyproject.toml specification
 
 ### Community Best Practices
+
 - **Google Style Guide**: Python docstrings
 - **Effective Python** by Brett Slatkin: 90 ways to write better Python
 - **Clean Code** by Robert C. Martin: General principles
@@ -456,6 +495,7 @@ These checks require human analysis and cannot be automated. Review before decla
 - **Conventional Commits**: Commit message format
 
 ### Python Community Resources
+
 - **Real Python**: Best practices and patterns
 - **Python Patterns**: Design patterns in Python
 - **The Hitchhiker's Guide to Python**: Best practices guide

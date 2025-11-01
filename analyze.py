@@ -3,11 +3,11 @@
 Command-line script to analyze FIT files and generate workout summary CSV.
 
 Usage:
-    ./analyze.py data/samples/*.fit --ftp 300
-    ./analyze.py data/samples/*.fit --ftp 300 --multisport
+    ./analyze.py data/samples/*.fit
+    ./analyze.py data/samples/*.fit --ftp 300  # Override FTP (auto-detected from file by default)
 
 Or with explicit python:
-    .venv/bin/python3 analyze.py data/samples/*.fit --ftp 300
+    .venv/bin/python3 analyze.py data/samples/*.fit
 """
 
 import sys

@@ -4,12 +4,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from fitanalyzer.metrics import (
-    calculate_intensity_factor,
-    calculate_tss,
-    np_power,
-    trimp_from_hr,
-)
+from fitanalyzer.metrics import calculate_intensity_factor, calculate_tss, np_power, trimp_from_hr
 
 
 class TestNormalizedPower:

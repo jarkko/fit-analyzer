@@ -35,7 +35,7 @@ print()
 print("# High-level exercise categories")
 print("EXERCISE_CATEGORY_MAPPING = {")
 for cat_id, name in sorted_category_mapping.items():
-    print(f"    {cat_id}: \"{name}\",")
+    print(f'    {cat_id}: "{name}",')
 print("}")
 print()
 print(f"# Total exercise categories: {len(category_mapping)}")
@@ -104,7 +104,9 @@ category_to_type_mapping = {
 }
 
 total_subtypes = 0
-for category_id, category_name in sorted(exercise_categories.items(), key=lambda x: int(x[0]) if x[0] != '65534' else 99999):
+for category_id, category_name in sorted(
+    exercise_categories.items(), key=lambda x: int(x[0]) if x[0] != "65534" else 99999
+):
     if category_name == "unknown" or category_name == "cardio_sensors":
         continue
 
@@ -113,11 +115,13 @@ for category_id, category_name in sorted(exercise_categories.items(), key=lambda
 
     if type_name and type_name in Profile["types"]:
         subtypes = Profile["types"][type_name]
-        for subtype_id, subtype_name in sorted(subtypes.items(), key=lambda x: int(x[0]) if x[0] != '65534' else 99999):
+        for subtype_id, subtype_name in sorted(
+            subtypes.items(), key=lambda x: int(x[0]) if x[0] != "65534" else 99999
+        ):
             if subtype_name != "unknown":
                 sub_id = int(subtype_id)
                 display_name = snake_to_title(subtype_name)
-                print(f"    ({cat_id}, {sub_id}): \"{display_name}\",")
+                print(f'    ({cat_id}, {sub_id}): "{display_name}",')
                 total_subtypes += 1
 
 print("}")

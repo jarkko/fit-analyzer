@@ -6,16 +6,17 @@ Automatically downloads new activities from Garmin Connect and updates your work
 
 import argparse
 import os
-import sys
-from pathlib import Path
-from datetime import datetime, timedelta
 import subprocess
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
 
 # Import garth at module level for easier testing
 try:
     import garth
 except ImportError:
     garth = None
+
 
 def check_and_install_garth():
     """Check if garth is installed, offer to install if not"""
@@ -25,6 +26,7 @@ def check_and_install_garth():
 
     try:
         import garth as g
+
         garth = g
         return True
     except ImportError:
@@ -40,12 +42,13 @@ def check_and_install_garth():
         print("")
 
         response = input("Would you like to try auto-installing now? (y/n): ")
-        if response.lower() == 'y':
+        if response.lower() == "y":
             print("Installing garth...")
             try:
                 subprocess.check_call([sys.executable, "-m", "pip", "install", "garth"])
                 print("✅ garth installed successfully!")
                 import garth as g
+
                 garth = g
                 return True
             except subprocess.CalledProcessError as e:
@@ -58,6 +61,7 @@ def check_and_install_garth():
         else:
             print("❌ Cannot proceed without garth library.")
             return False
+
 
 def authenticate_garmin(email=None, password=None, token_store="~/.garth"):
     """Authenticate with Garmin Connect"""
@@ -87,6 +91,7 @@ def authenticate_garmin(email=None, password=None, token_store="~/.garth"):
         password = os.getenv("GARMIN_PASSWORD")
         if not password:
             import getpass
+
             password = getpass.getpass("Garmin Connect password: ")
 
     try:
@@ -107,6 +112,7 @@ def authenticate_garmin(email=None, password=None, token_store="~/.garth"):
             print("   2. Or disable MFA temporarily during first setup")
         return False
 
+
 def get_existing_activity_ids(directory="."):
     """Get set of activity IDs that have already been downloaded"""
     existing_ids = set()
@@ -124,6 +130,7 @@ def get_existing_activity_ids(directory="."):
             continue
 
     return existing_ids
+
 
 def download_new_activities(days=30, limit=None, directory="."):
     """Download new activities from Garmin Connect"""
@@ -145,7 +152,7 @@ def download_new_activities(days=30, limit=None, directory="."):
         # Use the garth client to fetch activities
         activities = garth.connectapi(
             f"/activitylist-service/activities/search/activities",
-            params={"start": 0, "limit": max_fetch}
+            params={"start": 0, "limit": max_fetch},
         )
 
         if not activities:
@@ -154,11 +161,14 @@ def download_new_activities(days=30, limit=None, directory="."):
 
         # Filter by date (use timezone-aware datetime for comparison)
         from datetime import timezone
+
         cutoff_date = datetime.now(timezone.utc) - timedelta(days=days)
         recent_activities = []
 
         for activity in activities:
-            activity_date = datetime.fromisoformat(activity["startTimeLocal"].replace("Z", "+00:00"))
+            activity_date = datetime.fromisoformat(
+                activity["startTimeLocal"].replace("Z", "+00:00")
+            )
             if activity_date >= cutoff_date:
                 recent_activities.append(activity)
 
@@ -206,6 +216,7 @@ def download_new_activities(days=30, limit=None, directory="."):
         print(f"❌ Error fetching activities: {e}")
         return 0
 
+
 def run_analysis(ftp=300, hrrest=50, hrmax=190, multisport=True, directory="."):
     """Run the FIT file analysis script"""
     print(f"\n📊 Running analysis on all FIT files...")
@@ -219,9 +230,12 @@ def run_analysis(ftp=300, hrrest=50, hrmax=190, multisport=True, directory="."):
         cmd = [
             sys.executable,
             str(script_path),
-            "--ftp", str(ftp),
-            "--hrrest", str(hrrest),
-            "--hrmax", str(hrmax),
+            "--ftp",
+            str(ftp),
+            "--hrrest",
+            str(hrrest),
+            "--hrmax",
+            str(hrmax),
         ]
 
         if multisport:
@@ -253,21 +267,38 @@ def run_analysis(ftp=300, hrrest=50, hrmax=190, multisport=True, directory="."):
         print(f"❌ Error running analysis: {e}")
         return False
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="Sync activities from Garmin Connect and analyze them"
     )
     parser.add_argument("--email", help="Garmin Connect email (or set GARMIN_EMAIL env var)")
-    parser.add_argument("--password", help="Garmin Connect password (or set GARMIN_PASSWORD env var)")
-    parser.add_argument("--days", type=int, default=30, help="Download activities from last N days (default: 30)")
-    parser.add_argument("--limit", type=int, help="Maximum number of activities to fetch (default: 100)")
-    parser.add_argument("--directory", default=".", help="Directory to save FIT files (default: current)")
-    parser.add_argument("--ftp", type=float, default=300, help="Functional Threshold Power in watts (default: 300)")
+    parser.add_argument(
+        "--password", help="Garmin Connect password (or set GARMIN_PASSWORD env var)"
+    )
+    parser.add_argument(
+        "--days", type=int, default=30, help="Download activities from last N days (default: 30)"
+    )
+    parser.add_argument(
+        "--limit", type=int, help="Maximum number of activities to fetch (default: 100)"
+    )
+    parser.add_argument(
+        "--directory", default=".", help="Directory to save FIT files (default: current)"
+    )
+    parser.add_argument(
+        "--ftp", type=float, default=300, help="Functional Threshold Power in watts (default: 300)"
+    )
     parser.add_argument("--hrrest", type=int, default=50, help="Resting heart rate (default: 50)")
     parser.add_argument("--hrmax", type=int, default=190, help="Maximum heart rate (default: 190)")
-    parser.add_argument("--no-multisport", action="store_true", help="Disable multisport session separation")
-    parser.add_argument("--download-only", action="store_true", help="Only download, don't run analysis")
-    parser.add_argument("--analyze-only", action="store_true", help="Only run analysis, don't download")
+    parser.add_argument(
+        "--no-multisport", action="store_true", help="Disable multisport session separation"
+    )
+    parser.add_argument(
+        "--download-only", action="store_true", help="Only download, don't run analysis"
+    )
+    parser.add_argument(
+        "--analyze-only", action="store_true", help="Only run analysis, don't download"
+    )
 
     args = parser.parse_args()
 
@@ -292,9 +323,7 @@ def main():
 
         # Download new activities
         new_activities = download_new_activities(
-            days=args.days,
-            limit=args.limit,
-            directory=directory
+            days=args.days, limit=args.limit, directory=directory
         )
 
     # Run analysis
@@ -304,7 +333,7 @@ def main():
             hrrest=args.hrrest,
             hrmax=args.hrmax,
             multisport=not args.no_multisport,
-            directory=directory
+            directory=directory,
         )
 
     print("\n🎉 Done!")
@@ -313,6 +342,7 @@ def main():
     print(f"   Summary saved to: {directory / 'workout_summary_from_fit.csv'}")
 
     return 0
+
 
 if __name__ == "__main__":
     sys.exit(main())

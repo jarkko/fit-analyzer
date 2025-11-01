@@ -15,22 +15,56 @@ from fitparse import FitFile
 from fitanalyzer.activities import summarize_fit_original, summarize_fit_sessions
 from fitanalyzer.aggregation import aggregate_strength_sets
 from fitanalyzer.config import AnalysisConfig
+from fitanalyzer.constants import DEFAULT_FTP
 from fitanalyzer.incremental import (
     determine_files_to_process,
     load_existing_analysis,
     load_existing_rows,
 )
+from fitanalyzer.parser import extract_ftp_from_fit
 from fitanalyzer.strength import extract_sets_from_fit, save_strength_sets_csv
 from fitanalyzer.training_load import calculate_training_load_metrics
 
 __all__ = ["parse_arguments", "main", "main_with_args"]
 
 
+def _get_ftp_for_file(fit_file: str, cli_ftp: float | None) -> float:
+    """Get FTP for a file: use CLI value if provided, otherwise extract from file.
+
+    Args:
+        fit_file: Path to FIT file
+        cli_ftp: FTP value from command line (or None)
+
+    Returns:
+        FTP value in watts (from CLI, file, or default)
+    """
+    # If user provided FTP via CLI, use that
+    if cli_ftp is not None:
+        return cli_ftp
+
+    # Try to extract from FIT file
+    try:
+        ff = FitFile(fit_file)
+        file_ftp = extract_ftp_from_fit(ff)
+        if file_ftp is not None:
+            return file_ftp
+    except (OSError, ValueError, KeyError, AttributeError):
+        pass  # Fall through to default
+
+    # Fall back to default
+    return DEFAULT_FTP
+
+
 def parse_arguments(args: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments"""
     ap = argparse.ArgumentParser()
     ap.add_argument("fit_files", nargs="+")
-    ap.add_argument("--ftp", type=float, required=True)
+    ap.add_argument(
+        "--ftp",
+        type=float,
+        default=None,
+        help="Functional Threshold Power in watts (auto-detected from FIT file if not specified)",
+    )
     ap.add_argument("--hrrest", type=int, default=50)
     ap.add_argument("--hrmax", type=int, default=190)
     ap.add_argument("--tz", type=str, default="Europe/Helsinki")
@@ -61,8 +95,11 @@ def _process_multisport_file(
     fit_file: str, args: argparse.Namespace, processed_sessions: set[tuple[Any, ...]]
 ) -> list[dict[str, Any]]:
     """Process a multisport FIT file and return new rows"""
+    # Get FTP for this specific file
+    ftp = _get_ftp_for_file(fit_file, args.ftp)
+
     results, _ = summarize_fit_sessions(
-        fit_file, ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
+        fit_file, ftp=ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
     )
 
     # Get file modification time
@@ -103,8 +140,11 @@ def _process_multisport_file(
 
 def _process_single_file(fit_file: str, args: argparse.Namespace) -> list[dict[str, Any]]:
     """Process a single-sport FIT file and return a list of summary dicts"""
+    # Get FTP for this specific file
+    ftp = _get_ftp_for_file(fit_file, args.ftp)
+
     summary = summarize_fit_original(
-        fit_file, ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
+        fit_file, ftp=ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
     )
     if summary:
         # Add file modification time for incremental analysis

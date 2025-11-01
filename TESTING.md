@@ -19,6 +19,7 @@ pip install -r requirements-dev.txt
 ```
 
 Or using make:
+
 ```bash
 make install-dev
 ```
@@ -41,7 +42,9 @@ make test
 ### Unit Tests
 
 #### `test_fit_to_summary.py`
+
 Tests for FIT file analysis functionality:
+
 - `TestNormalizedPower` - Normalized power calculations
 - `TestTRIMP` - Heart rate training load
 - `TestSessionDataProcessing` - Session data processing
@@ -55,7 +58,9 @@ pytest test_fit_to_summary.py -v
 ```
 
 #### `test_garmin_sync.py`
+
 Tests for Garmin Connect sync functionality:
+
 - `TestExistingActivityIDs` - Activity ID detection
 - `TestGarminAuthentication` - Authentication flow
 - `TestDownloadActivities` - Download logic
@@ -70,7 +75,9 @@ pytest test_garmin_sync.py -v
 ### Integration Tests
 
 #### `test_integration.py`
+
 End-to-end workflow tests:
+
 - `TestEndToEndWorkflow` - Complete analysis workflow
 - `TestCSVOutputValidation` - CSV data quality
 - `TestMultisportHandling` - Multisport processing
@@ -95,6 +102,7 @@ make lint
 ```
 
 Configuration in `.flake8`:
+
 - Max line length: 100
 - Complexity limit: 15
 - Ignores: E203, W503 (black compatibility)
@@ -176,6 +184,7 @@ open htmlcov/index.html
 ```
 
 Coverage targets:
+
 - **Aim for**: >80% coverage
 - **Critical paths**: >90% coverage
 - **Unit tests**: Cover all business logic
@@ -210,6 +219,7 @@ make pre-commit-run
 ```
 
 Configured checks:
+
 - Trailing whitespace
 - File endings
 - YAML/JSON/TOML validation
@@ -315,26 +325,31 @@ class TestIntegrationScenario(unittest.TestCase):
 ## Best Practices
 
 ### Test Naming
+
 - Use descriptive names: `test_function_handles_empty_input`
 - Group related tests in classes
 - Use docstrings to explain what's being tested
 
 ### Test Structure
+
 - **Arrange**: Set up test data
 - **Act**: Execute the code being tested
 - **Assert**: Verify the results
 
 ### Mocking
+
 - Mock external dependencies (Garmin API, file system)
 - Use `unittest.mock` for isolation
 - Don't mock the code you're testing
 
 ### Coverage
+
 - Aim for high coverage, but quality > quantity
 - Test edge cases and error conditions
 - Don't sacrifice readability for coverage
 
 ### Code Quality
+
 - Run linters before committing
 - Fix warnings, not just errors
 - Use type hints where appropriate
@@ -343,18 +358,21 @@ class TestIntegrationScenario(unittest.TestCase):
 ## Continuous Improvement
 
 ### Adding Tests
+
 1. Write test first (TDD)
 2. Make test pass
 3. Refactor if needed
 4. Run full test suite
 
 ### Fixing Bugs
+
 1. Write a failing test that reproduces the bug
 2. Fix the bug
 3. Verify test passes
 4. Add regression test
 
 ### Code Reviews
+
 - Check test coverage
 - Verify new tests are meaningful
 - Ensure linting passes
@@ -363,6 +381,7 @@ class TestIntegrationScenario(unittest.TestCase):
 ## Troubleshooting
 
 ### Tests Failing
+
 ```bash
 # Run with verbose output
 pytest -vv
@@ -375,6 +394,7 @@ pytest -s
 ```
 
 ### Import Errors
+
 ```bash
 # Ensure dependencies installed
 pip install -r requirements-dev.txt
@@ -384,6 +404,7 @@ export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 ```
 
 ### Coverage Issues
+
 ```bash
 # Show which lines are not covered
 pytest --cov=. --cov-report=term-missing

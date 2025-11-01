@@ -71,6 +71,7 @@ fitanalyzer/
 ### 4. Removed Files
 
 **Post-mortem documentation:**
+
 - `BUG_FIX_SPORT_FIELDS.md`
 - `WHY_TESTS_DIDNT_CATCH_BUG.md`
 - `FIXED_SUMMARY.md`
@@ -79,6 +80,7 @@ fitanalyzer/
 - `docs/testing_lessons_learned.md`
 
 **Debug/temporary scripts:**
+
 - `debug_fit.py`
 - `debug_sessions.py`
 - `demo.py`
@@ -88,6 +90,7 @@ fitanalyzer/
 - `fit_to_summary_original.py`
 
 **Bug-focused test files:**
+
 - `test_garth_contract.py`
 - `test_garth_with_spec.py`
 - `test_sport_fields_regression.py`
@@ -95,12 +98,14 @@ fitanalyzer/
 ## Import Changes
 
 ### Old Way
+
 ```python
 from fit_to_summary import summarize_fit_original
 from garmin_sync import authenticate_garmin
 ```
 
 ### New Way
+
 ```python
 from fitanalyzer import summarize_fit_original
 from fitanalyzer import authenticate_garmin
@@ -113,6 +118,7 @@ from fitanalyzer.sync import authenticate_garmin
 ## Installation
 
 ### Development Mode
+
 ```bash
 # Install in editable mode
 make install-dev
@@ -124,6 +130,7 @@ python
 ```
 
 ### As Package
+
 ```bash
 pip install .
 # Or from PyPI (when published)
@@ -172,11 +179,13 @@ make build
 ## Test Results
 
 After reorganization:
+
 - **36 tests passing** ✅
 - **8 tests skipped** (integration tests require FIT files)
 - **0 tests failing** ✅
 
 Test breakdown:
+
 - Parser tests: 20 tests
 - Sync tests: 16 tests
 - Integration tests: 8 tests (skipped, require external files)
@@ -186,6 +195,7 @@ Test breakdown:
 ### Console Scripts
 
 When installed, provides command-line tools:
+
 ```bash
 fitanalyzer-parse activity.fit --ftp 300
 fitanalyzer-sync --days 30

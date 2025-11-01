@@ -3,6 +3,7 @@
 ## Code Quality Standards
 
 ### Linting and Style
+
 - **NEVER disable warnings or linting rules**
 - Do not use `# pylint: disable=`, `# noqa:`, or similar suppression comments
 - Do not suggest disabling warnings in configuration files
@@ -13,6 +14,7 @@
 - Run `make lint` before considering work complete
 
 ### Code Organization
+
 - Keep functions focused and single-purpose
 - When functions exceed complexity thresholds (>6 returns, >12 branches):
   1. Extract logical chunks into helper functions
@@ -21,6 +23,7 @@
 - Avoid deep nesting - prefer early returns and guard clauses
 
 ### Code Editing
+
 - Never use placeholder comments like `...existing code...` in code edits
 - Always provide complete, exact code in replacements
 - Include sufficient context (3-5 lines) to make edits unambiguous
@@ -28,6 +31,7 @@
 ## Testing Standards
 
 ### Test-Driven Development
+
 - **Use TDD approach for bug fixes and new features**
 - Write tests first, then implement the fix
 - All tests must pass before considering work complete
@@ -40,6 +44,7 @@
 - We must always keep 100% code coverage for committed code. Don't come up with excuses for why some file doesn't need good coverage. They all do.
 
 ### Test Architecture
+
 - **Tests must be architecture-driven, not bug-driven**
 - See `docs/TEST_ARCHITECTURE.md` for complete guidelines
 - Every function must have contract tests covering:
@@ -51,12 +56,14 @@
 - Name tests descriptively: `test_empty_updated_files_skips_analysis` not `test_bug_fix`
 
 ### Test Quality
+
 - Tests should be clear, focused, and well-named
 - Use fixtures and test data files where appropriate
 - Mock external dependencies (APIs, file I/O when appropriate)
 - Verify both positive and negative cases
 
 ### Test Execution
+
 - **ALWAYS use the venv when running tests**: `.venv/bin/pytest`
 - **ALWAYS run tests in parallel**: Use `-n auto` flag
 - Never call `python`, `pytest`, `pylint`, or other commands directly without venv prefix
@@ -67,6 +74,7 @@
 ## Development Workflow
 
 ### Before Making Changes
+
 1. Understand the existing code structure
 2. Write tests that demonstrate the issue or new behavior
 3. Run tests to confirm they fail appropriately
@@ -75,12 +83,14 @@
 6. Check code quality with linting
 
 ### Seeking Permission
+
 - Ask before making architectural changes
 - Request approval for non-obvious refactoring
 - Get permission before disabling any quality checks
 - Clarify requirements when ambiguous
 
 ## Project Commands
+
 - `make test` - Run all tests
 - `make lint` - Check code quality (must show 10.00/10)
 - `make install-dev` - Install all dependencies

@@ -6,6 +6,7 @@ Helper script to create a .env file for Garmin credentials
 import getpass
 from pathlib import Path
 
+
 def create_env_file():
     print("🔐 Garmin Connect Credentials Setup")
     print("=" * 50)
@@ -16,7 +17,7 @@ def create_env_file():
 
     if env_path.exists():
         response = input(".env file already exists. Overwrite? (y/n): ")
-        if response.lower() != 'y':
+        if response.lower() != "y":
             print("Cancelled.")
             return
 
@@ -43,7 +44,7 @@ HR_REST={hr_rest}
 HR_MAX={hr_max}
 """
 
-    with open(env_path, 'w') as f:
+    with open(env_path, "w") as f:
         f.write(env_content)
 
     # Set restrictive permissions
@@ -57,25 +58,26 @@ HR_MAX={hr_max}
     # Check/create .gitignore
     gitignore_path = Path(".gitignore")
     if gitignore_path.exists():
-        with open(gitignore_path, 'r') as f:
+        with open(gitignore_path, "r") as f:
             gitignore_content = f.read()
 
-        if '.env' not in gitignore_content:
+        if ".env" not in gitignore_content:
             response = input("\n.env not found in .gitignore. Add it now? (y/n): ")
-            if response.lower() == 'y':
-                with open(gitignore_path, 'a') as f:
+            if response.lower() == "y":
+                with open(gitignore_path, "a") as f:
                     f.write("\n# Environment variables\n.env\n")
                 print("✅ Added .env to .gitignore")
     else:
         response = input("\nNo .gitignore found. Create one? (y/n): ")
-        if response.lower() == 'y':
-            with open(gitignore_path, 'w') as f:
+        if response.lower() == "y":
+            with open(gitignore_path, "w") as f:
                 f.write("# Environment variables\n.env\n")
             print("✅ Created .gitignore with .env entry")
 
     print("\n💡 Usage:")
     print("   python garmin_sync.py")
     print("\n   The script will automatically load credentials from .env")
+
 
 if __name__ == "__main__":
     create_env_file()

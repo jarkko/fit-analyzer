@@ -3,6 +3,7 @@
 ## Philosophy
 
 Tests should be **architecture-driven, not bug-driven**. This means:
+
 - Tests document and enforce function contracts
 - Coverage is based on code structure (parameters, branches, edge cases)
 - New features come with complete test coverage from day one
@@ -20,6 +21,7 @@ def function_name(param1: Type1, param2: Optional[Type2] = None) -> ReturnType:
 ```
 
 Required tests:
+
 - **Parameter contracts**: Test all meaningful parameter values
   - `None` vs non-`None` for Optional parameters
   - Empty collections (`[]`, `{}`) vs populated
@@ -104,23 +106,27 @@ Required: 4 tests minimum to cover all branches.
 Test edge cases for every function:
 
 **Numeric parameters:**
+
 - Zero
 - Negative values
 - Boundary values (min/max)
 - Very large values
 
 **Collections:**
+
 - Empty (`[]`, `{}`, `""`)
 - Single element
 - Many elements
 - Duplicates
 
 **Optional parameters:**
+
 - `None`
 - Default value
 - Explicit value
 
 **Files/Paths:**
+
 - Non-existent
 - Empty file
 - Malformed content
@@ -143,6 +149,7 @@ def process_file(path: str) -> dict:
 ```
 
 Required tests:
+
 - `test_process_file_not_found` → FileNotFoundError
 - `test_process_file_malformed` → ValueError
 - `test_process_file_permission_denied` → PermissionError
@@ -199,21 +206,26 @@ Side Effects:
 ## Anti-Patterns to Avoid
 
 ### ❌ Bug-Driven Test Files
+
 ```python
 # tests/test_duplicate_bug.py
 # tests/test_issue_456.py
 # tests/test_hotfix.py
 ```
+
 These accumulate technical debt. Instead, move tests to contract files.
 
 ### ❌ Testing Implementation Details
+
 ```python
 def test_uses_pandas_dataframe():  # Too specific
     assert isinstance(result, pd.DataFrame)
 ```
+
 Test behavior, not implementation.
 
 ### ❌ Missing Edge Cases
+
 ```python
 def test_function_works():
     result = function([1, 2, 3])
@@ -222,6 +234,7 @@ def test_function_works():
 ```
 
 ### ❌ Incomplete Parameter Testing
+
 ```python
 # Only tests default value
 def test_run_analysis():
@@ -249,6 +262,7 @@ For existing test files:
 ## Architecture Audit (October 31, 2025)
 
 ### Test Suite Status
+
 - **Total Tests**: 300 passing
 - **Test Coverage**: 95.13% (minimum required: 95.0%) ✅
 - **Architecture Compliance**: 100% ✅
@@ -257,6 +271,7 @@ For existing test files:
 ### Audit Findings
 
 **✅ Architecture-Compliant Files (298 tests):**
+
 - `test_sync.py` (44 tests) - Organized by function: authentication, download, analysis
 - `test_parser.py` (65 tests) - Organized by calculation: NP, TRIMP, session processing
 - `test_sync_programmatic.py` (8 tests) - Contract tests for `sync_activities()`
@@ -270,18 +285,21 @@ For existing test files:
 - All other test files follow architecture-driven principles
 
 **❌ Removed Bug-Driven Files:**
+
 - `test_sync_duplicate_bug.py` (3 tests) - **REMOVED** on Oct 31, 2025
   - Tests were redundant with contract tests
   - Classic anti-pattern: named after bug, not architecture
   - Functionality now covered by parameter matrix in contract tests
 
 ### Key Strengths
+
 1. 89% of tests were already architecture-driven before cleanup
 2. Excellent organization by feature/function in most files
 3. Good parameter coverage for edge cases
 4. Clear separation of unit vs integration tests
 
 ### Recommendations Implemented
+
 1. ✅ Created comprehensive TEST_ARCHITECTURE.md guidelines
 2. ✅ Implemented example contract tests for `run_analysis()`
 3. ✅ Removed bug-driven test file
@@ -292,6 +310,7 @@ For existing test files:
 8. ✅ Improved test coverage to 94.96%
 
 ### Files with 100% Coverage
+
 - `aggregation.py` ✅
 - `analysis.py` ✅
 - `activities.py` ✅
@@ -305,6 +324,7 @@ For existing test files:
 - `sessions.py` ✅
 
 ### Future Considerations
+
 - Consider contract tests for `_save_workout_summary()` deduplication behavior
 - Monitor for new bug-driven tests and migrate immediately
 - Continue parameter matrix approach for all new functions

@@ -6,9 +6,9 @@ This script ensures that generated CSV files have the correct schema
 and that new features are properly integrated. Run this after any
 changes to the data extraction or CSV generation code.
 """
+import os  # Add os import
 import sys
 from pathlib import Path
-import os  # Add os import
 
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
@@ -116,8 +116,9 @@ def regenerate_and_validate() -> bool:
     os.environ["FITANALYZER_FORCE_RELOAD"] = "1"
 
     # Import parser module
-    from fitanalyzer.parser import summarize_fit_sessions, AnalysisConfig
     import pandas as pd
+
+    from fitanalyzer.parser import AnalysisConfig, summarize_fit_sessions
 
     config = AnalysisConfig(ftp=250, hr_rest=60, hr_max=190, tz_name="UTC")
 

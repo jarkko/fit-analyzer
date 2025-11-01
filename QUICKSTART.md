@@ -3,6 +3,7 @@
 ## What is this?
 
 This tool helps you analyze your workout FIT files from Garmin devices. It can:
+
 - Sync activities directly from Garmin Connect
 - Parse FIT files and extract training metrics
 - Calculate training stress, normalized power, and heart rate zones
@@ -26,6 +27,7 @@ Or with custom options:
 ```
 
 This will:
+
 1. Connect to Garmin Connect and download new activities
 2. Save FIT files to `data/samples/`
 3. Analyze all activities and update `workout_summary_from_fit.csv`
@@ -180,6 +182,7 @@ The generated CSV contains:
 ### "Command not found: ./analyze.py"
 
 Make it executable:
+
 ```bash
 chmod +x analyze.py
 ```
@@ -187,12 +190,14 @@ chmod +x analyze.py
 ### "No module named 'fitparse'"
 
 Activate the virtual environment:
+
 ```bash
 source .venv/bin/activate  # On macOS/Linux
 .venv\Scripts\activate     # On Windows
 ```
 
 Or install dependencies:
+
 ```bash
 make install-dev
 ```
@@ -200,6 +205,7 @@ make install-dev
 ### "No FIT files found"
 
 Make sure your FIT files are in `data/samples/`:
+
 ```bash
 ls data/samples/*.fit
 ```
