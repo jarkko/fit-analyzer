@@ -7,13 +7,16 @@ This document outlines all code quality standards and checks for this project. R
 **NEVER push to main without running these checks locally first:**
 
 ```bash
-# 1. Run all quality checks
+# 1. Run code formatter
+.venv/bin/black src/ tests/
+
+# 2. Run all quality checks
 make lint && make test
 
-# 2. Verify CI will pass (optional but recommended)
+# 3. Verify CI will pass (optional but recommended)
 # Check that all required checks are green before pushing
 
-# 3. Only then push
+# 4. Only then push
 git push
 ```
 

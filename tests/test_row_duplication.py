@@ -61,8 +61,7 @@ class TestRowDuplication(unittest.TestCase):
 
             # Check that warning was NOT printed
             warning_calls = [
-                call for call in mock_print.call_args_list
-                if "duplicate" in str(call).lower()
+                call for call in mock_print.call_args_list if "duplicate" in str(call).lower()
             ]
             self.assertEqual(len(warning_calls), 0)
 
@@ -129,11 +128,11 @@ class TestMultisportModeRemoved(unittest.TestCase):
     def test_multisport_files_detected_automatically(self):
         """Test that _is_multisport_file() correctly identifies multisport files."""
         from fitanalyzer.cli import _is_multisport_file
-        
+
         # Test with actual multisport fixture (has 2 sessions: cycling + strength)
         multisport_file = "tests/fixtures/20744294788_ACTIVITY.fit"
         self.assertTrue(_is_multisport_file(multisport_file))
-        
+
         # Test with single-sport fixture
         single_sport_file = "tests/fixtures/20474406937_ACTIVITY.fit"
         self.assertFalse(_is_multisport_file(single_sport_file))

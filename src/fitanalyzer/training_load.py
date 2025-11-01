@@ -136,9 +136,7 @@ def _create_daily_dataframe(
     daily_df = pd.DataFrame({date_column: all_dates})
 
     # Merge with original data, filling missing values with 0
-    daily_df = daily_df.merge(
-        df_sorted[[date_column, load_column]], on=date_column, how="left"
-    )
+    daily_df = daily_df.merge(df_sorted[[date_column, load_column]], on=date_column, how="left")
     daily_df[load_column] = daily_df[load_column].fillna(0)
 
     return daily_df
@@ -220,7 +218,7 @@ def calculate_training_load_metrics(
     daily_df[date_column] = pd.to_datetime(daily_df[date_column])
 
     # Create a dict mapping from date to metrics (one entry per date)
-    metrics_dict = daily_df.groupby(date_column)[["ctl", "atl", "tsb"]].last().to_dict('index')
+    metrics_dict = daily_df.groupby(date_column)[["ctl", "atl", "tsb"]].last().to_dict("index")
 
     # Map metrics to each workout
     df_sorted["ctl"] = df_sorted[date_column].apply(lambda d: metrics_dict.get(d, {}).get("ctl", 0))
