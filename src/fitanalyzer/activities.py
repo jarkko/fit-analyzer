@@ -5,7 +5,7 @@ This module handles processing complete activities (single-sport and multisport)
 combining parsed data with session processing to create activity summaries.
 """
 
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
 import numpy as np
@@ -42,7 +42,7 @@ __all__ = [
 
 
 def summarize_fit_sessions(
-    path: str, config: AnalysisConfig = None, **kwargs
+    path: str, config: AnalysisConfig | None = None, **kwargs: Any
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Process each session in a FIT file separately to handle multisport activities.
 
@@ -106,7 +106,7 @@ def summarize_fit_sessions(
     return results, []
 
 
-def _prepare_timezone_aware_index(df):
+def _prepare_timezone_aware_index(df: pd.DataFrame) -> Tuple[datetime, datetime]:
     """Convert dataframe time column to timezone-aware UTC index"""
     start_utc, end_utc = convert_timestamps_to_utc(df)
 
@@ -165,7 +165,7 @@ def _calculate_metrics_original(
 
 
 def summarize_fit_original(
-    path: str, config: AnalysisConfig = None, **kwargs
+    path: str, config: AnalysisConfig | None = None, **kwargs: Any
 ) -> Optional[Dict[str, Any]]:
     """Original function for single-session activities.
 

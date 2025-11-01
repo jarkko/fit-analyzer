@@ -26,7 +26,7 @@ from fitanalyzer.training_load import calculate_training_load_metrics
 __all__ = ["parse_arguments", "main", "main_with_args"]
 
 
-def parse_arguments(args=None):
+def parse_arguments(args: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments"""
     ap = argparse.ArgumentParser()
     ap.add_argument("fit_files", nargs="+")
@@ -57,7 +57,9 @@ def parse_arguments(args=None):
     return parsed
 
 
-def _process_multisport_file(fit_file, args, processed_sessions):
+def _process_multisport_file(
+    fit_file: str, args: argparse.Namespace, processed_sessions: set[str]
+) -> list[dict[str, Any]]:
     """Process a multisport FIT file and return new rows"""
     results, _ = summarize_fit_sessions(
         fit_file, ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
@@ -99,7 +101,7 @@ def _process_multisport_file(fit_file, args, processed_sessions):
     return new_rows
 
 
-def _process_single_file(fit_file, args):
+def _process_single_file(fit_file: str, args: argparse.Namespace) -> dict[str, Any] | None:
     """Process a single FIT file and return summary"""
     summary = summarize_fit_original(
         fit_file, ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
@@ -128,7 +130,7 @@ def _is_multisport_file(fit_file: str) -> bool:
 
 
 def _process_files(
-    files_to_process: List[str], args, processed_sessions: set
+    files_to_process: List[str], args: argparse.Namespace, processed_sessions: set[str]
 ) -> Tuple[List[Dict[str, Any]], List[str]]:
     """Process all files that need analysis.
 
@@ -168,7 +170,7 @@ def _process_files(
     return rows, all_sets
 
 
-def _save_workout_summary(rows: List[Dict[str, Any]], output_dir: str, all_sets: List[str]):
+def _save_workout_summary(rows: List[Dict[str, Any]], output_dir: str, all_sets: List[str]) -> None:
     """Save workout summary CSV and print results."""
     if not rows:
         print("No data to output.")
@@ -208,7 +210,7 @@ def _save_workout_summary(rows: List[Dict[str, Any]], output_dir: str, all_sets:
 
 
 def _generate_strength_summary(
-    args, files_to_process: List[str], existing_strength: pd.DataFrame
+    args: argparse.Namespace, files_to_process: List[str], existing_strength: pd.DataFrame
 ) -> pd.DataFrame:
     """Generate strength training summary for processed files.
 
@@ -249,9 +251,9 @@ def _generate_strength_summary(
     return existing_strength
 
 
-def main_with_args(args):
+def main_with_args(args: argparse.Namespace) -> int:
     """Main function that takes parsed arguments"""
-    processed_sessions = set()
+    processed_sessions: set[str] = set()
     csv_path = Path(args.output_dir) / "workout_summary_from_fit.csv"
 
     # Load existing analysis for incremental processing

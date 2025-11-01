@@ -6,7 +6,7 @@ specifically for strength training set aggregation.
 """
 
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 from dateutil import tz as dateutil_tz
@@ -20,7 +20,9 @@ if TYPE_CHECKING:
     from fitanalyzer.config import AnalysisConfig
 
 
-def process_file_for_sets(fit_file: str, config: "AnalysisConfig", multisport: bool):
+def process_file_for_sets(
+    fit_file: str, config: "AnalysisConfig", multisport: bool
+) -> Tuple[List[Any], pd.DataFrame]:
     """Process a single file and return sessions and sets for strength training aggregation."""
     # Get FIT file and extract sets
     ff = FitFile(fit_file)
@@ -53,7 +55,7 @@ def process_file_for_sets(fit_file: str, config: "AnalysisConfig", multisport: b
     return df_sessions, df_sets
 
 
-def extract_session_metadata(df_sessions):
+def extract_session_metadata(df_sessions: pd.DataFrame) -> SetMetadata:
     """Extract metadata from the first session."""
     sport = "unknown"
     sub_sport = "unknown"
@@ -75,7 +77,7 @@ def extract_session_metadata(df_sessions):
     return sport, sub_sport, date
 
 
-def create_set_record(row, idx: int, metadata) -> Dict[str, Any]:
+def create_set_record(row: pd.Series, idx: int, metadata: SetMetadata) -> Dict[str, Any]:
     """Create a dictionary record for a single set."""
     return {
         "activity_id": metadata.activity_id,

@@ -351,7 +351,7 @@ def _exercise_names_differ(
     return False
 
 
-def _check_and_update_api_data(activity_id: str, directory: str) -> bool:
+def _check_and_update_api_data(activity_id: int, directory: str) -> bool:
     """Check if API exercise data needs updating and update if necessary.
 
     Args:
@@ -407,10 +407,10 @@ def _download_single_activity(
         print(f"   ⬇️  Downloading: {activity_name} ({activity_date}) [ID: {activity_id}]")
 
         # Download FIT file using garth.download
-        fit_data = garth.download(f"/download-service/files/activity/{activity_id}")
+        zip_data = garth.download(f"/download-service/files/activity/{activity_id}")
 
         # Garmin returns a ZIP file, so we need to extract the FIT file
-        fit_data = _extract_fit_from_zip(fit_data)
+        fit_data = _extract_fit_from_zip(zip_data)
 
         if fit_data is None:
             print(f"      ⚠️  No .fit file found in ZIP for activity {activity_id}")
@@ -607,7 +607,7 @@ def _process_activity(
         counters["skipped_count"] += 1
 
 
-def _identify_multisport_parents(activities: List[Dict[str, Any]]) -> set:
+def _identify_multisport_parents(activities: List[Dict[str, Any]]) -> set[int]:
     """Identify parent multisport activities that should be skipped.
 
     Args:
@@ -628,7 +628,7 @@ def _process_activities(
     activities: List[Dict[str, Any]],
     existing: Dict[str, float],
     directory: str,
-    parent_ids: set,
+    parent_ids: set[int],
 ) -> Tuple[Dict[str, int], List[str]]:
     """Process and download activities.
 
@@ -799,8 +799,8 @@ def run_analysis(
     directory: str = ".",
     output_dir: str = "data",
     updated_files: Optional[List[str]] = None,
-    **kwargs,
-) -> None:
+    **kwargs: Any,
+) -> bool:
     """Run the FIT file analysis using the parser module.
 
     Args:
