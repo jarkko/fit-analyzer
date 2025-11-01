@@ -40,6 +40,9 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 
+# Environment configuration
+.envrc
+
 # Translations
 *.mo
 *.pot
