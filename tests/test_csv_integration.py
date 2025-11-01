@@ -3,19 +3,20 @@ Integration tests for end-to-end CSV generation with proper column validation.
 These tests ensure new features work correctly without caching issues.
 """
 
-import unittest
-import tempfile
-import shutil
-from pathlib import Path
-import pandas as pd
-import sys
 import os
+import shutil
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+import pandas as pd
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from fitanalyzer.config import AnalysisConfig
 from fitanalyzer.activities import summarize_fit_sessions
+from fitanalyzer.config import AnalysisConfig
 
 
 class TestCSVIntegration(unittest.TestCase):

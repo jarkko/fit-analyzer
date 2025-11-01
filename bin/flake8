@@ -1,0 +1,11 @@
+#!/bin/bash
+# Wrapper script for flake8 that works with or without venv
+
+set -e
+
+# Try venv first, fall back to system python
+if [ -f ".venv/bin/python3" ]; then
+    exec .venv/bin/python3 -m flake8 "$@"
+else
+    exec python3 -m flake8 "$@"
+fi

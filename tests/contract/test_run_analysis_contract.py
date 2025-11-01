@@ -39,7 +39,7 @@ import pytest
 def mock_cli():
     """Mock the CLI module to avoid actual file processing."""
     # Mock the import of cli module inside run_analysis
-    with patch('fitanalyzer.cli') as mock:
+    with patch("fitanalyzer.cli") as mock:
         mock.parse_arguments.return_value = MagicMock(
             ftp=300,
             hrrest=60,
@@ -65,8 +65,7 @@ class TestRunAnalysisUpdatedFilesContract:
         (fit_dir / "activity2_ACTIVITY.fit").write_bytes(b"fake")
 
         result = run_analysis(
-            directory=str(fit_dir),
-            updated_files=None  # Explicit None: analyze all
+            directory=str(fit_dir), updated_files=None  # Explicit None: analyze all
         )
 
         assert result is True
@@ -84,10 +83,7 @@ class TestRunAnalysisUpdatedFilesContract:
         fit_dir.mkdir()
         (fit_dir / "activity_ACTIVITY.fit").write_bytes(b"fake")
 
-        result = run_analysis(
-            directory=str(fit_dir),
-            updated_files=[]  # Empty list: skip analysis
-        )
+        result = run_analysis(directory=str(fit_dir), updated_files=[])  # Empty list: skip analysis
 
         assert result is True
         # Verify CLI was NOT called
@@ -107,8 +103,7 @@ class TestRunAnalysisUpdatedFilesContract:
         file2.write_bytes(b"fake")
 
         result = run_analysis(
-            directory=str(fit_dir),
-            updated_files=[str(file1)]  # Only analyze file1
+            directory=str(fit_dir), updated_files=[str(file1)]  # Only analyze file1
         )
 
         assert result is True
@@ -134,8 +129,7 @@ class TestRunAnalysisUpdatedFilesContract:
         file3.write_bytes(b"fake")
 
         result = run_analysis(
-            directory=str(fit_dir),
-            updated_files=[str(file1), str(file2)]  # Two files
+            directory=str(fit_dir), updated_files=[str(file1), str(file2)]  # Two files
         )
 
         assert result is True
@@ -154,10 +148,7 @@ class TestRunAnalysisUpdatedFilesContract:
         fit_dir = tmp_path / "fits"
         fit_dir.mkdir()
 
-        result = run_analysis(
-            directory=str(fit_dir),
-            updated_files=[str(fit_dir / "missing.fit")]
-        )
+        result = run_analysis(directory=str(fit_dir), updated_files=[str(fit_dir / "missing.fit")])
 
         # Should return True (success, just nothing to do)
         assert result is True
@@ -189,8 +180,7 @@ class TestRunAnalysisDirectoryContract:
         fit_file.write_bytes(b"fake")
 
         result = run_analysis(
-            directory=str(fit_file),
-            updated_files=None  # Should use the single file
+            directory=str(fit_file), updated_files=None  # Should use the single file
         )
 
         assert result is True
@@ -206,10 +196,7 @@ class TestRunAnalysisDirectoryContract:
         empty_dir = tmp_path / "empty"
         empty_dir.mkdir()
 
-        result = run_analysis(
-            directory=str(empty_dir),
-            updated_files=None  # Try to analyze all
-        )
+        result = run_analysis(directory=str(empty_dir), updated_files=None)  # Try to analyze all
 
         assert result is False
         mock_cli.parse_arguments.assert_not_called()
@@ -288,13 +275,7 @@ class TestRunAnalysisKwargsContract:
         fit_dir.mkdir()
         (fit_dir / "test_ACTIVITY.fit").write_bytes(b"fake")
 
-        run_analysis(
-            directory=str(fit_dir),
-            ftp=250,
-            hrrest=55,
-            hrmax=185,
-            multisport=False
-        )
+        run_analysis(directory=str(fit_dir), ftp=250, hrrest=55, hrmax=185, multisport=False)
 
         args = mock_cli.parse_arguments.call_args[0][0]
         assert "--ftp" in args

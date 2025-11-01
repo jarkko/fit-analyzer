@@ -103,9 +103,7 @@ def calculate_tsb(ctl: np.ndarray, atl: np.ndarray) -> np.ndarray:
 
 
 def calculate_training_load_metrics(
-    df: pd.DataFrame,
-    load_column: str = "tss",
-    date_column: str = "date"
+    df: pd.DataFrame, load_column: str = "tss", date_column: str = "date"
 ) -> pd.DataFrame:
     """Calculate CTL, ATL, and TSB for a DataFrame of workouts.
 
@@ -142,7 +140,7 @@ def calculate_training_load_metrics(
     df_sorted = df.sort_values(date_column).copy()
 
     # Extract training loads as list, converting to numeric and filling missing/invalid with 0
-    df_sorted[load_column] = pd.to_numeric(df_sorted[load_column], errors='coerce').fillna(0)
+    df_sorted[load_column] = pd.to_numeric(df_sorted[load_column], errors="coerce").fillna(0)
     training_loads = df_sorted[load_column].tolist()
 
     # Calculate metrics

@@ -38,8 +38,9 @@ class TestLibraryIntegration(unittest.TestCase):
 
     def test_parse_volleyball_activity(self):
         """Test parsing a volleyball activity with exact value assertions"""
-        from fitanalyzer.strength import extract_sets_from_fit
         from fitparse import FitFile
+
+        from fitanalyzer.strength import extract_sets_from_fit
 
         fit_file = self.fixtures_dir / "20548472357_ACTIVITY.fit"
         self.assertTrue(fit_file.exists(), f"Test fixture not found: {fit_file}")

@@ -1,0 +1,11 @@
+#!/bin/bash
+# Wrapper script for pytest that works with or without venv
+
+set -e
+
+# Try venv first, fall back to system python
+if [ -f ".venv/bin/python3" ]; then
+    exec .venv/bin/python3 -m pytest "$@"
+else
+    exec python3 -m pytest "$@"
+fi

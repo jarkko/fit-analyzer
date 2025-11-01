@@ -329,11 +329,7 @@ class TestAnalysisExecution(unittest.TestCase):
 
         output_dir = tempfile.mkdtemp()
         try:
-            result = run_analysis(
-                directory=self.test_dir,
-                output_dir=output_dir,
-                ftp=300
-            )
+            result = run_analysis(directory=self.test_dir, output_dir=output_dir, ftp=300)
 
             self.assertTrue(result)
             mock_main.assert_called_once_with(mock_parsed_args)
@@ -359,7 +355,7 @@ class TestAnalysisExecution(unittest.TestCase):
             ftp=250,
             hrrest=50,
             hrmax=180,
-            multisport=False
+            multisport=False,
         )
 
         self.assertTrue(result)
@@ -382,8 +378,9 @@ class TestAnalysisExecution(unittest.TestCase):
         fit_file = Path(self.test_dir) / "single_ACTIVITY.fit"
         fit_file.touch()
 
-        with patch("fitanalyzer.cli.main_with_args") as mock_main, \
-             patch("fitanalyzer.cli.parse_arguments") as mock_parse:
+        with patch("fitanalyzer.cli.main_with_args") as mock_main, patch(
+            "fitanalyzer.cli.parse_arguments"
+        ) as mock_parse:
             mock_main.return_value = 0
             mock_parsed_args = Mock()
             mock_parse.return_value = mock_parsed_args
@@ -395,8 +392,9 @@ class TestAnalysisExecution(unittest.TestCase):
 
     def test_run_analysis_default_parameters(self):
         """Test analysis with default parameters"""
-        with patch("fitanalyzer.cli.main_with_args") as mock_main, \
-             patch("fitanalyzer.cli.parse_arguments") as mock_parse:
+        with patch("fitanalyzer.cli.main_with_args") as mock_main, patch(
+            "fitanalyzer.cli.parse_arguments"
+        ) as mock_parse:
             mock_main.return_value = 0
             mock_parsed_args = Mock()
             mock_parse.return_value = mock_parsed_args
@@ -551,8 +549,9 @@ class TestExerciseSetsAPI(unittest.TestCase):
 
     def test_save_and_load_exercise_sets(self):
         """Test saving and loading exercise sets to/from JSON."""
-        from fitanalyzer.sync import save_exercise_sets_to_json, load_exercise_sets_from_json
         import tempfile
+
+        from fitanalyzer.sync import load_exercise_sets_from_json, save_exercise_sets_to_json
 
         test_data = {"exerciseSets": [{"reps": 10}]}
 
@@ -685,8 +684,9 @@ class TestDownloadEdgeCases(unittest.TestCase):
 
     def test_extract_fit_from_zip(self):
         """Test extracting FIT file from ZIP (lines 227-233)"""
-        from fitanalyzer.sync import _extract_fit_from_zip
         import zipfile
+
+        from fitanalyzer.sync import _extract_fit_from_zip
 
         # Create a mock ZIP with a .fit file
         fit_content = b".FIT\x00test_data"
@@ -725,8 +725,9 @@ class TestDownloadEdgeCases(unittest.TestCase):
 
     def test_should_download_activity_no_update_timestamp(self):
         """Test download decision when no update timestamp (lines 277-284)"""
-        from fitanalyzer.sync import _should_download_activity
         import time
+
+        from fitanalyzer.sync import _should_download_activity
 
         activity = {"activityId": 12345}  # No updateDate or lastModified
         existing = {"12345": time.time()}
@@ -739,8 +740,9 @@ class TestDownloadEdgeCases(unittest.TestCase):
 
     def test_should_download_activity_updated(self):
         """Test download decision for updated activity (lines 277-284)"""
-        from fitanalyzer.sync import _should_download_activity
         import time
+
+        from fitanalyzer.sync import _should_download_activity
 
         current_time = time.time()
         older_time = current_time - 3600  # 1 hour ago
@@ -786,14 +788,19 @@ class TestOutputDirFunctionality(unittest.TestCase):
         mock_subprocess.return_value = mock_result
 
         # Test with minimal patches to avoid complex mocking
-        with patch("sys.argv", [
-            "sync.py",
-            "--analyze-only",
-            "--directory", self.test_dir,
-            "--output-dir", self.output_dir
-        ]), \
-        patch("fitanalyzer.sync.run_analysis") as mock_analysis, \
-        patch("builtins.print"):  # Suppress output
+        with patch(
+            "sys.argv",
+            [
+                "sync.py",
+                "--analyze-only",
+                "--directory",
+                self.test_dir,
+                "--output-dir",
+                self.output_dir,
+            ],
+        ), patch("fitanalyzer.sync.run_analysis") as mock_analysis, patch(
+            "builtins.print"
+        ):  # Suppress output
 
             mock_analysis.return_value = True
             result = main()
@@ -814,13 +821,11 @@ class TestOutputDirFunctionality(unittest.TestCase):
         mock_result.returncode = 0
         mock_subprocess.return_value = mock_result
 
-        with patch("sys.argv", [
-            "sync.py",
-            "--analyze-only",
-            "--directory", self.test_dir
-        ]), \
-        patch("fitanalyzer.sync.run_analysis") as mock_analysis, \
-        patch("builtins.print"):  # Suppress output
+        with patch("sys.argv", ["sync.py", "--analyze-only", "--directory", self.test_dir]), patch(
+            "fitanalyzer.sync.run_analysis"
+        ) as mock_analysis, patch(
+            "builtins.print"
+        ):  # Suppress output
 
             mock_analysis.return_value = True
             result = main()
@@ -833,18 +838,16 @@ class TestOutputDirFunctionality(unittest.TestCase):
 
     def test_run_analysis_output_dir_argument_passing(self):
         """Test that output_dir is correctly passed to parser arguments"""
-        with patch("fitanalyzer.cli.main_with_args") as mock_main, \
-             patch("fitanalyzer.cli.parse_arguments") as mock_parse:
+        with patch("fitanalyzer.cli.main_with_args") as mock_main, patch(
+            "fitanalyzer.cli.parse_arguments"
+        ) as mock_parse:
 
             mock_main.return_value = 0
             mock_parsed_args = Mock()
             mock_parse.return_value = mock_parsed_args
 
             custom_output = "/custom/output/path"
-            result = run_analysis(
-                directory=self.test_dir,
-                output_dir=custom_output
-            )
+            result = run_analysis(directory=self.test_dir, output_dir=custom_output)
 
             self.assertTrue(result)
 
@@ -882,17 +885,15 @@ class TestOutputDirFunctionality(unittest.TestCase):
         single_file = Path(self.test_dir) / "single_test_ACTIVITY.fit"
         single_file.touch()
 
-        with patch("fitanalyzer.cli.main_with_args") as mock_main, \
-             patch("fitanalyzer.cli.parse_arguments") as mock_parse:
+        with patch("fitanalyzer.cli.main_with_args") as mock_main, patch(
+            "fitanalyzer.cli.parse_arguments"
+        ) as mock_parse:
 
             mock_main.return_value = 0
             mock_parsed_args = Mock()
             mock_parse.return_value = mock_parsed_args
 
-            result = run_analysis(
-                directory=str(single_file),
-                output_dir=self.output_dir
-            )
+            result = run_analysis(directory=str(single_file), output_dir=self.output_dir)
 
             self.assertTrue(result)
 

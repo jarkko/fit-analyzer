@@ -81,17 +81,13 @@ class TestAPIUpdateTracking(unittest.TestCase):
         mock_garth.download.return_value = b"fake_fit_data"
 
         # Download initial activity
-        new_count, updated_files = download_new_activities(
-            days=7, directory=self.test_dir
-        )
+        new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
         self.assertEqual(new_count, 1)
         self.assertEqual(len(updated_files), 1)
 
         fit_file = Path(self.test_dir) / f"{activity_id}_ACTIVITY.fit"
-        json_file = (
-            Path(self.test_dir) / f"{activity_id}_ACTIVITY_exercises.json"
-        )
+        json_file = Path(self.test_dir) / f"{activity_id}_ACTIVITY_exercises.json"
 
         self.assertTrue(fit_file.exists())
         self.assertTrue(json_file.exists())
@@ -100,8 +96,7 @@ class TestAPIUpdateTracking(unittest.TestCase):
         with open(json_file, encoding="utf-8") as f:
             json_data = json.load(f)
         self.assertEqual(
-            json_data["exerciseSets"][0]["exercises"][0]["name"],
-            "BARBELL_BENCH_PRESS"
+            json_data["exerciseSets"][0]["exercises"][0]["name"], "BARBELL_BENCH_PRESS"
         )
 
         # Step 2: Update exercise names on API (FIT file unchanged)
@@ -113,9 +108,7 @@ class TestAPIUpdateTracking(unittest.TestCase):
                 "repetitionCount": 10,
             },
             {
-                "exercises": [
-                    {"category": "SQUAT", "name": "FRONT_SQUAT"}
-                ],  # Changed!
+                "exercises": [{"category": "SQUAT", "name": "FRONT_SQUAT"}],  # Changed!
                 "repetitionCount": 8,
             },
         ]
@@ -129,9 +122,7 @@ class TestAPIUpdateTracking(unittest.TestCase):
         mock_garth.connectapi.side_effect = mock_connectapi_second
 
         # Step 3: Re-run sync
-        _count, updated_files = download_new_activities(
-            days=7, directory=self.test_dir
-        )
+        _count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
         # The critical assertion: file should be in updated_files for re-aggregation
         self.assertEqual(len(updated_files), 1, "API update should add file to updated_files")
@@ -145,7 +136,7 @@ class TestAPIUpdateTracking(unittest.TestCase):
             updated_json_data = json.load(f)
         self.assertEqual(
             updated_json_data["exerciseSets"][0]["exercises"][0]["name"],
-            "DUMBBELL_BENCH_PRESS"  # Should be updated
+            "DUMBBELL_BENCH_PRESS",  # Should be updated
         )
 
         # This confirms that when API data changes, the file appears in updated_files
@@ -188,9 +179,7 @@ class TestAPIUpdateTracking(unittest.TestCase):
         mock_garth.download.return_value = b"fake_multisport_fit_data"
 
         # Download multisport activity
-        new_count, updated_files = download_new_activities(
-            days=7, directory=self.test_dir
-        )
+        new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
         self.assertEqual(new_count, 1)
         self.assertEqual(len(updated_files), 1)
@@ -233,9 +222,7 @@ class TestAPIUpdateTracking(unittest.TestCase):
         mock_garth.connectapi.side_effect = mock_connectapi_first
         mock_garth.download.return_value = b"fake_fit_data"
 
-        new_count, updated_files = download_new_activities(
-            days=7, directory=self.test_dir
-        )
+        new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
         self.assertEqual(new_count, 1)
         self.assertEqual(len(updated_files), 1)
@@ -243,9 +230,7 @@ class TestAPIUpdateTracking(unittest.TestCase):
         # Second download with IDENTICAL API data
         mock_garth.connectapi.side_effect = mock_connectapi_first  # Same function - identical data
 
-        new_count, updated_files = download_new_activities(
-            days=7, directory=self.test_dir
-        )
+        new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
         self.assertEqual(new_count, 0)  # No new activities
         self.assertEqual(len(updated_files), 0)  # No updates either
@@ -278,9 +263,7 @@ class TestAPIUpdateTracking(unittest.TestCase):
         mock_garth.connectapi.side_effect = mock_connectapi
         mock_garth.download.return_value = b"fake_fit_data"
 
-        new_count, updated_files = download_new_activities(
-            days=7, directory=self.test_dir
-        )
+        new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
         self.assertEqual(new_count, 1)
         self.assertEqual(len(updated_files), 1)
@@ -325,9 +308,7 @@ class TestAPIUpdateTracking(unittest.TestCase):
         mock_garth.connectapi.side_effect = mock_connectapi
         mock_garth.download.return_value = b"fake_fit_data"
 
-        new_count, updated_files = download_new_activities(
-            days=7, directory=self.test_dir
-        )
+        new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
         self.assertEqual(new_count, 3)
         self.assertEqual(len(updated_files), 3)

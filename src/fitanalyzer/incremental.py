@@ -82,9 +82,7 @@ def needs_analysis(fit_file: str, existing_analysis: Dict[str, float], force: bo
     return current_mtime > analyzed_mtime + 0.01
 
 
-def load_existing_rows(
-    csv_path: Path, existing_analysis: Dict[str, float]
-) -> List[Dict[str, Any]]:
+def load_existing_rows(csv_path: Path, existing_analysis: Dict[str, float]) -> List[Dict[str, Any]]:
     """Load existing rows from CSV and restore _file_mtime.
 
     Args:

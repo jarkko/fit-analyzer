@@ -2,7 +2,7 @@
 
 import sys
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 class TestFitparseFix(unittest.TestCase):

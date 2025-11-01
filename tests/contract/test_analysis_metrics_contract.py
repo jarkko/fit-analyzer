@@ -289,8 +289,11 @@ class TestCalcPowerMetricsContract:
 
         assert all(np.isnan(v) for v in result.values())
         assert set(result.keys()) == {
-            "avg_power", "max_power", "normalized_power",
-            "intensity_factor", "tss"
+            "avg_power",
+            "max_power",
+            "normalized_power",
+            "intensity_factor",
+            "tss",
         }
 
     def test_empty_power_data_returns_nan(self):
@@ -409,14 +412,16 @@ class TestCalculateMetricsForSessionContract:
 
     def test_complete_workout_calculates_all_metrics(self):
         """Contract: DataFrame with all columns calculates all metrics."""
-        df = pd.DataFrame({
-            "power": [200, 250, 300],
-            "heart_rate": [150, 160, 170],
-            "speed": [5.0, 6.0, 7.0],
-            "cadence": [80, 85, 90],
-            "distance": [0, 100, 200],
-            "altitude": [100, 110, 120],
-        })
+        df = pd.DataFrame(
+            {
+                "power": [200, 250, 300],
+                "heart_rate": [150, 160, 170],
+                "speed": [5.0, 6.0, 7.0],
+                "cadence": [80, 85, 90],
+                "distance": [0, 100, 200],
+                "altitude": [100, 110, 120],
+            }
+        )
 
         result = calculate_metrics_for_session(df, ftp=300, hr_rest=60, hr_max=190)
 
@@ -430,11 +435,13 @@ class TestCalculateMetricsForSessionContract:
 
     def test_partial_data_calculates_available_metrics(self):
         """Contract: Only available columns are calculated, rest are NaN."""
-        df = pd.DataFrame({
-            "power": [200, 250, 300],
-            "heart_rate": [150, 160, 170],
-            # Missing: speed, cadence, distance, altitude
-        })
+        df = pd.DataFrame(
+            {
+                "power": [200, 250, 300],
+                "heart_rate": [150, 160, 170],
+                # Missing: speed, cadence, distance, altitude
+            }
+        )
 
         result = calculate_metrics_for_session(df, ftp=300, hr_rest=60, hr_max=190)
 

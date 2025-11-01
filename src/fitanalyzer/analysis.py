@@ -189,9 +189,7 @@ def _calc_hr_metrics(df: Any, hr_rest: int, hr_max: int) -> Dict[str, float]:
     }
 
 
-def calculate_metrics_for_session(
-    df: Any, ftp: float, hr_rest: int, hr_max: int
-) -> Dict[str, Any]:
+def calculate_metrics_for_session(df: Any, ftp: float, hr_rest: int, hr_max: int) -> Dict[str, Any]:
     """Calculate all metrics for a workout session.
 
     Args:

@@ -14,7 +14,7 @@ import sys
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from .constants import DEFAULT_FTP, DEFAULT_HR_MAX, DEFAULT_HR_REST, DEFAULT_SYNC_DAYS
 from .strength import load_exercise_sets_from_json, save_exercise_sets_to_json
@@ -652,9 +652,7 @@ def download_new_activities(
         print(f"   Skipped (already up-to-date): {counters['skipped_count']}")
 
         total_count = (
-            counters["new_count"]
-            + counters["updated_count"]
-            + counters["api_updated_count"]
+            counters["new_count"] + counters["updated_count"] + counters["api_updated_count"]
         )
         return (total_count, updated_files)
 
@@ -667,7 +665,7 @@ def run_analysis(
     directory: str = ".",
     output_dir: str = "data",
     updated_files: Optional[List[str]] = None,
-    **kwargs
+    **kwargs,
 ) -> None:
     """Run the FIT file analysis using the parser module.
 
@@ -895,11 +893,7 @@ def sync_activities(  # pylint: disable=too-many-arguments,too-many-locals
         ImportError: If garth library is not installed
     """
     if not check_and_install_garth():
-        return {
-            "success": False,
-            "new_activities": 0,
-            "error": "garth library not available"
-        }
+        return {"success": False, "new_activities": 0, "error": "garth library not available"}
 
     try:
         directory_path = Path(directory)
@@ -911,17 +905,10 @@ def sync_activities(  # pylint: disable=too-many-arguments,too-many-locals
         # Download activities
         if not analyze_only:
             if not authenticate_garmin(email, password):
-                return {
-                    "success": False,
-                    "new_activities": 0,
-                    "error": "Authentication failed"
-                }
+                return {"success": False, "new_activities": 0, "error": "Authentication failed"}
 
             new_activities, updated_files = download_new_activities(
-                days=days,
-                limit=limit,
-                directory=str(directory_path),
-                force=force
+                days=days, limit=limit, directory=str(directory_path), force=force
             )
 
         # Run analysis
@@ -945,11 +932,7 @@ def sync_activities(  # pylint: disable=too-many-arguments,too-many-locals
         }
 
     except Exception as e:  # pylint: disable=broad-except
-        return {
-            "success": False,
-            "new_activities": 0,
-            "error": str(e)
-        }
+        return {"success": False, "new_activities": 0, "error": str(e)}
 
 
 if __name__ == "__main__":

@@ -1,11 +1,13 @@
 """Tests for strength training summary CSV generation."""
 
-import pytest
-import pandas as pd
 from pathlib import Path
+
+import pandas as pd
+import pytest
+
+from fitanalyzer.aggregation import aggregate_strength_sets
 from fitanalyzer.cli import main_with_args, parse_arguments
 from fitanalyzer.config import AnalysisConfig
-from fitanalyzer.aggregation import aggregate_strength_sets
 
 
 @pytest.fixture(scope="module")

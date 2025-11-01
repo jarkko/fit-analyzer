@@ -24,7 +24,7 @@ class _GarminProfileLoader:
     _instance = None
     _profile = None
 
-    def __new__(cls) -> '_GarminProfileLoader':
+    def __new__(cls) -> "_GarminProfileLoader":
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance

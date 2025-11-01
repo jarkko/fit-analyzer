@@ -1,15 +1,17 @@
 """Tests for fetching and merging exercise names from Garmin API."""
 
 import json
-import pytest
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
+from fitanalyzer.strength import merge_api_exercise_names
 from fitanalyzer.sync import (
     fetch_exercise_sets_from_api,
-    save_exercise_sets_to_json,
     load_exercise_sets_from_json,
+    save_exercise_sets_to_json,
 )
-from fitanalyzer.strength import merge_api_exercise_names
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ and Intensity Factor (IF).
 import numpy as np
 import pandas as pd
 
-from fitanalyzer.constants import DEFAULT_HR_REST, DEFAULT_HR_MAX
+from fitanalyzer.constants import DEFAULT_HR_MAX, DEFAULT_HR_REST
 
 
 def np_power(power: pd.Series) -> float:

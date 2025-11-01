@@ -65,11 +65,13 @@ def test_large_batch_processing():
 
     for fit_file in fit_files:
         sessions, sets = summarize_fit_sessions(str(fit_file))
-        results.append({
-            "file": fit_file.name,
-            "sessions": len(sessions),
-            "sets": len(sets) if sets is not None else 0
-        })
+        results.append(
+            {
+                "file": fit_file.name,
+                "sessions": len(sessions),
+                "sets": len(sets) if sets is not None else 0,
+            }
+        )
 
     total_time = time.time() - start_time
 
@@ -136,11 +138,13 @@ def test_concurrent_parsing_safety():
     results = []
     for i in range(3):
         sessions, sets = summarize_fit_sessions(str(test_file))
-        results.append({
-            "iteration": i,
-            "sessions": len(sessions),
-            "sets": len(sets) if sets is not None else 0
-        })
+        results.append(
+            {
+                "iteration": i,
+                "sessions": len(sessions),
+                "sets": len(sets) if sets is not None else 0,
+            }
+        )
 
     # Results should be consistent across iterations
     first_result = results[0]

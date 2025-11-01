@@ -180,13 +180,11 @@ def _generate_strength_summary(
     Returns:
         DataFrame with strength training summary
     """
-    config = AnalysisConfig(
-        ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz
-    )
+    config = AnalysisConfig(ftp=args.ftp, hr_rest=args.hrrest, hr_max=args.hrmax, tz_name=args.tz)
 
     # Merge files to process with API-updated files
     strength_files_to_process = set(files_to_process)
-    if hasattr(args, 'updated_files') and args.updated_files:
+    if hasattr(args, "updated_files") and args.updated_files:
         strength_files_to_process.update(args.updated_files)
 
     # Only aggregate sets from files that were actually processed or had API updates
@@ -199,9 +197,7 @@ def _generate_strength_summary(
     # Merge: keep existing rows for unchanged files, add rows for processed files
     if not existing_strength.empty and new_strength is not None:
         # Get activity IDs from processed files
-        processed_activity_ids = {
-            Path(f).stem.replace("_ACTIVITY", "") for f in files_to_process
-        }
+        processed_activity_ids = {Path(f).stem.replace("_ACTIVITY", "") for f in files_to_process}
         # Keep rows for files that weren't processed
         kept_rows = existing_strength[
             ~existing_strength["activity_id"].isin(processed_activity_ids)
@@ -238,7 +234,8 @@ def main_with_args(args):
         processed_files = set(files_to_process)
         # Use _original_file to match multisport sessions correctly
         kept_rows = [
-            r for r in existing_rows
+            r
+            for r in existing_rows
             if r.get("_original_file", r.get("file")) not in processed_files
         ]
         rows = kept_rows + new_rows
@@ -261,9 +258,7 @@ def main_with_args(args):
                 pass
 
         # Generate strength summary
-        df_strength_summary = _generate_strength_summary(
-            args, files_to_process, existing_strength
-        )
+        df_strength_summary = _generate_strength_summary(args, files_to_process, existing_strength)
 
         if df_strength_summary is not None and not df_strength_summary.empty:
             csv_path.parent.mkdir(parents=True, exist_ok=True)

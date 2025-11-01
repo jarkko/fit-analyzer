@@ -1,11 +1,13 @@
 """Tests for strength training data extraction."""
 
+from pathlib import Path
+
 import pandas as pd
 import pytest
-from pathlib import Path
+
 from fitanalyzer.activities import summarize_fit_original, summarize_fit_sessions
-from fitanalyzer.config import AnalysisConfig
 from fitanalyzer.aggregation import aggregate_strength_sets
+from fitanalyzer.config import AnalysisConfig
 
 
 @pytest.fixture(scope="module")
@@ -17,8 +19,9 @@ def strength_fit_file():
 @pytest.fixture(scope="module")
 def strength_fit_parsed(strength_fit_file):
     """Pre-parsed strength training FIT file data."""
-    from fitanalyzer.strength import extract_sets_from_fit
     from fitparse import FitFile
+
+    from fitanalyzer.strength import extract_sets_from_fit
 
     summary = summarize_fit_original(strength_fit_file, ftp=300)
     ff = FitFile(strength_fit_file)
@@ -52,8 +55,9 @@ def multisport_with_strength():
 @pytest.fixture(scope="module")
 def multisport_parsed(multisport_with_strength):
     """Pre-parsed multisport FIT file data."""
-    from fitanalyzer.strength import extract_sets_from_fit
     from fitparse import FitFile
+
+    from fitanalyzer.strength import extract_sets_from_fit
 
     summary = summarize_fit_original(multisport_with_strength, ftp=300)
     ff = FitFile(multisport_with_strength)
@@ -342,8 +346,9 @@ class TestStrengthEdgeCasesForFullCoverage:
 
     def test_get_specific_exercise_name_with_unavailable_profile(self):
         """Test handling when profile is None or missing 'types' (line 103)"""
-        from fitanalyzer.strength import get_specific_exercise_name
         from unittest.mock import patch
+
+        from fitanalyzer.strength import get_specific_exercise_name
 
         # Mock _get_garmin_profile to return None
         with patch("fitanalyzer.strength._get_garmin_profile", return_value=None):
@@ -366,8 +371,9 @@ class TestStrengthEdgeCasesForFullCoverage:
 
     def test_get_specific_exercise_name_with_unknown_exercise_name(self):
         """Test handling when exercise_name is 'unknown' (line 121)"""
-        from fitanalyzer.strength import get_specific_exercise_name
         from unittest.mock import patch
+
+        from fitanalyzer.strength import get_specific_exercise_name
 
         # Mock profile to return 'unknown' as exercise name
         mock_profile = {
@@ -404,8 +410,9 @@ class TestStrengthEdgeCasesForFullCoverage:
 
     def test_extract_valid_value_with_none(self):
         """Test _extract_valid_value when value is None (line 193)"""
-        from fitanalyzer.strength import _extract_valid_value
         import pandas as pd
+
+        from fitanalyzer.strength import _extract_valid_value
 
         # When value is None or NaN
         assert _extract_valid_value(None) is None
@@ -486,9 +493,11 @@ class TestStrengthEdgeCasesForFullCoverage:
 
     def test_extract_sets_from_fit_with_json_file(self):
         """Test extract_sets_from_fit merging API names from JSON file (line 288)"""
-        from fitanalyzer.strength import extract_sets_from_fit
-        from fitparse import FitFile
         from unittest.mock import patch
+
+        from fitparse import FitFile
+
+        from fitanalyzer.strength import extract_sets_from_fit
 
         # Use a real FIT file
         fit_file = "tests/fixtures/20474406937_ACTIVITY.fit"
@@ -499,9 +508,7 @@ class TestStrengthEdgeCasesForFullCoverage:
             "exerciseSets": [{"messageIndex": 0, "exercises": [{"name": "MOCKED_EXERCISE"}]}]
         }
 
-        with patch(
-            "fitanalyzer.strength.load_exercise_sets_from_json", return_value=mock_api_data
-        ):
+        with patch("fitanalyzer.strength.load_exercise_sets_from_json", return_value=mock_api_data):
             # This should hit line 288 (merge_api_exercise_names call)
             df = extract_sets_from_fit(ff, fit_file)
 

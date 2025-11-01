@@ -4,11 +4,11 @@ Tests for programmatic sync_activities() function.
 TDD tests to ensure sync_activities() works correctly and that CLI uses it.
 """
 
-import tempfile
 import shutil
+import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from fitanalyzer.sync import sync_activities
 
@@ -50,11 +50,7 @@ class TestSyncActivitiesProgrammatic(unittest.TestCase):
         mock_download.return_value = (5, [])
         mock_analysis.return_value = True
 
-        result = sync_activities(
-            directory=self.test_dir,
-            output_dir=self.output_dir,
-            days=7
-        )
+        result = sync_activities(directory=self.test_dir, output_dir=self.output_dir, days=7)
 
         self.assertTrue(result["success"])
         self.assertEqual(result["new_activities"], 5)
@@ -65,17 +61,13 @@ class TestSyncActivitiesProgrammatic(unittest.TestCase):
     @patch("fitanalyzer.sync.run_analysis")
     @patch("fitanalyzer.sync.authenticate_garmin")
     @patch("fitanalyzer.sync.check_and_install_garth")
-    def test_analyze_only_skips_download(
-        self, mock_check, mock_auth, mock_analysis
-    ):
+    def test_analyze_only_skips_download(self, mock_check, mock_auth, mock_analysis):
         """Test analyze_only=True skips authentication and download."""
         mock_check.return_value = True
         mock_analysis.return_value = True
 
         result = sync_activities(
-            analyze_only=True,
-            directory=self.test_dir,
-            output_dir=self.output_dir
+            analyze_only=True, directory=self.test_dir, output_dir=self.output_dir
         )
 
         # Should not authenticate if analyze_only
@@ -87,18 +79,14 @@ class TestSyncActivitiesProgrammatic(unittest.TestCase):
     @patch("fitanalyzer.sync.download_new_activities")
     @patch("fitanalyzer.sync.authenticate_garmin")
     @patch("fitanalyzer.sync.check_and_install_garth")
-    def test_download_only_skips_analysis(
-        self, mock_check, mock_auth, mock_download
-    ):
+    def test_download_only_skips_analysis(self, mock_check, mock_auth, mock_download):
         """Test download_only=True skips analysis."""
         mock_check.return_value = True
         mock_auth.return_value = True
         mock_download.return_value = (3, [])
 
         result = sync_activities(
-            download_only=True,
-            directory=self.test_dir,
-            output_dir=self.output_dir
+            download_only=True, directory=self.test_dir, output_dir=self.output_dir
         )
 
         # Should download
@@ -123,9 +111,7 @@ class TestSyncActivitiesProgrammatic(unittest.TestCase):
     @patch("fitanalyzer.sync.download_new_activities")
     @patch("fitanalyzer.sync.authenticate_garmin")
     @patch("fitanalyzer.sync.check_and_install_garth")
-    def test_incremental_by_default(
-        self, mock_check, mock_auth, mock_download, mock_analysis
-    ):
+    def test_incremental_by_default(self, mock_check, mock_auth, mock_download, mock_analysis):
         """Test that sync is incremental by default (force=False)."""
         mock_check.return_value = True
         mock_auth.return_value = True

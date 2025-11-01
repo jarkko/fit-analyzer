@@ -17,8 +17,8 @@ import pytest
 from fitanalyzer.training_load import (
     calculate_atl,
     calculate_ctl,
-    calculate_tsb,
     calculate_training_load_metrics,
+    calculate_tsb,
 )
 
 
@@ -224,10 +224,7 @@ class TestCalculateTrainingLoadMetricsContract:
 
     def test_single_workout_calculates_metrics(self):
         """Contract: Single workout gets CTL, ATL, TSB values."""
-        df = pd.DataFrame({
-            "date": ["2025-01-01"],
-            "tss": [100.0]
-        })
+        df = pd.DataFrame({"date": ["2025-01-01"], "tss": [100.0]})
 
         result = calculate_training_load_metrics(df, load_column="tss")
 
@@ -239,10 +236,9 @@ class TestCalculateTrainingLoadMetricsContract:
 
     def test_sorts_by_date_before_calculation(self):
         """Contract: Workouts are sorted by date before calculating cumulative metrics."""
-        df = pd.DataFrame({
-            "date": ["2025-01-03", "2025-01-01", "2025-01-02"],
-            "tss": [100.0, 100.0, 100.0]
-        })
+        df = pd.DataFrame(
+            {"date": ["2025-01-03", "2025-01-01", "2025-01-02"], "tss": [100.0, 100.0, 100.0]}
+        )
 
         result = calculate_training_load_metrics(df, load_column="tss")
 
@@ -253,10 +249,7 @@ class TestCalculateTrainingLoadMetricsContract:
 
     def test_uses_trimp_when_tss_not_available(self):
         """Contract: Falls back to TRIMP if TSS not available."""
-        df = pd.DataFrame({
-            "date": ["2025-01-01", "2025-01-02"],
-            "trimp": [50.0, 60.0]
-        })
+        df = pd.DataFrame({"date": ["2025-01-01", "2025-01-02"], "trimp": [50.0, 60.0]})
 
         result = calculate_training_load_metrics(df, load_column="trimp")
 
@@ -265,28 +258,23 @@ class TestCalculateTrainingLoadMetricsContract:
 
     def test_missing_date_column_raises_error(self):
         """Contract: DataFrame must have 'date' column."""
-        df = pd.DataFrame({
-            "tss": [100.0]
-        })
+        df = pd.DataFrame({"tss": [100.0]})
 
         with pytest.raises(KeyError, match="date"):
             calculate_training_load_metrics(df)
 
     def test_missing_load_column_raises_error(self):
         """Contract: DataFrame must have specified load column."""
-        df = pd.DataFrame({
-            "date": ["2025-01-01"]
-        })
+        df = pd.DataFrame({"date": ["2025-01-01"]})
 
         with pytest.raises(KeyError, match="tss"):
             calculate_training_load_metrics(df, load_column="tss")
 
     def test_handles_gaps_in_dates(self):
         """Contract: Handles date gaps (assumes zero training on missing days)."""
-        df = pd.DataFrame({
-            "date": ["2025-01-01", "2025-01-05"],  # 3-day gap
-            "tss": [100.0, 100.0]
-        })
+        df = pd.DataFrame(
+            {"date": ["2025-01-01", "2025-01-05"], "tss": [100.0, 100.0]}  # 3-day gap
+        )
 
         result = calculate_training_load_metrics(df, load_column="tss")
 
@@ -296,28 +284,25 @@ class TestCalculateTrainingLoadMetricsContract:
 
     def test_rounds_values_to_four_decimal_places(self):
         """Contract: CTL/ATL/TSB values are rounded to 4 decimal places for readability."""
-        df = pd.DataFrame({
-            "date": ["2025-01-01"],
-            "tss": [100.0]
-        })
+        df = pd.DataFrame({"date": ["2025-01-01"], "tss": [100.0]})
 
         result = calculate_training_load_metrics(df, load_column="tss")
 
         # Check that values are rounded to exactly 4 decimal places
         # CTL = 100/42 = 2.380952380952381... should become 2.381
         ctl_str = str(result["ctl"].iloc[0])
-        if '.' in ctl_str:
-            decimal_places = len(ctl_str.split('.')[1])
+        if "." in ctl_str:
+            decimal_places = len(ctl_str.split(".")[1])
             assert decimal_places <= 4, f"CTL has {decimal_places} decimal places, expected <= 4"
 
         # ATL = 100/7 = 14.285714285714286... should become 14.2857
         atl_str = str(result["atl"].iloc[0])
-        if '.' in atl_str:
-            decimal_places = len(atl_str.split('.')[1])
+        if "." in atl_str:
+            decimal_places = len(atl_str.split(".")[1])
             assert decimal_places <= 4, f"ATL has {decimal_places} decimal places, expected <= 4"
 
         # TSB = CTL - ATL should also be rounded
         tsb_str = str(result["tsb"].iloc[0])
-        if '.' in tsb_str:
-            decimal_places = len(tsb_str.split('.')[1])
+        if "." in tsb_str:
+            decimal_places = len(tsb_str.split(".")[1])
             assert decimal_places <= 4, f"TSB has {decimal_places} decimal places, expected <= 4"
