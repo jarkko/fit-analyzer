@@ -543,15 +543,18 @@ def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
     try:
         # Get activity details to check for child activities (multisport)
         activity_details = garth.connectapi(f"/activity-service/activity/{activity_id}")
-        child_ids = _get_child_activity_ids(activity_details)
 
-        # Try child activities first (for multisport)
-        for child_id in child_ids:
-            result = _fetch_exercise_sets_for_activity(child_id)
-            if result:
-                return result
+        # Check for child activities if we got valid activity details
+        if isinstance(activity_details, dict):
+            child_ids = _get_child_activity_ids(activity_details)
 
-        # Try the main activity if no children or no child had exercise sets
+            # Try child activities first (for multisport)
+            for child_id in child_ids:
+                result = _fetch_exercise_sets_for_activity(child_id)
+                if result:
+                    return result
+
+        # Try the main activity (either no children or child fetch failed)
         return _fetch_exercise_sets_for_activity(activity_id)
 
     except (GarthHTTPError, KeyError, TypeError) as e:
@@ -771,7 +774,11 @@ def download_new_activities(
 
         if not activities:
             print("   No activities found")
-            return 0
+            return (0, [])
+
+        # Ensure activities is a list (garth.connectapi can return dict or list)
+        if isinstance(activities, dict):
+            activities = [activities]
 
         # Filter by date and identify multisport parents
         recent_activities = _filter_recent_activities(activities, days)

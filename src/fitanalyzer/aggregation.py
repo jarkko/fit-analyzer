@@ -55,7 +55,9 @@ def process_file_for_sets(
     return df_sessions, df_sets
 
 
-def extract_session_metadata(df_sessions: pd.DataFrame) -> tuple[str, str, Any]:
+def extract_session_metadata(
+    df_sessions: pd.DataFrame | dict[str, Any] | list[Any],
+) -> tuple[str, str, Any]:
     """Extract metadata from the first session."""
     sport = "unknown"
     sub_sport = "unknown"
@@ -137,7 +139,7 @@ def aggregate_strength_sets(
         # Add metadata to each active set
         for idx, row in df_sets.iterrows():
             if row.get("set_type") == "active":
-                all_strength_data.append(create_set_record(row, idx, metadata))
+                all_strength_data.append(create_set_record(row, int(idx), metadata))
 
     if not all_strength_data:
         return None
