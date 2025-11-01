@@ -465,6 +465,12 @@ def _get_child_activity_ids(activity_details: Dict[str, Any]) -> List[Any]:
     """
     if isinstance(activity_details, list):
         return []
+
+    # Try direct childIds first (from activity list API)
+    if "childIds" in activity_details:
+        return activity_details.get("childIds", [])
+
+    # Fall back to metadataDTO.childIds (from activity details API)
     metadata = activity_details.get("metadataDTO", {})
     return metadata.get("childIds", [])
 
@@ -601,6 +607,76 @@ def _process_activity(
         counters["skipped_count"] += 1
 
 
+def _identify_multisport_parents(activities: List[Dict[str, Any]]) -> set:
+    """Identify parent multisport activities that should be skipped.
+
+    Args:
+        activities: List of activity dictionaries from API
+
+    Returns:
+        Set of parent activity IDs that have children
+    """
+    parent_ids = set()
+    for activity in activities:
+        child_ids = _get_child_activity_ids(activity)
+        if child_ids:
+            parent_ids.add(activity["activityId"])
+    return parent_ids
+
+
+def _process_activities(
+    activities: List[Dict[str, Any]],
+    existing: Dict[str, float],
+    directory: str,
+    parent_ids: set,
+) -> Tuple[Dict[str, int], List[str]]:
+    """Process and download activities.
+
+    Args:
+        activities: List of activities to process
+        existing: Dict of existing activity IDs and modification times
+        directory: Directory to save files
+        parent_ids: Set of parent multisport activity IDs to skip
+
+    Returns:
+        Tuple of (counters dict, updated_files list)
+    """
+    counters = {"new_count": 0, "updated_count": 0, "api_updated_count": 0, "skipped_count": 0}
+    updated_files: List[str] = []
+
+    for activity in activities:
+        activity_id = activity["activityId"]
+
+        # Skip parent multisport activities - their data is duplicated in child activities
+        if activity_id in parent_ids:
+            activity_name = activity.get("activityName", "Unknown")
+            msg = (
+                f"   📦 Skipping multisport parent (children will be downloaded): "
+                f"{activity_name} [ID: {activity_id}]"
+            )
+            print(msg)
+            counters["skipped_count"] += 1
+            continue
+
+        _process_activity(activity, existing, directory, counters, updated_files)
+
+    return counters, updated_files
+
+
+def _print_download_summary(counters: Dict[str, int]) -> None:
+    """Print summary of download results.
+
+    Args:
+        counters: Dict with new_count, updated_count, api_updated_count, skipped_count
+    """
+    print("\n✅ Download complete!")
+    print(f"   New activities: {counters['new_count']}")
+    print(f"   Updated activities: {counters['updated_count']}")
+    if counters["api_updated_count"] > 0:
+        print(f"   Exercise data updated: {counters['api_updated_count']}")
+    print(f"   Skipped (already up-to-date): {counters['skipped_count']}")
+
+
 def download_new_activities(
     days: int = DEFAULT_SYNC_DAYS,
     limit: Optional[int] = None,
@@ -697,23 +773,17 @@ def download_new_activities(
             print("   No activities found")
             return 0
 
-        # Filter by date
+        # Filter by date and identify multisport parents
         recent_activities = _filter_recent_activities(activities, days)
         print(f"   Found {len(recent_activities)} activities in date range")
+        parent_activity_ids = _identify_multisport_parents(recent_activities)
 
         # Download new activities
-        counters = {"new_count": 0, "updated_count": 0, "api_updated_count": 0, "skipped_count": 0}
-        updated_files: List[str] = []
+        counters, updated_files = _process_activities(
+            recent_activities, existing_activities, directory, parent_activity_ids
+        )
 
-        for activity in recent_activities:
-            _process_activity(activity, existing_activities, directory, counters, updated_files)
-
-        print("\n✅ Download complete!")
-        print(f"   New activities: {counters['new_count']}")
-        print(f"   Updated activities: {counters['updated_count']}")
-        if counters["api_updated_count"] > 0:
-            print(f"   Exercise data updated: {counters['api_updated_count']}")
-        print(f"   Skipped (already up-to-date): {counters['skipped_count']}")
+        _print_download_summary(counters)
 
         total_count = (
             counters["new_count"] + counters["updated_count"] + counters["api_updated_count"]
@@ -941,9 +1011,7 @@ class SyncConfig:
             self.mode = SyncMode()
 
 
-def sync_activities(
-    config: Optional[SyncConfig] = None, /, **kwargs: Any
-) -> Dict[str, Any]:
+def sync_activities(config: Optional[SyncConfig] = None, /, **kwargs: Any) -> Dict[str, Any]:
     """High-level function to sync activities from Garmin Connect (incremental by default).
 
     This is the recommended way to use the sync functionality programmatically.
