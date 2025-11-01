@@ -168,7 +168,9 @@ def print_summary(results: List[dict]) -> None:
     print("🐌 SLOWEST FILES:")
     slowest = sorted(successful, key=lambda r: r["time"], reverse=True)[:5]
     for i, result in enumerate(slowest, 1):
-        print(f"   {i}. {result['file']}: {result['time']:.3f}s ({result['file_size'] / 1024:.1f} KB)")
+        print(
+            f"   {i}. {result['file']}: {result['time']:.3f}s ({result['file_size'] / 1024:.1f} KB)"
+        )
 
 
 def print_detailed_profile(result: dict, top_n: int = 20) -> None:

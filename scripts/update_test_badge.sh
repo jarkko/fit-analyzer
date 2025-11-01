@@ -29,12 +29,12 @@ CURRENT_BADGE=$(grep -o 'tests-[0-9]*%20passed' README.md | head -1)
 
 if [ -n "$CURRENT_BADGE" ]; then
     NEW_BADGE="tests-${TEST_COUNT}%20passed"
-    
+
     if [ "$CURRENT_BADGE" != "$NEW_BADGE" ]; then
         echo "📝 Updating badge: $CURRENT_BADGE -> $NEW_BADGE"
         sed -i.bak "s/tests-[0-9]*%20passed/tests-${TEST_COUNT}%20passed/g" README.md
         rm -f README.md.bak
-        
+
         # Stage the change
         git add README.md
         echo "✅ Badge updated and staged"

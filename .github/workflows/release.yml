@@ -21,28 +21,28 @@ jobs:
           # Get the commit SHA this tag points to
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "Tag points to commit: $COMMIT_SHA"
-          
+
           # Wait a moment for CI to start (if just pushed)
           sleep 10
-          
+
           # Check CI status using GitHub CLI
           gh run list --commit $COMMIT_SHA --workflow=ci.yml --json conclusion,status,name --limit 1 > ci_status.json
           cat ci_status.json
-          
+
           # Check if CI completed successfully
           CI_CONCLUSION=$(jq -r '.[0].conclusion // "pending"' ci_status.json)
           CI_STATUS=$(jq -r '.[0].status // "unknown"' ci_status.json)
-          
+
           echo "CI Status: $CI_STATUS"
           echo "CI Conclusion: $CI_CONCLUSION"
-          
+
           if [ "$CI_CONCLUSION" != "success" ]; then
             echo "❌ ERROR: CI has not passed for this commit!"
             echo "CI must pass before releasing."
             echo "Current status: $CI_STATUS ($CI_CONCLUSION)"
             exit 1
           fi
-          
+
           echo "✅ CI passed! Proceeding with release..."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
