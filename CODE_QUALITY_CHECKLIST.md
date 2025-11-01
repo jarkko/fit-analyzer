@@ -45,7 +45,7 @@ git commit -m "your message"
 git push
 ```
 
-**WHY:** 
+**WHY:**
 - Pre-commit hook prevents bad code from being committed in the first place
 - No more "oops, forgot to run tests" moments
 - No more breaking CI after push
