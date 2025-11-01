@@ -31,11 +31,11 @@
 - **Use TDD approach for bug fixes and new features**
 - Write tests first, then implement the fix
 - All tests must pass before considering work complete
-- Current test count: 298 tests - maintain or increase
+- Current test count: 300 tests - maintain or increase
 - Test suite is 100% architecture-driven (no bug-driven tests)
-- Test coverage: 94.96% (target: 95%+)
+- Test coverage: 95.13% (minimum required: 95.0%)
 - Use pytest for all testing
-- Run `make test` to verify all tests pass
+- Run `make test` to verify all tests pass (always use parallel execution with -n auto)
 - We must always keep 100% code coverage for committed code. Don't come up with excuses for why some file doesn't need good coverage. They all do.
 
 ### Test Architecture
