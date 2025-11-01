@@ -1,0 +1,15 @@
+#!/bin/bash
+# Smart Python wrapper that works with or without virtualenv
+
+set -e
+
+# Try .venv first (local development)
+if [ -f ".venv/bin/python3" ]; then
+    exec .venv/bin/python3 "$@"
+# Fall back to system python3 (CI environment)
+elif command -v python3 &> /dev/null; then
+    exec python3 "$@"
+else
+    echo "Error: Neither .venv/bin/python3 nor python3 found" >&2
+    exit 1
+fi

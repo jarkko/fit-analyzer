@@ -3,8 +3,8 @@
 
 .PHONY: help install install-dev test test-sequential test-fast test-unit test-integration lint format type-check clean coverage docs build install-editable
 
-# Python interpreter - always use venv to ensure consistent environment
-PYTHON := .venv/bin/python3
+# Python interpreter - use smart wrapper that works with or without venv
+PYTHON := bin/python
 PIP := $(PYTHON) -m pip
 PYTEST := $(PYTHON) -m pytest
 FLAKE8 := $(PYTHON) -m flake8
