@@ -306,3 +306,43 @@ class TestCalculateTrainingLoadMetricsContract:
         if "." in tsb_str:
             decimal_places = len(tsb_str.split(".")[1])
             assert decimal_places <= 4, f"TSB has {decimal_places} decimal places, expected <= 4"
+
+    def test_recalculation_with_existing_columns_no_duplicates(self):
+        """
+        REGRESSION TEST: Calculate training load on DataFrame that already has ctl/atl/tsb.
+
+        Critical contract: Function must handle DataFrames that already have training
+        load columns (common in incremental analysis when loading from CSV).
+
+        Bug that was missed: When DataFrame has existing ctl/atl/tsb columns,
+        pandas merge creates duplicate columns (ctl_x, ctl_y, etc.) instead of
+        replacing them.
+
+        Expected behavior: Drop existing columns and recalculate cleanly.
+        """
+        df = pd.DataFrame(
+            {
+                "date": ["2025-01-01", "2025-01-02"],
+                "tss": [100.0, 80.0],
+                "ctl": [2.38, 4.23],  # Existing columns from previous calculation
+                "atl": [14.29, 23.67],
+                "tsb": [-11.90, -19.44],
+            }
+        )
+
+        result = calculate_training_load_metrics(df, load_column="tss")
+
+        # CRITICAL: No duplicate columns should be created
+        assert "ctl" in result.columns, "ctl column must exist"
+        assert "atl" in result.columns, "atl column must exist"
+        assert "tsb" in result.columns, "tsb column must exist"
+        assert "ctl_x" not in result.columns, "No ctl_x duplicate column"
+        assert "ctl_y" not in result.columns, "No ctl_y duplicate column"
+        assert "atl_x" not in result.columns, "No atl_x duplicate column"
+        assert "atl_y" not in result.columns, "No atl_y duplicate column"
+        assert "tsb_x" not in result.columns, "No tsb_x duplicate column"
+        assert "tsb_y" not in result.columns, "No tsb_y duplicate column"
+
+        # Values should be recalculated correctly (deterministic)
+        assert len(result) == 2
+        assert not pd.isna(result["ctl"].iloc[0])

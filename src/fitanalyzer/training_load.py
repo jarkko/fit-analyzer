@@ -185,8 +185,15 @@ def calculate_training_load_metrics(
     if load_column not in df.columns:
         raise KeyError(f"DataFrame must have '{load_column}' column")
 
+    # Drop existing training load columns to avoid duplication (ctl_x, ctl_y, etc.)
+    # This allows incremental analysis where old CSVs already have these columns
+    df_clean = df.copy()
+    for col in ["ctl", "atl", "tsb"]:
+        if col in df_clean.columns:
+            df_clean = df_clean.drop(columns=[col])
+
     # Sort by date to ensure chronological order
-    df_sorted = df.sort_values(date_column).copy()
+    df_sorted = df_clean.sort_values(date_column).copy()
 
     # Convert to numeric, filling missing/invalid with 0
     df_sorted[load_column] = pd.to_numeric(df_sorted[load_column], errors="coerce").fillna(0)
