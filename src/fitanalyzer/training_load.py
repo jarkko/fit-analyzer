@@ -1,0 +1,158 @@
+"""
+Training load calculations based on the Fitness-Fatigue Model.
+
+Implements Chronic Training Load (CTL), Acute Training Load (ATL),
+and Training Stress Balance (TSB) calculations using exponentially
+weighted moving averages.
+
+Scientific Background:
+- Banister et al. (1975) - Impulse-response model of training
+- Coggan (2003) - Performance Manager Chart (PMC)
+- CTL: Long-term fitness (42-day time constant)
+- ATL: Short-term fatigue (7-day time constant)
+- TSB: Form/readiness (CTL - ATL)
+"""
+
+from typing import List
+
+import numpy as np
+import pandas as pd
+
+
+def calculate_ctl(training_loads: List[float], time_constant: int = 42) -> np.ndarray:
+    """Calculate Chronic Training Load (fitness) using exponential weighted moving average.
+
+    CTL represents long-term training adaptations. Uses a 42-day time constant
+    by default, meaning fitness has a half-life of ~29 days.
+
+    Formula: CTL_today = CTL_yesterday + (Load_today - CTL_yesterday) / time_constant
+
+    Args:
+        training_loads: List of daily training load values (TSS or TRIMP)
+        time_constant: Number of days for the time constant (default: 42)
+
+    Returns:
+        NumPy array of CTL values, one per day
+    """
+    if not training_loads:
+        return np.array([])
+
+    ctl = np.zeros(len(training_loads))
+    ctl[0] = training_loads[0] / time_constant  # Start from zero baseline
+
+    for i in range(1, len(training_loads)):
+        ctl[i] = ctl[i - 1] + (training_loads[i] - ctl[i - 1]) / time_constant
+
+    return ctl
+
+
+def calculate_atl(training_loads: List[float], time_constant: int = 7) -> np.ndarray:
+    """Calculate Acute Training Load (fatigue) using exponential weighted moving average.
+
+    ATL represents short-term fatigue. Uses a 7-day time constant by default,
+    meaning fatigue has a half-life of ~5 days.
+
+    Formula: ATL_today = ATL_yesterday + (Load_today - ATL_yesterday) / time_constant
+
+    Args:
+        training_loads: List of daily training load values (TSS or TRIMP)
+        time_constant: Number of days for the time constant (default: 7)
+
+    Returns:
+        NumPy array of ATL values, one per day
+    """
+    if not training_loads:
+        return np.array([])
+
+    atl = np.zeros(len(training_loads))
+    atl[0] = training_loads[0] / time_constant  # Start from zero baseline
+
+    for i in range(1, len(training_loads)):
+        atl[i] = atl[i - 1] + (training_loads[i] - atl[i - 1]) / time_constant
+
+    return atl
+
+
+def calculate_tsb(ctl: np.ndarray, atl: np.ndarray) -> np.ndarray:
+    """Calculate Training Stress Balance (form/readiness).
+
+    TSB = CTL - ATL represents the balance between fitness and fatigue.
+
+    Interpretation:
+    - Positive TSB: Fresh, peaked, ready to perform
+    - Zero TSB: Balanced training and fatigue
+    - Negative TSB: Fatigued, in heavy training phase
+
+    Typical race preparation: Build negative TSB (-20 to -40) during training,
+    then taper to achieve positive TSB (+5 to +25) for race day.
+
+    Args:
+        ctl: Chronic Training Load array
+        atl: Acute Training Load array
+
+    Returns:
+        NumPy array of TSB values
+
+    Raises:
+        ValueError: If CTL and ATL arrays have different lengths
+    """
+    if len(ctl) != len(atl):
+        raise ValueError("CTL and ATL arrays must have the same length")
+
+    return ctl - atl
+
+
+def calculate_training_load_metrics(
+    df: pd.DataFrame,
+    load_column: str = "tss",
+    date_column: str = "date"
+) -> pd.DataFrame:
+    """Calculate CTL, ATL, and TSB for a DataFrame of workouts.
+
+    Takes a DataFrame with workout data and adds cumulative training load metrics.
+    Workouts are sorted by date before calculation. Date gaps are handled by
+    assuming zero training load on missing days.
+
+    Args:
+        df: DataFrame with workout data
+        load_column: Name of column containing training load (TSS or TRIMP)
+        date_column: Name of column containing workout dates
+
+    Returns:
+        DataFrame with added columns: 'ctl', 'atl', 'tsb'
+
+    Raises:
+        KeyError: If required columns are missing
+    """
+    if df.empty:
+        # Return empty DataFrame with expected columns
+        result = df.copy()
+        result["ctl"] = []
+        result["atl"] = []
+        result["tsb"] = []
+        return result
+
+    # Validate required columns
+    if date_column not in df.columns:
+        raise KeyError(f"DataFrame must have '{date_column}' column")
+    if load_column not in df.columns:
+        raise KeyError(f"DataFrame must have '{load_column}' column")
+
+    # Sort by date to ensure chronological order
+    df_sorted = df.sort_values(date_column).copy()
+
+    # Extract training loads as list, converting to numeric and filling missing/invalid with 0
+    df_sorted[load_column] = pd.to_numeric(df_sorted[load_column], errors='coerce').fillna(0)
+    training_loads = df_sorted[load_column].tolist()
+
+    # Calculate metrics
+    ctl = calculate_ctl(training_loads)
+    atl = calculate_atl(training_loads)
+    tsb = calculate_tsb(ctl, atl)
+
+    # Add to DataFrame, rounded to 4 decimal places for readability
+    df_sorted["ctl"] = np.round(ctl, 4)
+    df_sorted["atl"] = np.round(atl, 4)
+    df_sorted["tsb"] = np.round(tsb, 4)
+
+    return df_sorted

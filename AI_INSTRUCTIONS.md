@@ -34,6 +34,7 @@
 - Current test count: 300 tests - maintain or increase
 - Test suite is 100% architecture-driven (no bug-driven tests)
 - Test coverage: 95.13% (minimum required: 95.0%)
+- All added code needs to have ~100% coverage.
 - Use pytest for all testing
 - Run `make test` to verify all tests pass (always use parallel execution with -n auto)
 - We must always keep 100% code coverage for committed code. Don't come up with excuses for why some file doesn't need good coverage. They all do.

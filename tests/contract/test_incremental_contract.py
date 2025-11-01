@@ -136,9 +136,9 @@ class TestLoadExistingAnalysisContract:
         """Contract: Corrupted CSV returns empty dict (exception handling)."""
         csv_path = tmp_path / "corrupt.csv"
         csv_path.write_text("not,valid,csv\ndata")
-        
+
         result = load_existing_analysis(csv_path)
-        
+
         # Should handle parse error gracefully
         assert result == {}
 
@@ -150,9 +150,9 @@ class TestLoadExistingAnalysisContract:
             "_file_mtime": ["not_a_number"]  # Invalid: string instead of float
         })
         df.to_csv(csv_path, index=False)
-        
+
         result = load_existing_analysis(csv_path)
-        
+
         # Should handle ValueError gracefully when converting to float
         assert result == {}
 class TestLoadExistingRowsContract:
@@ -210,11 +210,11 @@ class TestLoadExistingRowsContract:
             "sport": ["cycling", "running"]
         })
         df.to_csv(csv_path, index=False)
-        
+
         existing_analysis = {"file1.fit": 100.0}  # file2.fit missing
-        
+
         result = load_existing_rows(csv_path, existing_analysis)
-        
+
         assert len(result) == 2
         assert result[0]["_file_mtime"] == 100.0
         assert "_file_mtime" not in result[1]  # file2 doesn't get mtime
@@ -223,9 +223,9 @@ class TestLoadExistingRowsContract:
         """Contract: Corrupted CSV returns empty list (exception handling)."""
         csv_path = tmp_path / "corrupt.csv"
         csv_path.write_text("not,valid,csv\ndata")
-        
+
         result = load_existing_rows(csv_path, {})
-        
+
         # Should handle parse error gracefully
         assert result == []
 class TestDetermineFilesToProcessContract:

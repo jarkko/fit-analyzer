@@ -12,16 +12,16 @@ from fitanalyzer.aggregation import extract_session_metadata
 
 class TestExtractSessionMetadataContract:
     """Contract tests for extract_session_metadata() function.
-    
+
     Contract: Extract sport, sub_sport, and date from first session
     regardless of input type (dict, list, DataFrame).
-    
+
     Parameter matrix:
     - dict input → extract from dict
     - list with sessions → extract from first element
     - empty list → return defaults
     - DataFrame with rows → extract from first row
-    - empty DataFrame → return defaults  
+    - empty DataFrame → return defaults
     - None/invalid → return defaults
     """
 
@@ -32,9 +32,9 @@ class TestExtractSessionMetadataContract:
             "sub_sport": "road",
             "date": "2025-10-31"
         }
-        
+
         sport, sub_sport, date = extract_session_metadata(session_dict)
-        
+
         assert sport == "cycling"
         assert sub_sport == "road"
         assert date == "2025-10-31"
@@ -42,9 +42,9 @@ class TestExtractSessionMetadataContract:
     def test_dict_with_missing_keys_returns_defaults(self):
         """Contract: Dict without sport keys returns 'unknown' defaults."""
         session_dict = {"other_key": "value"}
-        
+
         sport, sub_sport, date = extract_session_metadata(session_dict)
-        
+
         assert sport == "unknown"
         assert sub_sport == "unknown"
         assert date is None
@@ -55,9 +55,9 @@ class TestExtractSessionMetadataContract:
             {"sport": "running", "sub_sport": "trail", "date": "2025-10-30"},
             {"sport": "cycling", "sub_sport": "road", "date": "2025-10-31"}
         ]
-        
+
         sport, sub_sport, date = extract_session_metadata(sessions_list)
-        
+
         # Should extract from first session
         assert sport == "running"
         assert sub_sport == "trail"
@@ -66,9 +66,9 @@ class TestExtractSessionMetadataContract:
     def test_empty_list_returns_defaults(self):
         """Contract: Empty list returns default values."""
         sessions_list = []
-        
+
         sport, sub_sport, date = extract_session_metadata(sessions_list)
-        
+
         assert sport == "unknown"
         assert sub_sport == "unknown"
         assert date is None
@@ -79,9 +79,9 @@ class TestExtractSessionMetadataContract:
             {"sport": "strength_training", "sub_sport": "generic", "date": "2025-10-29"},
             {"sport": "cycling", "sub_sport": "indoor", "date": "2025-10-30"}
         ])
-        
+
         sport, sub_sport, date = extract_session_metadata(df_sessions)
-        
+
         # Should extract from first row
         assert sport == "strength_training"
         assert sub_sport == "generic"
@@ -90,9 +90,9 @@ class TestExtractSessionMetadataContract:
     def test_empty_dataframe_returns_defaults(self):
         """Contract: Empty DataFrame returns default values."""
         df_sessions = pd.DataFrame()
-        
+
         sport, sub_sport, date = extract_session_metadata(df_sessions)
-        
+
         assert sport == "unknown"
         assert sub_sport == "unknown"
         assert date is None
@@ -100,7 +100,7 @@ class TestExtractSessionMetadataContract:
     def test_none_input_returns_defaults(self):
         """Contract: None input returns default values."""
         sport, sub_sport, date = extract_session_metadata(None)
-        
+
         assert sport == "unknown"
         assert sub_sport == "unknown"
         assert date is None
@@ -110,9 +110,9 @@ class TestExtractSessionMetadataContract:
         df_sessions = pd.DataFrame([
             {"sport": "volleyball"}  # Missing sub_sport and date
         ])
-        
+
         sport, sub_sport, date = extract_session_metadata(df_sessions)
-        
+
         assert sport == "volleyball"
         assert sub_sport == "unknown"  # Should use default
         assert date is None

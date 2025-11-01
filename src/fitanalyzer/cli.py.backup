@@ -21,7 +21,6 @@ from fitanalyzer.incremental import (
     load_existing_rows,
 )
 from fitanalyzer.strength import extract_sets_from_fit, save_strength_sets_csv
-from fitanalyzer.training_load import calculate_training_load_metrics
 
 __all__ = ["parse_arguments", "main", "main_with_args"]
 
@@ -134,21 +133,7 @@ def _save_workout_summary(rows: List[Dict[str, Any]], output_dir: str, all_sets:
         print("No data to output.")
         return
 
-    # Deduplicate based on file identifier (for multisport: use session identifier)
-    out = pd.DataFrame(rows)
-    # Use 'file' column for deduplication if it exists (unique identifier for each workout/session)
-    if not out.empty and "file" in out.columns:
-        out = out.drop_duplicates(subset=["file"], keep="last")
-    out = out.sort_values(["date", "start_time"])
-
-    # Calculate training load metrics (CTL, ATL, TSB) if TSS or TRIMP data is available
-    if not out.empty and "date" in out.columns:
-        # Check for TSS first (preferred), then TRIMP as fallback
-        if "TSS" in out.columns:
-            out = calculate_training_load_metrics(out, load_column="TSS")
-        elif "TRIMP" in out.columns:
-            out = calculate_training_load_metrics(out, load_column="TRIMP")
-
+    out = pd.DataFrame(rows).sort_values(["date", "start_time"])
     csv_path = Path(output_dir) / "workout_summary_from_fit.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
 

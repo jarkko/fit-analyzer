@@ -72,7 +72,7 @@ test-integration:
 	$(PYTEST) tests/test_integration.py -v
 
 coverage:
-	$(PYTEST) tests/ -v --cov=src/fitanalyzer --cov-report=term-missing --cov-report=html
+	$(PYTEST) tests/ -n auto -v --cov=src/fitanalyzer --cov-report=term-missing --cov-report=html
 	@echo ""
 	@echo "Coverage report generated: htmlcov/index.html"
 
