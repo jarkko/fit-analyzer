@@ -5,6 +5,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
     open-pull-requests-limit: 10
     rebase-strategy: "auto"
     labels:
@@ -13,15 +15,30 @@ updates:
     reviewers:
       - "jarkko"
     commit-message:
-      prefix: "chore"
-      prefix-development: "chore"
+      prefix: "deps"
+      prefix-development: "deps"
       include: "scope"
+    groups:
+      # Group patch updates together for easier review
+      patch-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+      # Group minor updates together
+      minor-updates:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
 
   # Enable version updates for GitHub Actions
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+      day: "monday"
+      time: "09:00"
     rebase-strategy: "auto"
     labels:
       - "dependencies"
@@ -29,5 +46,5 @@ updates:
     reviewers:
       - "jarkko"
     commit-message:
-      prefix: "chore"
+      prefix: "ci"
       include: "scope"
