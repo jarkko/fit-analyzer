@@ -1267,18 +1267,17 @@ class TestIncrementalAnalysis(unittest.TestCase):
 
     def testneeds_analysis_modified_file(self):
         """Test that modified files need reanalysis"""
-        import time
+        import os
 
         from fitanalyzer.incremental import needs_analysis
 
-        # Create a test file
+        # Create a test file with an old mtime
         test_file = Path(self.test_dir) / "modified.fit"
         test_file.touch()
-        old_mtime = test_file.stat().st_mtime
+        old_mtime = test_file.stat().st_mtime - 10  # Set to 10 seconds ago
+        os.utime(test_file, (old_mtime, old_mtime))
 
-        # Wait enough for filesystem timestamp to change (some filesystems have coarse granularity)
-        # This ensures the mtime will actually be different
-        time.sleep(2.1)
+        # Modify the file (this will update mtime to current time)
         test_file.write_text("modified")
         new_mtime = test_file.stat().st_mtime
 
