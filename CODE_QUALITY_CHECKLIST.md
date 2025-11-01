@@ -22,6 +22,43 @@ git push
 
 **WHY:** Branch protection requires all CI checks to pass. Pushing failing code wastes CI resources and creates noise in the commit history.
 
+## ⚠️ CRITICAL: RELEASE PROCESS
+
+**NEVER create a release tag until CI passes:**
+
+```bash
+# 1. Make changes and commit
+git add -A
+git commit -m "your changes"
+
+# 2. Run pre-push checklist (see above)
+.venv/bin/black src/ tests/
+make lint && make test
+
+# 3. Push to main
+git push
+
+# 4. WAIT for CI to pass (check GitHub Actions)
+gh run list --limit 1
+# Verify status shows ✓ (checkmark) not X or *
+
+# 5. Only after CI passes, bump version and tag
+# Update setup.py and pyproject.toml version
+git add setup.py pyproject.toml
+git commit -m "Bump version to X.Y.Z"
+git tag -a vX.Y.Z -m "Release vX.Y.Z - description"
+
+# 6. Push commit and tag
+git push && git push --tags
+
+# The release workflow will:
+# - Verify CI passed for this commit
+# - Fail the release if CI didn't pass
+# - Create GitHub release if CI passed
+```
+
+**WHY:** The release workflow now checks if CI passed before creating a release. This prevents releasing broken code.
+
 ## 1. Code Style & Formatting
 
 ### Black (Auto-formatter)
