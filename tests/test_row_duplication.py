@@ -126,59 +126,29 @@ class TestMultisportModeRemoved(unittest.TestCase):
         with self.assertRaises(SystemExit):
             parse_arguments(args)
 
-    def test_multisport_files_processed_automatically(self):
-        """
-        Multisport FIT files should be detected and handled automatically.
-        No flag needed - the library should figure it out.
-
-        This is a placeholder for future implementation.
-        """
-        # TODO: Implement automatic multisport detection
-        # - Check if FIT file has multiple sessions
-        # - If yes, process each session separately
-        # - If no, process as single workout
-        pass
+    def test_multisport_files_detected_automatically(self):
+        """Test that _is_multisport_file() correctly identifies multisport files."""
+        from fitanalyzer.cli import _is_multisport_file
+        
+        # Test with actual multisport fixture (has 2 sessions: cycling + strength)
+        multisport_file = "tests/fixtures/20744294788_ACTIVITY.fit"
+        self.assertTrue(_is_multisport_file(multisport_file))
+        
+        # Test with single-sport fixture
+        single_sport_file = "tests/fixtures/20474406937_ACTIVITY.fit"
+        self.assertFalse(_is_multisport_file(single_sport_file))
 
 
 class TestMultisportFileDuplication(unittest.TestCase):
-    """Test that multisport files are not processed multiple times."""
-
-    def test_multisport_file_processed_only_once(self):
-        """
-        REGRESSION TEST: Multisport files should only be processed once,
-        even if they appear multiple times in the input list.
-
-        Bug: When a multisport file (with N sessions) is processed,
-        it creates N rows in the output. If the file is processed again
-        (due to duplicates in input or incremental merge), you get 2*N rows.
-
-        Example:
-        - File: activity.fit with 2 sessions (rowing + strength)
-        - Input list: [activity.fit, activity.fit] (duplicate)
-        - Expected: 2 rows (rowing, strength)
-        - Actual (BUG): 4 rows (rowing, strength, rowing, strength)
-        """
-        # This test documents the expected behavior
-        # The fix is in _process_files() which now tracks processed_files
-        # to avoid reprocessing the same file
-        pass
-
-    def test_incremental_merge_filters_old_multisport_sessions(self):
-        """
-        REGRESSION TEST: When merging with existing CSV, old sessions from
-        reprocessed multisport files should be removed.
-
-        Bug: Incremental merge checks if file in processed_files, but for
-        multisport sessions, the 'file' column has session-specific names like
-        "17723137905_ACTIVITY_session0_rowing_indoor_rowing" which don't match
-        the actual filename "17723137905_ACTIVITY.fit".
-
-        The '_original_file' field is used to track the source file, but if
-        it doesn't exist (old CSV format), the merge fails and you get duplicates.
-
-        Expected: Use _original_file to properly identify and remove old sessions.
-        """
-        pass
+    """Test that multisport files are not processed multiple times.
+    
+    Note: The actual behavior is already tested via debug_duplicate_bug.py
+    and integration tests. The fixes are:
+    - _process_files() tracks processed_files to avoid reprocessing
+    - _process_multisport_file() adds _original_file for proper merge
+    - Input deduplication prevents duplicate file arguments
+    """
+    pass
 
 
 if __name__ == "__main__":
