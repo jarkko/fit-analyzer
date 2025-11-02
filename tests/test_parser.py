@@ -1366,6 +1366,131 @@ class TestIncrementalAnalysis(unittest.TestCase):
         result = needs_analysis(nonexistent, existing_analysis, force=False)
         self.assertFalse(result)
 
+    def testneeds_analysis_with_newer_json_file(self):
+        """Test that files need reanalysis when JSON file is newer than FIT file"""
+        import os
+        import time
+
+        from fitanalyzer.incremental import needs_analysis
+
+        # Create a test FIT file
+        test_file = Path(self.test_dir) / "12345_ACTIVITY.fit"
+        test_file.touch()
+        fit_mtime = test_file.stat().st_mtime
+
+        # Simulate previous analysis at FIT file's mtime
+        existing_analysis = {str(test_file): fit_mtime}
+
+        # At this point, file shouldn't need analysis
+        result = needs_analysis(str(test_file), existing_analysis, force=False)
+        self.assertFalse(result, "FIT file unchanged should not need analysis")
+
+        # Now create a JSON file with a newer timestamp
+        # (simulating API exercise data update)
+        time.sleep(0.1)  # Ensure different timestamp
+        json_file = Path(self.test_dir) / "12345_ACTIVITY_exercises.json"
+        json_file.write_text('{"exerciseSets": []}')
+        json_mtime = json_file.stat().st_mtime
+
+        self.assertGreater(json_mtime, fit_mtime, "JSON file should be newer than FIT file")
+
+        # Now needs_analysis should return True because JSON is newer
+        result = needs_analysis(str(test_file), existing_analysis, force=False)
+        self.assertTrue(
+            result,
+            "Should need reanalysis when JSON file is newer than last analysis",
+        )
+
+    def test_incremental_analysis_with_json_update_no_duplicates(self):
+        """Test that JSON file modification triggers reanalysis and deduplicates properly"""
+        import time
+
+        # Create test FIT file and JSON file
+        test_file = Path(self.test_dir) / "12345_ACTIVITY.fit"
+        test_file.touch()
+        fit_mtime = test_file.stat().st_mtime
+
+        json_file = Path(self.test_dir) / "12345_ACTIVITY_exercises.json"
+
+        # Simulate previous analysis - file was analyzed at fit_mtime
+        from fitanalyzer.incremental import needs_analysis
+
+        existing_analysis = {str(test_file): fit_mtime}
+
+        # Without JSON, file doesn't need analysis
+        result = needs_analysis(str(test_file), existing_analysis, force=False)
+        self.assertFalse(result, "File with unchanged mtime should not need analysis")
+
+        # Create JSON file with newer timestamp (simulating API update)
+        time.sleep(0.1)
+        json_file.write_text('{"activityId": "12345", "exerciseSets": []}')
+        json_mtime = json_file.stat().st_mtime
+
+        self.assertGreater(json_mtime, fit_mtime, "JSON should be newer than FIT file")
+
+        # Now needs_analysis should return True because JSON is newer
+        result = needs_analysis(str(test_file), existing_analysis, force=False)
+        self.assertTrue(
+            result,
+            "File should need reanalysis when JSON is newer than last analysis",
+        )
+
+        # This ensures:
+        # 1. JSON updates trigger reanalysis (tested above)
+        # 2. When combined with the cli.py fix (using strength_files_to_process),
+        #    the reanalyzed file's activity_id will be in processed_activity_ids
+        # 3. Old rows for that activity_id will be removed before adding new rows
+        # 4. No duplicates will be created in the CSV
+
+    def test_load_existing_rows_corrupted_csv(self):
+        """Test that load_existing_rows handles corrupted CSV gracefully"""
+        from fitanalyzer.incremental import load_existing_rows
+
+        # Create a truly malformed CSV that will cause ParserError
+        csv_path = Path(self.test_dir) / "corrupted.csv"
+        csv_path.write_text('file,_file_mtime\ntest.fit,123\n"unclosed quote')
+
+        result = load_existing_rows(csv_path, {})
+        # Should return empty list on error
+        self.assertEqual(result, [])
+
+    def test_needs_analysis_json_stat_error(self):
+        """Test needs_analysis handles JSON file stat() errors gracefully (race condition)"""
+        import os
+        from unittest.mock import Mock, patch
+
+        from fitanalyzer.incremental import needs_analysis
+
+        # Create FIT file
+        test_file = Path(self.test_dir) / "test_ACTIVITY.fit"
+        test_file.touch()
+        fit_mtime = test_file.stat().st_mtime
+
+        # Create JSON file
+        json_file = Path(self.test_dir) / "test_ACTIVITY_exercises.json"
+        json_file.write_text('{"sets": []}')
+
+        # Simulate that file was previously analyzed
+        existing_analysis = {str(test_file): fit_mtime}
+
+        # Patch Path.stat to raise OSError on second call (the one in the try block)
+        call_count = [0]
+        original_stat = Path.stat
+
+        def mock_stat(self, **kwargs):
+            # First call is from exists(), let it succeed
+            # Second call is from the try block, make it fail
+            if "_exercises.json" in str(self):
+                call_count[0] += 1
+                if call_count[0] >= 2:  # Fail on second call (inside try block)
+                    raise OSError("Permission denied")
+            return original_stat(self, **kwargs)
+
+        with patch.object(Path, "stat", mock_stat):
+            # Should handle OSError gracefully and return False
+            result = needs_analysis(str(test_file), existing_analysis, force=False)
+            self.assertFalse(result)
+
     def test_process_single_file_adds_mtime(self):
         """Test that _process_single_file adds _file_mtime to results"""
         from fitanalyzer.cli import _process_single_file

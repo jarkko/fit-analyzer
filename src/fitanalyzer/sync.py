@@ -376,20 +376,30 @@ def _check_and_update_api_data(activity_id: int, directory: str) -> bool:
 
         # Determine if we need to update
         needs_update = False
+        update_reason = None
+
         if not existing_data:
             needs_update = True
+            update_reason = "no existing data"
         else:
             existing_sets = existing_data.get("exerciseSets", [])
             fresh_sets = fresh_data.get("exerciseSets", [])
 
-            # Update if lengths differ or exercise names differ
+            # Update if lengths differ, exercise names differ, or set values changed
             if len(existing_sets) != len(fresh_sets):
                 needs_update = True
+                update_reason = f"set count changed ({len(existing_sets)} → {len(fresh_sets)})"
             elif _exercise_names_differ(existing_sets, fresh_sets):
                 needs_update = True
+                update_reason = "exercise names changed"
+            elif existing_sets != fresh_sets:
+                # Deep comparison - catches changes in reps, weight, etc.
+                needs_update = True
+                update_reason = "set values changed (reps/weight/etc)"
 
         if needs_update:
             save_exercise_sets_to_json(str(filename), fresh_data)
+            print(f"      └─ Reason: {update_reason}")
             return True
 
         return False

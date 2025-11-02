@@ -125,7 +125,7 @@ disable = [
 
 [tool.mypy]
 # MyPy type checking configuration
-python_version = "0.4.1"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -158,7 +158,7 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 # Pytest configuration
-minversion = "0.4.1"
+minversion = "8.0"
 addopts = [
     "-ra",
     "-q",

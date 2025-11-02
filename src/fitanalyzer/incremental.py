@@ -75,11 +75,26 @@ def needs_analysis(fit_file: str, existing_analysis: Dict[str, float], force: bo
     # Needs analysis if:
     # 1. Never analyzed before (not in existing_analysis)
     # 2. File has been modified since last analysis
+    # 3. Associated JSON file is newer than last analysis (exercise data updated via API)
     if analyzed_mtime is None:
         return True
 
     # Use 0.01 second tolerance to handle floating point precision issues in CSV
-    return current_mtime > analyzed_mtime + 0.01
+    if current_mtime > analyzed_mtime + 0.01:
+        return True
+
+    # Check if corresponding JSON file exists and is newer
+    # (happens when exercise data is updated via Garmin API)
+    json_file = Path(fit_file).with_name(Path(fit_file).stem + "_exercises.json")
+    if json_file.exists():
+        try:
+            json_mtime = json_file.stat().st_mtime
+            if json_mtime > analyzed_mtime + 0.01:
+                return True
+        except (OSError, FileNotFoundError):
+            pass
+
+    return False
 
 
 def load_existing_rows(csv_path: Path, existing_analysis: Dict[str, float]) -> List[Dict[str, Any]]:

@@ -281,8 +281,10 @@ def _generate_strength_summary(
 
     # Merge: keep existing rows for unchanged files, add rows for processed files
     if not existing_strength.empty and new_strength is not None:
-        # Get activity IDs from processed files
-        processed_activity_ids = {Path(f).stem.replace("_ACTIVITY", "") for f in files_to_process}
+        # Get activity IDs from all processed files (including API-updated ones)
+        processed_activity_ids = {
+            Path(f).stem.replace("_ACTIVITY", "") for f in strength_files_to_process
+        }
         # Keep rows for files that weren't processed
         kept_rows = existing_strength[
             ~existing_strength["activity_id"].isin(processed_activity_ids)
