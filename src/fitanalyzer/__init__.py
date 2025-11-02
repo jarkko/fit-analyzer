@@ -19,7 +19,7 @@ from .sync import (
     sync_activities,
 )
 
-__version__ = "0.1.0"
+__version__ = "0.4.2"
 __author__ = "FIT Analyzer Contributors"
 
 __all__ = [
