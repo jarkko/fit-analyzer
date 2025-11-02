@@ -114,6 +114,66 @@ def calculate_session_metrics(
     return metrics
 
 
+def _resample_to_one_second(df: pd.DataFrame) -> pd.DataFrame:
+    """Resample DataFrame to 1-second intervals for metric calculations.
+
+    Args:
+        df: DataFrame with 'time' column containing timestamps
+
+    Returns:
+        DataFrame resampled to 1-second intervals with forward-fill
+    """
+    time_series = pd.to_datetime(df["time"])
+    time_index = (
+        time_series.dt.tz_localize("UTC")
+        if time_series.dt.tz is None
+        else time_series.dt.tz_convert("UTC")
+    )
+    return df.set_index(time_index).sort_index().resample("1s").ffill()
+
+
+def _build_session_result(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+    times: Dict[str, Any],
+    metrics: Dict[str, Any],
+    sport: str,
+    subsport: str,
+    file_display: str,
+    path: str,
+    session_idx: int,
+) -> Dict[str, Any]:
+    """Build the final session result dictionary.
+
+    Args:
+        times: Dictionary with timestamp and duration information
+        metrics: Dictionary with calculated training metrics
+        sport: Primary sport name
+        subsport: Sub-sport name
+        file_display: Formatted filename for display
+        path: Original file path
+        session_idx: Session index in multisport activity
+
+    Returns:
+        Complete session summary dictionary
+    """
+    result = {
+        "file": file_display,
+        "sport": sport,
+        "sub_sport": subsport,
+        "date": times["start_local"].date().isoformat(),
+        "start_time": times["start_local"].strftime("%Y-%m-%d %H:%M:%S"),
+        "end_time": times["end_local"].strftime("%Y-%m-%d %H:%M:%S"),
+        "duration_min": round(times["dur_sec"] / 60.0, 1),
+        "IF": format_metric_value(metrics.get("intensity_factor", np.nan), 3),
+        "TSS": format_metric_value(metrics.get("tss", np.nan), 1),
+        "TRIMP": round(metrics["trimp"], 1),
+        # Keep these for deduplication logic
+        "_original_file": path,
+        "_session_index": session_idx,
+    }
+    result.update(format_all_data_metrics(metrics))
+    return result
+
+
 def process_session_data(
     df: pd.DataFrame, path: str, session: Dict[str, Any], session_idx: int, config: AnalysisConfig
 ) -> Optional[Dict[str, Any]]:
@@ -162,42 +222,10 @@ def process_session_data(
     if df.empty:
         return None
 
-    # Extract timestamps and duration
     times = process_timestamps(df, config.tz_name)
-
-    # Resample to 1 second for NP calculation
-    time_series = pd.to_datetime(df["time"])
-    time_index = (
-        time_series.dt.tz_localize("UTC")
-        if time_series.dt.tz is None
-        else time_series.dt.tz_convert("UTC")
-    )
-    df = df.set_index(time_index).sort_index().resample("1s").ffill()
-
-    # Calculate all metrics
+    df = _resample_to_one_second(df)
     metrics = calculate_session_metrics(df, times["dur_hr"], config)
-
-    # Map sport names and create filename
     sport, subsport = map_sport_names(session)
     file_display = create_file_display(path, session_idx, sport, subsport)
 
-    result = {
-        "file": file_display,
-        "sport": sport,
-        "sub_sport": subsport,
-        "date": times["start_local"].date().isoformat(),
-        "start_time": times["start_local"].strftime("%Y-%m-%d %H:%M:%S"),
-        "end_time": times["end_local"].strftime("%Y-%m-%d %H:%M:%S"),
-        "duration_min": round(times["dur_sec"] / 60.0, 1),
-        "IF": format_metric_value(metrics.get("intensity_factor", np.nan), 3),
-        "TSS": format_metric_value(metrics.get("tss", np.nan), 1),
-        "TRIMP": round(metrics["trimp"], 1),
-        # Keep these for deduplication logic
-        "_original_file": path,
-        "_session_index": session_idx,
-    }
-
-    # Add formatted metrics using shared helper function
-    result.update(format_all_data_metrics(metrics))
-
-    return result
+    return _build_session_result(times, metrics, sport, subsport, file_display, path, session_idx)

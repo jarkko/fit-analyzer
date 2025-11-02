@@ -142,6 +142,96 @@ def _create_daily_dataframe(
     return daily_df
 
 
+def _validate_and_prepare_dataframe(
+    df: pd.DataFrame, load_column: str, date_column: str
+) -> pd.DataFrame:
+    """Validate columns and prepare DataFrame for training load calculation.
+
+    Args:
+        df: Input DataFrame
+        load_column: Name of column containing training load
+        date_column: Name of column containing workout dates
+
+    Returns:
+        Cleaned and sorted DataFrame ready for processing
+
+    Raises:
+        KeyError: If required columns are missing
+    """
+    if date_column not in df.columns:
+        raise KeyError(f"DataFrame must have '{date_column}' column")
+    if load_column not in df.columns:
+        raise KeyError(f"DataFrame must have '{load_column}' column")
+
+    # Drop existing training load columns to avoid duplication
+    df_clean = df.copy()
+    for col in ["ctl", "atl", "tsb"]:
+        if col in df_clean.columns:
+            df_clean = df_clean.drop(columns=[col])
+
+    # Sort by date and convert load column to numeric
+    df_sorted = df_clean.sort_values(date_column).copy()
+    df_sorted[load_column] = pd.to_numeric(df_sorted[load_column], errors="coerce").fillna(0)
+
+    return df_sorted
+
+
+def _calculate_daily_metrics(daily_df: pd.DataFrame, load_column: str) -> pd.DataFrame:
+    """Calculate CTL, ATL, and TSB for daily training load data.
+
+    Args:
+        daily_df: DataFrame with daily training loads (including rest days)
+        load_column: Name of column containing training load values
+
+    Returns:
+        DataFrame with added 'ctl', 'atl', 'tsb' columns
+    """
+    training_loads = daily_df[load_column].tolist()
+
+    ctl = calculate_ctl(training_loads)
+    atl = calculate_atl(training_loads)
+    tsb = calculate_tsb(ctl, atl)
+
+    daily_df["ctl"] = np.round(ctl, 4)
+    daily_df["atl"] = np.round(atl, 4)
+    daily_df["tsb"] = np.round(tsb, 4)
+
+    return daily_df
+
+
+def _map_metrics_to_workouts(
+    df_workouts: pd.DataFrame, df_metrics: pd.DataFrame, date_column: str
+) -> pd.DataFrame:
+    """Map daily metrics back to individual workouts by date.
+
+    Args:
+        df_workouts: DataFrame with workout data
+        df_metrics: DataFrame with daily metrics (CTL, ATL, TSB)
+        date_column: Name of date column
+
+    Returns:
+        Workout DataFrame with metrics added
+    """
+    df_workouts[date_column] = pd.to_datetime(df_workouts[date_column])
+    df_metrics[date_column] = pd.to_datetime(df_metrics[date_column])
+
+    # Create mapping from date to metrics
+    metrics_dict = df_metrics.groupby(date_column)[["ctl", "atl", "tsb"]].last().to_dict("index")
+
+    # Apply metrics to each workout
+    df_workouts["ctl"] = df_workouts[date_column].apply(
+        lambda d: metrics_dict.get(d, {}).get("ctl", 0)
+    )
+    df_workouts["atl"] = df_workouts[date_column].apply(
+        lambda d: metrics_dict.get(d, {}).get("atl", 0)
+    )
+    df_workouts["tsb"] = df_workouts[date_column].apply(
+        lambda d: metrics_dict.get(d, {}).get("tsb", 0)
+    )
+
+    return df_workouts
+
+
 def calculate_training_load_metrics(
     df: pd.DataFrame, load_column: str = "tss", date_column: str = "date"
 ) -> pd.DataFrame:
@@ -170,59 +260,15 @@ def calculate_training_load_metrics(
         KeyError: If required columns are missing
     """
     if df.empty:
-        # Return empty DataFrame with expected columns
         result = df.copy()
         result["ctl"] = []
         result["atl"] = []
         result["tsb"] = []
         return result
 
-    # Validate required columns
-    if date_column not in df.columns:
-        raise KeyError(f"DataFrame must have '{date_column}' column")
-    if load_column not in df.columns:
-        raise KeyError(f"DataFrame must have '{load_column}' column")
-
-    # Drop existing training load columns to avoid duplication (ctl_x, ctl_y, etc.)
-    # This allows incremental analysis where old CSVs already have these columns
-    df_clean = df.copy()
-    for col in ["ctl", "atl", "tsb"]:
-        if col in df_clean.columns:
-            df_clean = df_clean.drop(columns=[col])
-
-    # Sort by date to ensure chronological order
-    df_sorted = df_clean.sort_values(date_column).copy()
-
-    # Convert to numeric, filling missing/invalid with 0
-    df_sorted[load_column] = pd.to_numeric(df_sorted[load_column], errors="coerce").fillna(0)
-
-    # Create daily dataframe with rest days filled in
+    df_sorted = _validate_and_prepare_dataframe(df, load_column, date_column)
     daily_df = _create_daily_dataframe(df_sorted, load_column, date_column)
+    daily_df = _calculate_daily_metrics(daily_df, load_column)
+    df_result = _map_metrics_to_workouts(df_sorted, daily_df, date_column)
 
-    # Extract training loads as list (now includes rest days)
-    training_loads = daily_df[load_column].tolist()
-
-    # Calculate metrics (now properly accounts for rest day decay)
-    ctl = calculate_ctl(training_loads)
-    atl = calculate_atl(training_loads)
-    tsb = calculate_tsb(ctl, atl)
-
-    # Add metrics to daily dataframe
-    daily_df["ctl"] = np.round(ctl, 4)
-    daily_df["atl"] = np.round(atl, 4)
-    daily_df["tsb"] = np.round(tsb, 4)
-
-    # Map training load metrics back to workouts by date
-    # When multiple workouts on same day, they all get the same daily metrics
-    df_sorted[date_column] = pd.to_datetime(df_sorted[date_column])
-    daily_df[date_column] = pd.to_datetime(daily_df[date_column])
-
-    # Create a dict mapping from date to metrics (one entry per date)
-    metrics_dict = daily_df.groupby(date_column)[["ctl", "atl", "tsb"]].last().to_dict("index")
-
-    # Map metrics to each workout
-    df_sorted["ctl"] = df_sorted[date_column].apply(lambda d: metrics_dict.get(d, {}).get("ctl", 0))
-    df_sorted["atl"] = df_sorted[date_column].apply(lambda d: metrics_dict.get(d, {}).get("atl", 0))
-    df_sorted["tsb"] = df_sorted[date_column].apply(lambda d: metrics_dict.get(d, {}).get("tsb", 0))
-
-    return df_sorted
+    return df_result

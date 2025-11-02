@@ -11,6 +11,37 @@ from .constants import DEFAULT_FTP, DEFAULT_HR_MAX, DEFAULT_HR_REST
 __all__ = ["create_env_file"]
 
 
+def _update_gitignore_with_env() -> None:
+    """Update or create .gitignore to include .env file."""
+    gitignore_path = Path(".gitignore")
+
+    # Handle existing .gitignore
+    if gitignore_path.exists():
+        with open(gitignore_path, "r", encoding="utf-8") as f:
+            gitignore_content = f.read()
+
+        if ".env" in gitignore_content:
+            return  # Already present
+
+        response = input("\n.env not found in .gitignore. Add it now? (y/n): ")
+        if response.lower() != "y":
+            return
+
+        with open(gitignore_path, "a", encoding="utf-8") as f:
+            f.write("\n# Environment variables\n.env\n")
+        print("✅ Added .env to .gitignore")
+        return
+
+    # Handle missing .gitignore
+    response = input("\nNo .gitignore found. Create one? (y/n): ")
+    if response.lower() != "y":
+        return
+
+    with open(gitignore_path, "w", encoding="utf-8") as f:
+        f.write("# Environment variables\n.env\n")
+    print("✅ Created .gitignore with .env entry")
+
+
 def create_env_file() -> None:
     """Create .env file with Garmin credentials and training parameters."""
     print("🔐 Garmin Connect Credentials Setup")
@@ -61,23 +92,7 @@ HR_MAX={hr_max}
     print("   .env")
 
     # Check/create .gitignore
-    gitignore_path = Path(".gitignore")
-    if gitignore_path.exists():
-        with open(gitignore_path, "r", encoding="utf-8") as f:
-            gitignore_content = f.read()
-
-        if ".env" not in gitignore_content:
-            response = input("\n.env not found in .gitignore. Add it now? (y/n): ")
-            if response.lower() == "y":
-                with open(gitignore_path, "a", encoding="utf-8") as f:
-                    f.write("\n# Environment variables\n.env\n")
-                print("✅ Added .env to .gitignore")
-    else:
-        response = input("\nNo .gitignore found. Create one? (y/n): ")
-        if response.lower() == "y":
-            with open(gitignore_path, "w", encoding="utf-8") as f:
-                f.write("# Environment variables\n.env\n")
-            print("✅ Created .gitignore with .env entry")
+    _update_gitignore_with_env()
 
     print("\n💡 Usage:")
     print("   python garmin_sync.py")

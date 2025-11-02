@@ -44,6 +44,67 @@ __all__ = [
 ]
 
 
+def _fetch_and_normalize_activities(limit: int) -> List[Dict[str, Any]]:
+    """Fetch activities from Garmin Connect API and normalize to list format.
+
+    Args:
+        limit: Maximum number of activities to fetch
+
+    Returns:
+        List of activity dictionaries, empty list if none found
+    """
+    activities_data = garth.connectapi(
+        "/activitylist-service/activities/search/activities", params={"limit": limit}
+    )
+
+    if activities_data is None:
+        return []
+
+    if not isinstance(activities_data, list):
+        return [activities_data]
+
+    return activities_data
+
+
+def _prepare_existing_activities(directory: str, force: bool) -> Dict[str, float]:
+    """Get existing activity IDs or return empty dict in force mode.
+
+    Args:
+        directory: Directory containing FIT files
+        force: Whether to skip checking existing activities
+
+    Returns:
+        Dictionary mapping activity IDs to modification times
+    """
+    if force:
+        print("🔄 Force mode: Re-downloading all activities")
+        return {}
+    return get_existing_activity_ids(directory)
+
+
+def _create_processor_context(
+    existing_activities: Dict[str, float], directory: str
+) -> ProcessorContext:
+    """Create processing context with callbacks for activity downloading.
+
+    Args:
+        existing_activities: Map of existing activity IDs to modification times
+        directory: Directory to save FIT files
+
+    Returns:
+        ProcessorContext configured for downloading activities
+    """
+    callbacks = ProcessorCallbacks(
+        should_download_fn=should_download_activity,
+        download_fn=download_single_activity,
+    )
+    return ProcessorContext(
+        existing_activities=existing_activities,
+        directory=directory,
+        callbacks=callbacks,
+    )
+
+
 def download_new_activities(
     days: int = 7, limit: int = 100, directory: str = ".", force: bool = False
 ) -> Tuple[int, List[str]]:
@@ -76,46 +137,21 @@ def download_new_activities(
     print(f"\n🔍 Fetching activities from last {days} days...")
 
     try:
-        # Fetch activities from Garmin Connect
-        activities_data = garth.connectapi(
-            "/activitylist-service/activities/search/activities", params={"limit": limit}
-        )
-
-        # Handle case where API returns None or single activity as dict
-        if activities_data is None:
+        activities_data = _fetch_and_normalize_activities(limit)
+        if not activities_data:
             print("No activities found")
             return (0, [])
 
-        if not isinstance(activities_data, list):
-            activities_data = [activities_data]
-
-        # Filter to activities in date range
         recent_activities = filter_recent_activities(activities_data, days)
         print(f"Found {len(recent_activities)} activities in date range")
 
         if not recent_activities:
             return (0, [])
 
-        # Get existing activity IDs (unless force mode)
-        if force:
-            print("🔄 Force mode: Re-downloading all activities")
-            existing_activities: Dict[str, float] = {}
-        else:
-            existing_activities = get_existing_activity_ids(directory)
-
-        # Identify parent multisport activities
+        existing_activities = _prepare_existing_activities(directory, force)
         parent_ids = identify_multisport_parents(recent_activities)
+        context = _create_processor_context(existing_activities, directory)
 
-        # Process activities
-        callbacks = ProcessorCallbacks(
-            should_download_fn=should_download_activity,
-            download_fn=download_single_activity,
-        )
-        context = ProcessorContext(
-            existing_activities=existing_activities,
-            directory=directory,
-            callbacks=callbacks,
-        )
         counters, updated_files = process_activities(
             activities=recent_activities,
             context=context,
@@ -215,8 +251,12 @@ def run_analysis(
         return False
 
 
-def main() -> int:
-    """Main entry point for the sync command-line tool."""
+def _create_argument_parser() -> argparse.ArgumentParser:
+    """Create and configure the argument parser for sync command.
+
+    Returns:
+        Configured ArgumentParser with all sync-related arguments
+    """
     parser = argparse.ArgumentParser(
         description="Sync activities from Garmin Connect and analyze them"
     )
@@ -256,18 +296,22 @@ def main() -> int:
         default="data",
         help="Directory for output CSV files (default: data)",
     )
+    return parser
 
-    args = parser.parse_args()
 
-    print("🏃 Garmin Connect Auto-Sync")
-    print("=" * 50)
+def _build_sync_config(args: argparse.Namespace) -> SyncConfig:
+    """Build SyncConfig from parsed command-line arguments.
 
-    # Ensure directory exists (unless it's a single file)
+    Args:
+        args: Parsed command-line arguments
+
+    Returns:
+        SyncConfig object configured from arguments
+    """
     directory = Path(args.directory).expanduser()
     if not directory.is_file():
         directory.mkdir(parents=True, exist_ok=True)
 
-    # Build configuration from CLI arguments
     analysis_params = AnalysisParams(
         ftp=args.ftp,
         hrrest=args.hrrest,
@@ -278,7 +322,7 @@ def main() -> int:
         download_only=args.download_only,
         force=args.force,
     )
-    config = SyncConfig(
+    return SyncConfig(
         directory=str(directory),
         output_dir=args.output_dir,
         days=args.days,
@@ -287,19 +331,36 @@ def main() -> int:
         mode=mode,
     )
 
-    # Use the high-level sync_activities function
-    result = sync_activities(config, email=args.email, password=args.password)
 
-    if not result["success"]:
-        print(f"\n❌ Error: {result['error']}")
-        return 1
+def _print_sync_results(result: Dict[str, Any]) -> None:
+    """Print sync results summary.
 
+    Args:
+        result: Dictionary with sync results including success status and counts
+    """
     print("\n🎉 Done!")
     if result["new_activities"] > 0:
         print(f"   Downloaded {result['new_activities']} new activities")
     print(f"   Summary saved to: {result['csv_path']}")
     print(f"   Strength sets saved to: {result['strength_csv_path']}")
 
+
+def main() -> int:
+    """Main entry point for the sync command-line tool."""
+    parser = _create_argument_parser()
+    args = parser.parse_args()
+
+    print("🏃 Garmin Connect Auto-Sync")
+    print("=" * 50)
+
+    config = _build_sync_config(args)
+    result = sync_activities(config, email=args.email, password=args.password)
+
+    if not result["success"]:
+        print(f"\n❌ Error: {result['error']}")
+        return 1
+
+    _print_sync_results(result)
     return 0
 
 
