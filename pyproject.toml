@@ -36,7 +36,9 @@ dev = [
     "pytest>=8.0.0",
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.0.0",
+    "pytest-xdist>=3.0.0",
     "flake8>=7.0.0",
+    "flake8-functions>=0.0.8",  # Enforce function length limits
     "black>=24.0.0",
     "mypy>=1.8.0",
     "isort>=5.13.0",
@@ -101,7 +103,8 @@ good-names = ["i", "j", "k", "ex", "Run", "_", "df", "s", "d", "f", "ff", "np", 
 
 [tool.pylint.design]
 # Enforce function and class complexity limits
-max-args = 5              # Maximum number of function arguments
+# These limits were established after v0.4.2 quality improvements
+max-args = 5              # Maximum number of function arguments (enforced)
 max-locals = 15           # Maximum number of local variables
 max-returns = 6           # Maximum number of return statements
 max-branches = 12         # Maximum number of branches (if/elif/else)
@@ -113,8 +116,11 @@ max-public-methods = 20   # Maximum number of public methods
 max-bool-expr = 5         # Maximum number of boolean expressions
 
 [tool.pylint.refactoring]
-# Enforce function length limits
-max-nested-blocks = 3     # Maximum nesting level (forces flat code)
+# Enforce function length and nesting limits
+# After v0.4.2 refactoring, all functions meet these standards
+max-nested-blocks = 3     # Maximum nesting level (enforced - reduced from 5)
+# Note: Function line count is indirectly controlled by max-statements
+# Our target is ≤40 lines of code (≤50 statements)
 
 [tool.pylint.messages_control]
 # Enable all default checks, disable only when absolutely necessary
