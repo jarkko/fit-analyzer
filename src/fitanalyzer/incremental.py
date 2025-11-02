@@ -66,24 +66,16 @@ def needs_analysis(fit_file: str, existing_analysis: Dict[str, float], force: bo
     try:
         current_mtime = Path(fit_file).stat().st_mtime
     except (OSError, FileNotFoundError):
-        # File doesn't exist or can't be accessed - skip it
-        return False
+        return False  # File doesn't exist or can't be accessed
 
-    # Check if we have analyzed this file before
     analyzed_mtime = existing_analysis.get(fit_file)
 
-    # Needs analysis if:
-    # 1. Never analyzed before (not in existing_analysis)
-    # 2. File has been modified since last analysis
-    # 3. Associated JSON file is newer than last analysis (exercise data updated via API)
-    if analyzed_mtime is None:
+    # Needs analysis if never analyzed before or file modified since last analysis
+    # Use 0.01 second tolerance for floating point precision in CSV
+    if analyzed_mtime is None or current_mtime > analyzed_mtime + 0.01:
         return True
 
-    # Use 0.01 second tolerance to handle floating point precision issues in CSV
-    if current_mtime > analyzed_mtime + 0.01:
-        return True
-
-    # Check if corresponding JSON file exists and is newer
+    # Check if corresponding JSON file exists and is newer than last analysis
     # (happens when exercise data is updated via Garmin API)
     json_file = Path(fit_file).with_name(Path(fit_file).stem + "_exercises.json")
     if json_file.exists():

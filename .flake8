@@ -43,8 +43,8 @@ max-complexity = 10
 max-parameters-amount = 5
 
 # Returns: 95th percentile = 4, max = 8
-# Match pylint's limit of 6 for consistency
-max-returns-amount = 6
+# Set to 5 - balances strictness with readability for validation functions
+max-returns-amount = 5
 
 # Per-file ignores
 per-file-ignores =

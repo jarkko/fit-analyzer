@@ -192,13 +192,10 @@ def _get_update_reason(
 
     if len(existing_sets) != len(fresh_sets):
         return f"set count changed ({len(existing_sets)} → {len(fresh_sets)})"
-
     if _exercise_names_differ(existing_sets, fresh_sets):
         return "exercise names changed"
-
     if existing_sets != fresh_sets:
         return "set values changed (reps/weight/etc)"
-
     return None
 
 
@@ -214,27 +211,18 @@ def _check_and_update_api_data(activity_id: int, directory: str) -> bool:
     """
     try:
         filename = Path(directory) / f"{activity_id}_ACTIVITY.fit"
-        if not filename.exists():
-            return False
+        fresh_data = fetch_exercise_sets_from_api(activity_id) if filename.exists() else None
 
-        # Fetch fresh API data
-        fresh_data = fetch_exercise_sets_from_api(activity_id)
-        if not fresh_data:
-            return False
+        if fresh_data:
+            existing_data = load_exercise_sets_from_json(str(filename))
+            update_reason = _get_update_reason(existing_data, fresh_data)
 
-        # Load existing API data
-        existing_data = load_exercise_sets_from_json(str(filename))
-
-        # Determine if update is needed and get reason
-        update_reason = _get_update_reason(existing_data, fresh_data)
-
-        if update_reason:
-            save_exercise_sets_to_json(str(filename), fresh_data)
-            print(f"      └─ Reason: {update_reason}")
-            return True
-
-        return False
+            if update_reason:
+                save_exercise_sets_to_json(str(filename), fresh_data)
+                print(f"      └─ Reason: {update_reason}")
+                return True
 
     except (OSError, RuntimeError, ValueError) as e:
         print(f"      ⚠️  Error checking API data for {activity_id}: {e}")
-        return False
+
+    return False
