@@ -34,7 +34,11 @@ class TestAPIUpdateTracking(unittest.TestCase):
         shutil.rmtree(self.output_dir, ignore_errors=True)
 
     @patch("fitanalyzer.sync.garth")
-    def test_api_exercise_update_triggers_reaggregation(self, mock_garth):
+    @patch("fitanalyzer.garmin_api.garth")
+    @patch("fitanalyzer.activity_download.garth")
+    def test_api_exercise_update_triggers_reaggregation(
+        self, mock_download_garth, mock_api_garth, mock_sync_garth
+    ):
         """
         Test that updating exercise names via API triggers file tracking.
 
@@ -77,8 +81,10 @@ class TestAPIUpdateTracking(unittest.TestCase):
                 return {"exerciseSets": initial_exercises}
             return mock_activities
 
-        mock_garth.connectapi.side_effect = mock_connectapi_first
-        mock_garth.download.return_value = b"fake_fit_data"
+        mock_sync_garth.connectapi.side_effect = mock_connectapi_first
+        mock_download_garth.connectapi.side_effect = mock_connectapi_first
+        mock_api_garth.connectapi.side_effect = mock_connectapi_first
+        mock_download_garth.download.return_value = b"fake_fit_data"
 
         # Download initial activity
         new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
@@ -119,7 +125,9 @@ class TestAPIUpdateTracking(unittest.TestCase):
                 return {"exerciseSets": updated_exercises}
             return mock_activities
 
-        mock_garth.connectapi.side_effect = mock_connectapi_second
+        mock_sync_garth.connectapi.side_effect = mock_connectapi_second
+        mock_download_garth.connectapi.side_effect = mock_connectapi_second
+        mock_api_garth.connectapi.side_effect = mock_connectapi_second
 
         # Step 3: Re-run sync
         _count, updated_files = download_new_activities(days=7, directory=self.test_dir)
@@ -143,7 +151,11 @@ class TestAPIUpdateTracking(unittest.TestCase):
         # which will trigger re-aggregation in the strength summary
 
     @patch("fitanalyzer.sync.garth")
-    def test_multisport_api_update_tracking(self, mock_garth):
+    @patch("fitanalyzer.garmin_api.garth")
+    @patch("fitanalyzer.activity_download.garth")
+    def test_multisport_api_update_tracking(
+        self, mock_download_garth, mock_api_garth, mock_sync_garth
+    ):
         """
         Test API updates for multisport activities.
 
@@ -175,8 +187,10 @@ class TestAPIUpdateTracking(unittest.TestCase):
                 return {"exerciseSets": exercises}
             return mock_activities
 
-        mock_garth.connectapi.side_effect = mock_connectapi
-        mock_garth.download.return_value = b"fake_multisport_fit_data"
+        mock_sync_garth.connectapi.side_effect = mock_connectapi
+        mock_download_garth.connectapi.side_effect = mock_connectapi
+        mock_api_garth.connectapi.side_effect = mock_connectapi
+        mock_download_garth.download.return_value = b"fake_multisport_fit_data"
 
         # Download multisport activity
         new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
@@ -190,7 +204,9 @@ class TestAPIUpdateTracking(unittest.TestCase):
         self.assertTrue(Path(updated_file).is_absolute())
 
     @patch("fitanalyzer.sync.garth")
-    def test_no_api_update_skips_file(self, mock_garth):
+    @patch("fitanalyzer.garmin_api.garth")
+    @patch("fitanalyzer.activity_download.garth")
+    def test_no_api_update_skips_file(self, mock_download_garth, mock_api_garth, mock_sync_garth):
         """
         Test that files without API updates are not included in updated_files.
 
@@ -219,8 +235,10 @@ class TestAPIUpdateTracking(unittest.TestCase):
                 return {"exerciseSets": exercises}
             return mock_activities
 
-        mock_garth.connectapi.side_effect = mock_connectapi_first
-        mock_garth.download.return_value = b"fake_fit_data"
+        mock_sync_garth.connectapi.side_effect = mock_connectapi_first
+        mock_download_garth.connectapi.side_effect = mock_connectapi_first
+        mock_api_garth.connectapi.side_effect = mock_connectapi_first
+        mock_download_garth.download.return_value = b"fake_fit_data"
 
         new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
@@ -228,7 +246,12 @@ class TestAPIUpdateTracking(unittest.TestCase):
         self.assertEqual(len(updated_files), 1)
 
         # Second download with IDENTICAL API data
-        mock_garth.connectapi.side_effect = mock_connectapi_first  # Same function - identical data
+        mock_download_garth.connectapi.side_effect = (
+            mock_connectapi_first  # Same function - identical data
+        )
+        mock_api_garth.connectapi.side_effect = (
+            mock_connectapi_first  # Same function - identical data
+        )
 
         new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
@@ -236,7 +259,9 @@ class TestAPIUpdateTracking(unittest.TestCase):
         self.assertEqual(len(updated_files), 0)  # No updates either
 
     @patch("fitanalyzer.sync.garth")
-    def test_fit_file_update_tracked(self, mock_garth):
+    @patch("fitanalyzer.garmin_api.garth")
+    @patch("fitanalyzer.activity_download.garth")
+    def test_fit_file_update_tracked(self, mock_download_garth, mock_api_garth, mock_sync_garth):
         """
         Test that FIT file downloads are tracked in updated_files.
 
@@ -260,8 +285,10 @@ class TestAPIUpdateTracking(unittest.TestCase):
                 return {}  # No exercise data
             return mock_activities
 
-        mock_garth.connectapi.side_effect = mock_connectapi
-        mock_garth.download.return_value = b"fake_fit_data"
+        mock_sync_garth.connectapi.side_effect = mock_connectapi
+        mock_download_garth.connectapi.side_effect = mock_connectapi
+        mock_api_garth.connectapi.side_effect = mock_connectapi
+        mock_download_garth.download.return_value = b"fake_fit_data"
 
         new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
@@ -273,7 +300,9 @@ class TestAPIUpdateTracking(unittest.TestCase):
         self.assertEqual(updated_files[0], expected_file)
 
     @patch("fitanalyzer.sync.garth")
-    def test_multiple_updates_tracked(self, mock_garth):
+    @patch("fitanalyzer.garmin_api.garth")
+    @patch("fitanalyzer.activity_download.garth")
+    def test_multiple_updates_tracked(self, mock_download_garth, mock_api_garth, mock_sync_garth):
         """
         Test that multiple file updates are all tracked.
 
@@ -305,8 +334,10 @@ class TestAPIUpdateTracking(unittest.TestCase):
                 return {}  # No exercise data for all activities
             return mock_activities
 
-        mock_garth.connectapi.side_effect = mock_connectapi
-        mock_garth.download.return_value = b"fake_fit_data"
+        mock_sync_garth.connectapi.side_effect = mock_connectapi
+        mock_download_garth.connectapi.side_effect = mock_connectapi
+        mock_api_garth.connectapi.side_effect = mock_connectapi
+        mock_download_garth.download.return_value = b"fake_fit_data"
 
         new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 

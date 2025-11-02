@@ -12,11 +12,26 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from fitanalyzer.sync import _get_child_activity_ids, download_new_activities
+from fitanalyzer.garmin_api import _get_child_activity_ids
+from fitanalyzer.sync import download_new_activities
 
 
 class TestMultisportDuplication(unittest.TestCase):
     """Test that multisport activities don't create duplicates."""
+
+    def setUp(self):
+        """Create temporary test directory."""
+        import shutil
+        import tempfile
+
+        self.test_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        """Clean up temporary directory."""
+        import shutil
+
+        if hasattr(self, "test_dir"):
+            shutil.rmtree(self.test_dir, ignore_errors=True)
 
     def test_get_child_activity_ids_extracts_child_ids(self):
         """Test that _get_child_activity_ids correctly extracts child IDs."""
@@ -45,10 +60,12 @@ class TestMultisportDuplication(unittest.TestCase):
         self.assertEqual(child_ids, [])
 
     @patch("fitanalyzer.sync.garth")
+    @patch("fitanalyzer.garmin_api.garth")
+    @patch("fitanalyzer.activity_download.garth")
     @patch("fitanalyzer.sync.get_existing_activity_ids")
-    @patch("fitanalyzer.sync._filter_recent_activities")
+    @patch("fitanalyzer.sync.filter_recent_activities")
     def test_multisport_only_downloads_children_not_parent(
-        self, mock_filter, mock_existing, mock_garth
+        self, mock_filter, mock_existing, mock_download_garth, mock_api_garth, mock_sync_garth
     ):
         """
         FAILING TEST: Multisport parent should be skipped if children are present.
@@ -90,14 +107,18 @@ class TestMultisportDuplication(unittest.TestCase):
         mock_filter.return_value = all_activities
 
         # Mock connectapi to return activity list
-        mock_garth.connectapi.return_value = all_activities
+        mock_sync_garth.connectapi.return_value = all_activities
 
-        # Mock successful downloads
-        with patch("fitanalyzer.sync._download_single_activity") as mock_download:
+        # Mock garth downloads
+        mock_download_garth.download.return_value = b"fake_fit_data"
+        mock_api_garth.connectapi.return_value = {}  # No exercise data
+
+        # Mock successful downloads - patch where it's imported (sync module)
+        with patch("fitanalyzer.sync.download_single_activity") as mock_download:
             mock_download.return_value = True
 
             # Run the download
-            count, updated_files = download_new_activities(days=7, directory="/tmp/test")
+            count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
             # ASSERTION: Should only download the 2 children, NOT the parent
             # This test will FAIL until we fix the bug

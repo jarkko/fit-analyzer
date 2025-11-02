@@ -79,10 +79,10 @@ class TestExistingActivityIDs(unittest.TestCase):
 
 
 class TestGarminAuthentication(unittest.TestCase):
-    """Test Garmin Connect authentication"""
+    """Test cases for Garmin Connect authentication."""
 
-    @patch("fitanalyzer.sync.garth")
-    @patch("fitanalyzer.sync.Path")
+    @patch("fitanalyzer.garmin_auth.garth")
+    @patch("fitanalyzer.garmin_auth.Path")
     def test_authenticate_with_existing_session(self, mock_path, mock_garth):
         """Test resuming existing authentication session"""
         # Mock existing token file
@@ -99,8 +99,8 @@ class TestGarminAuthentication(unittest.TestCase):
         self.assertTrue(result)
         mock_garth.resume.assert_called_once()
 
-    @patch("fitanalyzer.sync.garth")
-    @patch("fitanalyzer.sync.Path")
+    @patch("fitanalyzer.garmin_auth.garth")
+    @patch("fitanalyzer.garmin_auth.Path")
     def test_authenticate_expired_session(self, mock_path, mock_garth):
         """Test handling of expired session"""
         # Mock existing but expired token
@@ -119,8 +119,8 @@ class TestGarminAuthentication(unittest.TestCase):
         # Should call login after resume fails
         mock_garth.login.assert_called_once_with("test@test.com", "password")
 
-    @patch("fitanalyzer.sync.garth")
-    @patch("fitanalyzer.sync.Path")
+    @patch("fitanalyzer.garmin_auth.garth")
+    @patch("fitanalyzer.garmin_auth.Path")
     def test_authenticate_new_login(self, mock_path, mock_garth):
         """Test new authentication"""
         # No existing token
@@ -180,8 +180,13 @@ class TestDownloadActivities(unittest.TestCase):
         self.assertEqual(new_count, 0)
         self.assertEqual(updated_files, [])
 
+    @patch("fitanalyzer.garmin_api.fetch_exercise_sets_from_api", return_value=None)
+    @patch("fitanalyzer.garmin_api.garth")
+    @patch("fitanalyzer.activity_download.garth")
     @patch("fitanalyzer.sync.garth")
-    def test_download_with_new_activities(self, mock_garth):
+    def test_download_with_new_activities(
+        self, mock_sync_garth, mock_download_garth, mock_api_garth, mock_fetch_api
+    ):
         """Test downloading new activities"""
         # Create a dynamic date that's always within the 7-day range (yesterday)
         yesterday = datetime.now(timezone.utc) - timedelta(days=1)
@@ -196,8 +201,8 @@ class TestDownloadActivities(unittest.TestCase):
             }
         ]
 
-        mock_garth.connectapi.return_value = mock_activities
-        mock_garth.download.return_value = b"fake_fit_data"
+        mock_sync_garth.connectapi.return_value = mock_activities
+        mock_download_garth.download.return_value = b"fake_fit_data"
 
         new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
 
@@ -229,8 +234,13 @@ class TestDownloadActivities(unittest.TestCase):
         # First download succeeds, second fails
         mock_garth.download.side_effect = [b"fake_fit_data", Exception("Network error")]
 
+    @patch("fitanalyzer.garmin_api.fetch_exercise_sets_from_api", return_value=None)
+    @patch("fitanalyzer.garmin_api.garth")
+    @patch("fitanalyzer.activity_download.garth")
     @patch("fitanalyzer.sync.garth")
-    def test_download_handles_timezone_formats(self, mock_garth):
+    def test_download_handles_timezone_formats(
+        self, mock_sync_garth, mock_download_garth, mock_api_garth, mock_fetch_api
+    ):
         """Test handling of different timezone formats in activity dates"""
         # Create dynamic dates that are always within range (3 days ago)
         base_date = datetime.now(timezone.utc) - timedelta(days=3)
@@ -254,8 +264,8 @@ class TestDownloadActivities(unittest.TestCase):
             },
         ]
 
-        mock_garth.connectapi.return_value = mock_activities
-        mock_garth.download.return_value = b"fake_fit_data"
+        mock_sync_garth.connectapi.return_value = mock_activities
+        mock_download_garth.download.return_value = b"fake_fit_data"
 
         # Should not raise "can't compare offset-naive and offset-aware datetimes"
         new_count, updated_files = download_new_activities(days=7, directory=self.test_dir)
@@ -475,7 +485,7 @@ class TestEnvironmentVariables(unittest.TestCase):
 class TestCheckAndInstallGarth(unittest.TestCase):
     """Test garth installation checking."""
 
-    @patch("fitanalyzer.sync.GARTH_AVAILABLE", True)
+    @patch("fitanalyzer.garmin_auth.GARTH_AVAILABLE", True)
     def test_check_garth_available(self):
         """Test when garth is already available."""
         from fitanalyzer.sync import check_and_install_garth
@@ -483,7 +493,7 @@ class TestCheckAndInstallGarth(unittest.TestCase):
         result = check_and_install_garth()
         self.assertTrue(result)
 
-    @patch("fitanalyzer.sync.GARTH_AVAILABLE", False)
+    @patch("fitanalyzer.garmin_auth.GARTH_AVAILABLE", False)
     @patch("builtins.input", return_value="n")
     @patch("builtins.print")
     def test_check_garth_not_available_decline_install(self, mock_print, mock_input):
@@ -493,7 +503,7 @@ class TestCheckAndInstallGarth(unittest.TestCase):
         result = check_and_install_garth()
         self.assertFalse(result)
 
-    @patch("fitanalyzer.sync.GARTH_AVAILABLE", False)
+    @patch("fitanalyzer.garmin_auth.GARTH_AVAILABLE", False)
     @patch("builtins.input", return_value="y")
     @patch("subprocess.check_call")
     @patch("builtins.print")
@@ -506,7 +516,7 @@ class TestCheckAndInstallGarth(unittest.TestCase):
         self.assertFalse(result)
         mock_subprocess.assert_called_once()
 
-    @patch("fitanalyzer.sync.GARTH_AVAILABLE", False)
+    @patch("fitanalyzer.garmin_auth.GARTH_AVAILABLE", False)
     @patch("builtins.input", return_value="y")
     @patch("subprocess.check_call", side_effect=subprocess.CalledProcessError(1, "pip"))
     @patch("builtins.print")
@@ -521,10 +531,10 @@ class TestCheckAndInstallGarth(unittest.TestCase):
 class TestExerciseSetsAPI(unittest.TestCase):
     """Test exercise sets API functions."""
 
-    @patch("fitanalyzer.sync.garth")
+    @patch("fitanalyzer.garmin_api.garth")
     def test_fetch_exercise_sets_from_api(self, mock_garth):
         """Test fetching exercise sets from Garmin API."""
-        from fitanalyzer.sync import fetch_exercise_sets_from_api
+        from fitanalyzer.garmin_api import fetch_exercise_sets_from_api
 
         mock_garth.connectapi.return_value = {
             "exerciseSets": [{"category": 1, "exerciseName": "BENCH_PRESS", "reps": 10}]
@@ -534,10 +544,10 @@ class TestExerciseSetsAPI(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertIn("exerciseSets", result)
 
-    @patch("fitanalyzer.sync.garth")
+    @patch("fitanalyzer.garmin_api.garth")
     def test_fetch_exercise_sets_api_error(self, mock_garth):
         """Test API error when fetching exercise sets."""
-        from fitanalyzer.sync import fetch_exercise_sets_from_api
+        from fitanalyzer.garmin_api import fetch_exercise_sets_from_api
 
         # Use TypeError which is caught by the function
         mock_garth.connectapi.side_effect = TypeError("API Error")
@@ -578,17 +588,17 @@ class TestExerciseSetsAPI(unittest.TestCase):
 class TestAuthenticationEdgeCases(unittest.TestCase):
     """Test authentication edge cases and error paths"""
 
-    @patch("fitanalyzer.sync.garth", None)
+    @patch("fitanalyzer.garmin_auth.garth", None)
     def test_authenticate_garth_not_available(self):
         """Test authentication when garth library is not installed (lines 124)"""
         with self.assertRaises(ImportError) as context:
             authenticate_garmin()
         self.assertIn("garth library not available", str(context.exception))
 
-    @patch("fitanalyzer.sync.garth")
-    @patch("fitanalyzer.sync.Path")
-    @patch("fitanalyzer.sync.os.getenv")
-    @patch("fitanalyzer.sync.input")
+    @patch("fitanalyzer.garmin_auth.garth")
+    @patch("fitanalyzer.garmin_auth.Path")
+    @patch("fitanalyzer.garmin_auth.os.getenv")
+    @patch("fitanalyzer.garmin_auth.input")
     def test_authenticate_with_env_email_no_password(
         self, mock_input, mock_getenv, mock_path, mock_garth
     ):
@@ -607,15 +617,15 @@ class TestAuthenticationEdgeCases(unittest.TestCase):
         mock_getenv.side_effect = getenv_side_effect
         mock_input.return_value = "password123"  # getpass returns this
 
-        with patch("fitanalyzer.sync.getpass.getpass", return_value="password123"):
+        with patch("fitanalyzer.garmin_auth.getpass.getpass", return_value="password123"):
             authenticate_garmin()
 
         mock_garth.login.assert_called_once_with("env@example.com", "password123")
 
-    @patch("fitanalyzer.sync.garth")
-    @patch("fitanalyzer.sync.Path")
-    @patch("fitanalyzer.sync.os.getenv")
-    @patch("fitanalyzer.sync.input")
+    @patch("fitanalyzer.garmin_auth.garth")
+    @patch("fitanalyzer.garmin_auth.Path")
+    @patch("fitanalyzer.garmin_auth.os.getenv")
+    @patch("fitanalyzer.garmin_auth.input")
     def test_authenticate_prompt_email_env_password(
         self, mock_input, mock_getenv, mock_path, mock_garth
     ):
@@ -638,8 +648,8 @@ class TestAuthenticationEdgeCases(unittest.TestCase):
 
         mock_garth.login.assert_called_once_with("prompted@example.com", "env_password")
 
-    @patch("fitanalyzer.sync.garth")
-    @patch("fitanalyzer.sync.Path")
+    @patch("fitanalyzer.garmin_auth.garth")
+    @patch("fitanalyzer.garmin_auth.Path")
     def test_authenticate_login_failure_with_mfa_hint(self, mock_path, mock_garth):
         """Test authentication failure with MFA error (lines 161-167)"""
         mock_token_path = Mock()
@@ -654,8 +664,8 @@ class TestAuthenticationEdgeCases(unittest.TestCase):
 
         self.assertFalse(result)
 
-    @patch("fitanalyzer.sync.garth")
-    @patch("fitanalyzer.sync.Path")
+    @patch("fitanalyzer.garmin_auth.garth")
+    @patch("fitanalyzer.garmin_auth.Path")
     def test_authenticate_login_generic_failure(self, mock_path, mock_garth):
         """Test authentication failure without MFA (lines 161-167)"""
         mock_token_path = Mock()
@@ -686,7 +696,7 @@ class TestDownloadEdgeCases(unittest.TestCase):
         """Test extracting FIT file from ZIP (lines 227-233)"""
         import zipfile
 
-        from fitanalyzer.sync import _extract_fit_from_zip
+        from fitanalyzer.activity_download import _extract_fit_from_zip
 
         # Create a mock ZIP with a .fit file
         fit_content = b".FIT\x00test_data"
@@ -702,7 +712,7 @@ class TestDownloadEdgeCases(unittest.TestCase):
 
     def test_extract_fit_not_zip(self):
         """Test extracting when input is already a FIT file (lines 227-233)"""
-        from fitanalyzer.sync import _extract_fit_from_zip
+        from fitanalyzer.activity_download import _extract_fit_from_zip
 
         # FIT file directly (not zipped)
         fit_content = b".FIT\x00test_data"
@@ -710,39 +720,39 @@ class TestDownloadEdgeCases(unittest.TestCase):
         result = _extract_fit_from_zip(fit_content)
         self.assertEqual(result, fit_content)
 
-    def test_should_download_activity_new(self):
+    def testshould_download_activity_new(self):
         """Test download decision for new activity (lines 265-272)"""
-        from fitanalyzer.sync import _should_download_activity
+        from fitanalyzer.activity_download import should_download_activity
 
         activity = {"activityId": 12345}
         existing = {}
 
-        should_dl, is_update, check_api = _should_download_activity(activity, existing)
+        should_dl, is_update, check_api = should_download_activity(activity, existing)
 
         self.assertTrue(should_dl)
         self.assertFalse(is_update)
         self.assertFalse(check_api)
 
-    def test_should_download_activity_no_update_timestamp(self):
+    def testshould_download_activity_no_update_timestamp(self):
         """Test download decision when no update timestamp (lines 277-284)"""
         import time
 
-        from fitanalyzer.sync import _should_download_activity
+        from fitanalyzer.activity_download import should_download_activity
 
         activity = {"activityId": 12345}  # No updateDate or lastModified
         existing = {"12345": time.time()}
 
-        should_dl, is_update, check_api = _should_download_activity(activity, existing)
+        should_dl, is_update, check_api = should_download_activity(activity, existing)
 
         self.assertFalse(should_dl)
         self.assertFalse(is_update)
         self.assertTrue(check_api)  # Should still check API updates
 
-    def test_should_download_activity_updated(self):
+    def testshould_download_activity_updated(self):
         """Test download decision for updated activity (lines 277-284)"""
         import time
 
-        from fitanalyzer.sync import _should_download_activity
+        from fitanalyzer.activity_download import should_download_activity
 
         current_time = time.time()
         older_time = current_time - 3600  # 1 hour ago
@@ -753,7 +763,7 @@ class TestDownloadEdgeCases(unittest.TestCase):
         }
         existing = {"12345": older_time}
 
-        should_dl, is_update, check_api = _should_download_activity(activity, existing)
+        should_dl, is_update, check_api = should_download_activity(activity, existing)
 
         self.assertTrue(should_dl)
         self.assertTrue(is_update)
@@ -777,15 +787,9 @@ class TestOutputDirFunctionality(unittest.TestCase):
         shutil.rmtree(self.test_dir)
         shutil.rmtree(self.output_dir)
 
-    @patch("fitanalyzer.sync.subprocess.run")
-    def test_argument_parser_output_dir(self, mock_subprocess):
+    def test_argument_parser_output_dir(self):
         """Test that --output-dir argument is parsed correctly"""
         from fitanalyzer.sync import main
-
-        # Mock successful subprocess execution
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_subprocess.return_value = mock_result
 
         # Test with minimal patches to avoid complex mocking
         with patch(
@@ -811,15 +815,9 @@ class TestOutputDirFunctionality(unittest.TestCase):
             self.assertEqual(call_kwargs["output_dir"], self.output_dir)
             self.assertEqual(result, 0)
 
-    @patch("fitanalyzer.sync.subprocess.run")
-    def test_argument_parser_default_output_dir(self, mock_subprocess):
+    def test_argument_parser_default_output_dir(self):
         """Test that default output directory is 'data'"""
         from fitanalyzer.sync import main
-
-        # Mock successful subprocess execution
-        mock_result = Mock()
-        mock_result.returncode = 0
-        mock_subprocess.return_value = mock_result
 
         with patch("sys.argv", ["sync.py", "--analyze-only", "--directory", self.test_dir]), patch(
             "fitanalyzer.sync.run_analysis"

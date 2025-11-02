@@ -6,10 +6,10 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from fitanalyzer.strength import merge_api_exercise_names
-from fitanalyzer.sync import (
-    fetch_exercise_sets_from_api,
+from fitanalyzer.garmin_api import fetch_exercise_sets_from_api
+from fitanalyzer.strength import (
     load_exercise_sets_from_json,
+    merge_api_exercise_names,
     save_exercise_sets_to_json,
 )
 
@@ -17,7 +17,7 @@ from fitanalyzer.sync import (
 @pytest.fixture
 def mock_garth():
     """Mock garth API client."""
-    with patch("fitanalyzer.sync.garth") as mock:
+    with patch("fitanalyzer.garmin_api.garth") as mock:
         yield mock
 
 
