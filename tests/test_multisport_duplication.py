@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-from fitanalyzer.garmin_api import _get_child_activity_ids
+from fitanalyzer.garmin_api import get_child_activity_ids
 from fitanalyzer.sync import download_new_activities
 
 
@@ -33,8 +33,8 @@ class TestMultisportDuplication(unittest.TestCase):
         if hasattr(self, "test_dir"):
             shutil.rmtree(self.test_dir, ignore_errors=True)
 
-    def test_get_child_activity_ids_extracts_child_ids(self):
-        """Test that _get_child_activity_ids correctly extracts child IDs."""
+    def testget_child_activity_ids_extracts_child_ids(self):
+        """Test that get_child_activity_ids correctly extracts child IDs."""
         # Mock activity with child IDs (multisport)
         activity_with_children = {
             "activityId": 12345,
@@ -42,20 +42,20 @@ class TestMultisportDuplication(unittest.TestCase):
             "activityType": {"typeKey": "multi_sport"},
         }
 
-        child_ids = _get_child_activity_ids(activity_with_children)
+        child_ids = get_child_activity_ids(activity_with_children)
 
         self.assertEqual(child_ids, [12346, 12347])
         self.assertEqual(len(child_ids), 2)
 
-    def test_get_child_activity_ids_returns_empty_for_single_activity(self):
-        """Test that _get_child_activity_ids returns empty list for single activities."""
+    def testget_child_activity_ids_returns_empty_for_single_activity(self):
+        """Test that get_child_activity_ids returns empty list for single activities."""
         # Regular activity without children
         single_activity = {
             "activityId": 12345,
             "activityType": {"typeKey": "strength_training"},
         }
 
-        child_ids = _get_child_activity_ids(single_activity)
+        child_ids = get_child_activity_ids(single_activity)
 
         self.assertEqual(child_ids, [])
 

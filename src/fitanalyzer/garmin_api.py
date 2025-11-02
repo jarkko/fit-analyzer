@@ -15,10 +15,10 @@ from .strength import load_exercise_sets_from_json, save_exercise_sets_to_json
 
 __all__ = [
     "fetch_exercise_sets_from_api",
-    "_check_and_update_api_data",
+    "check_and_update_api_data",
     "_exercise_names_differ",
     "_fetch_exercise_sets_for_activity",
-    "_get_child_activity_ids",
+    "get_child_activity_ids",
 ]
 
 
@@ -44,7 +44,7 @@ def _exercise_names_differ(
     return False
 
 
-def _get_child_activity_ids(
+def get_child_activity_ids(
     activity_details: Dict[str, Any] | List[Any],
 ) -> List[Any]:
     """Extract child activity IDs from activity details.
@@ -156,7 +156,7 @@ def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
     try:
         # Get activity details to check for child activities (multisport)
         activity_details = garth.connectapi(f"/activity-service/activity/{activity_id}")
-        child_ids = _get_child_activity_ids(activity_details) if activity_details else []
+        child_ids = get_child_activity_ids(activity_details) if activity_details else []
 
         # Try child activities first (for multisport)
         for child_id in child_ids:
@@ -199,7 +199,7 @@ def _get_update_reason(
     return None
 
 
-def _check_and_update_api_data(activity_id: int, directory: str) -> bool:
+def check_and_update_api_data(activity_id: int, directory: str) -> bool:
     """Check if API exercise data needs updating and update if necessary.
 
     Args:

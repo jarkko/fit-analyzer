@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
-from fitanalyzer.garmin_api import _check_and_update_api_data, _get_child_activity_ids
+from fitanalyzer.garmin_api import check_and_update_api_data, get_child_activity_ids
 
 
 @dataclass
@@ -128,7 +128,7 @@ def _process_activity(
             counters["updated_count" if is_update else "new_count"] += 1
     elif check_api_anyway:
         # Even if we don't download the FIT file, check for API exercise data updates
-        if _check_and_update_api_data(activity_id, context.directory):
+        if check_and_update_api_data(activity_id, context.directory):
             counters["api_updated_count"] += 1
             updated_files.append(fit_path)
         else:
@@ -150,7 +150,7 @@ def identify_multisport_parents(activities: List[Dict[str, Any]]) -> Set[int]:
 
     for activity in activities:
         activity_id = activity["activityId"]
-        child_ids = _get_child_activity_ids(activity)
+        child_ids = get_child_activity_ids(activity)
 
         if child_ids:
             parent_activity_ids.add(activity_id)

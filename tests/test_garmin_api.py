@@ -7,11 +7,11 @@ from typing import Any, Dict, List
 from unittest.mock import Mock, call, mock_open, patch
 
 from fitanalyzer.garmin_api import (
-    _check_and_update_api_data,
     _exercise_names_differ,
     _fetch_exercise_sets_for_activity,
-    _get_child_activity_ids,
+    check_and_update_api_data,
     fetch_exercise_sets_from_api,
+    get_child_activity_ids,
 )
 
 
@@ -36,10 +36,10 @@ class TestModuleImports(unittest.TestCase):
 
         expected = [
             "fetch_exercise_sets_from_api",
-            "_check_and_update_api_data",
+            "check_and_update_api_data",
             "_exercise_names_differ",
             "_fetch_exercise_sets_for_activity",
-            "_get_child_activity_ids",
+            "get_child_activity_ids",
         ]
         for func_name in expected:
             self.assertTrue(hasattr(garmin_api, func_name), f"Missing function: {func_name}")
@@ -102,22 +102,22 @@ class TestExerciseNamesDiffer(unittest.TestCase):
 
 
 class TestGetChildActivityIds(unittest.TestCase):
-    """Test _get_child_activity_ids function."""
+    """Test get_child_activity_ids function."""
 
     def test_list_input_returns_empty(self) -> None:
         """Test that list input returns empty list."""
-        self.assertEqual(_get_child_activity_ids([]), [])
-        self.assertEqual(_get_child_activity_ids([1, 2, 3]), [])
+        self.assertEqual(get_child_activity_ids([]), [])
+        self.assertEqual(get_child_activity_ids([1, 2, 3]), [])
 
     def test_direct_child_ids(self) -> None:
         """Test extracting childIds from top level."""
         activity_details = {"childIds": [123, 456, 789]}
-        self.assertEqual(_get_child_activity_ids(activity_details), [123, 456, 789])
+        self.assertEqual(get_child_activity_ids(activity_details), [123, 456, 789])
 
     def test_metadata_child_ids(self) -> None:
         """Test extracting childIds from metadataDTO."""
         activity_details = {"metadataDTO": {"childIds": [111, 222]}}
-        self.assertEqual(_get_child_activity_ids(activity_details), [111, 222])
+        self.assertEqual(get_child_activity_ids(activity_details), [111, 222])
 
     def test_direct_takes_precedence(self) -> None:
         """Test that direct childIds takes precedence over metadataDTO."""
@@ -125,22 +125,22 @@ class TestGetChildActivityIds(unittest.TestCase):
             "childIds": [123, 456],
             "metadataDTO": {"childIds": [999]},
         }
-        self.assertEqual(_get_child_activity_ids(activity_details), [123, 456])
+        self.assertEqual(get_child_activity_ids(activity_details), [123, 456])
 
     def test_no_child_ids(self) -> None:
         """Test activity with no child IDs."""
-        self.assertEqual(_get_child_activity_ids({}), [])
-        self.assertEqual(_get_child_activity_ids({"metadataDTO": {}}), [])
+        self.assertEqual(get_child_activity_ids({}), [])
+        self.assertEqual(get_child_activity_ids({"metadataDTO": {}}), [])
 
     def test_non_list_child_ids(self) -> None:
         """Test handling of non-list childIds value."""
         activity_details = {"childIds": "not a list"}
-        self.assertEqual(_get_child_activity_ids(activity_details), [])
+        self.assertEqual(get_child_activity_ids(activity_details), [])
 
     def test_non_list_metadata_child_ids(self) -> None:
         """Test handling of non-list childIds in metadataDTO."""
         activity_details = {"metadataDTO": {"childIds": 123}}
-        self.assertEqual(_get_child_activity_ids(activity_details), [])
+        self.assertEqual(get_child_activity_ids(activity_details), [])
 
 
 class TestFetchExerciseSetsForActivity(unittest.TestCase):
@@ -214,7 +214,7 @@ class TestFetchExerciseSetsFromApi(unittest.TestCase):
         result = fetch_exercise_sets_from_api(12345)
         self.assertIsNone(result)
 
-    @patch("fitanalyzer.garmin_api._get_child_activity_ids")
+    @patch("fitanalyzer.garmin_api.get_child_activity_ids")
     @patch("fitanalyzer.garmin_api._fetch_exercise_sets_for_activity")
     @patch("fitanalyzer.garmin_api.garth")
     def test_main_activity_has_sets(
@@ -234,7 +234,7 @@ class TestFetchExerciseSetsFromApi(unittest.TestCase):
         mock_garth.connectapi.assert_called_once_with("/activity-service/activity/12345")
         mock_fetch.assert_called_once_with(12345)
 
-    @patch("fitanalyzer.garmin_api._get_child_activity_ids")
+    @patch("fitanalyzer.garmin_api.get_child_activity_ids")
     @patch("fitanalyzer.garmin_api._fetch_exercise_sets_for_activity")
     @patch("fitanalyzer.garmin_api.garth")
     def test_child_activity_has_sets(
@@ -253,7 +253,7 @@ class TestFetchExerciseSetsFromApi(unittest.TestCase):
         self.assertEqual(result, child_data)
         mock_fetch.assert_called_once_with(100)  # Stops after first child with data
 
-    @patch("fitanalyzer.garmin_api._get_child_activity_ids")
+    @patch("fitanalyzer.garmin_api.get_child_activity_ids")
     @patch("fitanalyzer.garmin_api._fetch_exercise_sets_for_activity")
     @patch("fitanalyzer.garmin_api.garth")
     def test_fallback_to_main_after_empty_children(
@@ -273,7 +273,7 @@ class TestFetchExerciseSetsFromApi(unittest.TestCase):
         self.assertEqual(mock_fetch.call_count, 3)
         mock_fetch.assert_has_calls([call(100), call(200), call(12345)])
 
-    @patch("fitanalyzer.garmin_api._get_child_activity_ids")
+    @patch("fitanalyzer.garmin_api.get_child_activity_ids")
     @patch("fitanalyzer.garmin_api.garth")
     def test_activity_details_api_error(self, mock_garth: Mock, mock_get_children: Mock) -> None:
         """Test handling of error fetching activity details (using RuntimeError)."""
@@ -283,7 +283,7 @@ class TestFetchExerciseSetsFromApi(unittest.TestCase):
 
         self.assertIsNone(result)
 
-    @patch("fitanalyzer.garmin_api._get_child_activity_ids")
+    @patch("fitanalyzer.garmin_api.get_child_activity_ids")
     @patch("fitanalyzer.garmin_api.garth")
     def test_key_error_in_activity_details(self, mock_garth: Mock, mock_get_children: Mock) -> None:
         """Test handling of KeyError."""
@@ -291,7 +291,7 @@ class TestFetchExerciseSetsFromApi(unittest.TestCase):
         result = fetch_exercise_sets_from_api(12345)
         self.assertIsNone(result)
 
-    @patch("fitanalyzer.garmin_api._get_child_activity_ids")
+    @patch("fitanalyzer.garmin_api.get_child_activity_ids")
     @patch("fitanalyzer.garmin_api.garth")
     def test_type_error_in_activity_details(
         self, mock_garth: Mock, mock_get_children: Mock
@@ -301,7 +301,7 @@ class TestFetchExerciseSetsFromApi(unittest.TestCase):
         result = fetch_exercise_sets_from_api(12345)
         self.assertIsNone(result)
 
-    @patch("fitanalyzer.garmin_api._get_child_activity_ids")
+    @patch("fitanalyzer.garmin_api.get_child_activity_ids")
     @patch("fitanalyzer.garmin_api._fetch_exercise_sets_for_activity")
     @patch("fitanalyzer.garmin_api.garth")
     def test_none_activity_details(
@@ -319,7 +319,7 @@ class TestFetchExerciseSetsFromApi(unittest.TestCase):
 
 
 class TestCheckAndUpdateApiData(unittest.TestCase):
-    """Test _check_and_update_api_data function."""
+    """Test check_and_update_api_data function."""
 
     @patch("fitanalyzer.garmin_api.Path")
     def test_file_not_exists(self, mock_path: Mock) -> None:
@@ -328,7 +328,7 @@ class TestCheckAndUpdateApiData(unittest.TestCase):
         mock_file.exists.return_value = False
         mock_path.return_value.__truediv__.return_value = mock_file
 
-        result = _check_and_update_api_data(12345, "/test/dir")
+        result = check_and_update_api_data(12345, "/test/dir")
 
         self.assertFalse(result)
 
@@ -341,7 +341,7 @@ class TestCheckAndUpdateApiData(unittest.TestCase):
         mock_path.return_value.__truediv__.return_value = mock_file
         mock_fetch.return_value = None
 
-        result = _check_and_update_api_data(12345, "/test/dir")
+        result = check_and_update_api_data(12345, "/test/dir")
 
         self.assertFalse(result)
 
@@ -367,7 +367,7 @@ class TestCheckAndUpdateApiData(unittest.TestCase):
         mock_fetch.return_value = fresh_data
         mock_load.return_value = None
 
-        result = _check_and_update_api_data(12345, "/test/dir")
+        result = check_and_update_api_data(12345, "/test/dir")
 
         self.assertTrue(result)
         mock_save.assert_called_once()
@@ -397,7 +397,7 @@ class TestCheckAndUpdateApiData(unittest.TestCase):
         mock_fetch.return_value = fresh_data
         mock_load.return_value = existing_data
 
-        result = _check_and_update_api_data(12345, "/test/dir")
+        result = check_and_update_api_data(12345, "/test/dir")
 
         self.assertTrue(result)
         mock_save.assert_called_once_with(str(mock_file), fresh_data)
@@ -430,7 +430,7 @@ class TestCheckAndUpdateApiData(unittest.TestCase):
         mock_load.return_value = existing_data
         mock_names_differ.return_value = True
 
-        result = _check_and_update_api_data(12345, "/test/dir")
+        result = check_and_update_api_data(12345, "/test/dir")
 
         self.assertTrue(result)
         mock_print.assert_called_once_with("      └─ Reason: exercise names changed")
@@ -462,7 +462,7 @@ class TestCheckAndUpdateApiData(unittest.TestCase):
         mock_load.return_value = existing_data
         mock_names_differ.return_value = False
 
-        result = _check_and_update_api_data(12345, "/test/dir")
+        result = check_and_update_api_data(12345, "/test/dir")
 
         self.assertTrue(result)
         mock_print.assert_called_once_with("      └─ Reason: set values changed (reps/weight/etc)")
@@ -489,7 +489,7 @@ class TestCheckAndUpdateApiData(unittest.TestCase):
         mock_load.return_value = same_data
         mock_names_differ.return_value = False
 
-        result = _check_and_update_api_data(12345, "/test/dir")
+        result = check_and_update_api_data(12345, "/test/dir")
 
         self.assertFalse(result)
 
@@ -502,7 +502,7 @@ class TestCheckAndUpdateApiData(unittest.TestCase):
         mock_file.exists.side_effect = OSError("File error")
         mock_path.return_value.__truediv__.return_value = mock_file
 
-        result = _check_and_update_api_data(12345, "/test/dir")
+        result = check_and_update_api_data(12345, "/test/dir")
 
         self.assertFalse(result)
         mock_print.assert_called_once()
@@ -518,7 +518,7 @@ class TestCheckAndUpdateApiData(unittest.TestCase):
         mock_path.return_value.__truediv__.return_value = mock_file
         mock_fetch.side_effect = RuntimeError("Runtime error")
 
-        result = _check_and_update_api_data(12345, "/test/dir")
+        result = check_and_update_api_data(12345, "/test/dir")
 
         self.assertFalse(result)
         mock_print.assert_called_once()
@@ -533,7 +533,7 @@ class TestCheckAndUpdateApiData(unittest.TestCase):
         mock_path.return_value.__truediv__.return_value = mock_file
         mock_fetch.side_effect = ValueError("Value error")
 
-        result = _check_and_update_api_data(12345, "/test/dir")
+        result = check_and_update_api_data(12345, "/test/dir")
 
         self.assertFalse(result)
         mock_print.assert_called_once()
