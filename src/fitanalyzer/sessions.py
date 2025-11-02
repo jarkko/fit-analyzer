@@ -132,33 +132,25 @@ def _resample_to_one_second(df: pd.DataFrame) -> pd.DataFrame:
     return df.set_index(time_index).sort_index().resample("1s").ffill()
 
 
-def _build_session_result(  # pylint: disable=too-many-arguments,too-many-positional-arguments
+def _build_session_result(
     times: Dict[str, Any],
     metrics: Dict[str, Any],
-    sport: str,
-    subsport: str,
-    file_display: str,
-    path: str,
-    session_idx: int,
+    session_info: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Build the final session result dictionary.
 
     Args:
         times: Dictionary with timestamp and duration information
         metrics: Dictionary with calculated training metrics
-        sport: Primary sport name
-        subsport: Sub-sport name
-        file_display: Formatted filename for display
-        path: Original file path
-        session_idx: Session index in multisport activity
+        session_info: Dictionary with sport, subsport, file_display, path, session_idx
 
     Returns:
         Complete session summary dictionary
     """
     result = {
-        "file": file_display,
-        "sport": sport,
-        "sub_sport": subsport,
+        "file": session_info["file_display"],
+        "sport": session_info["sport"],
+        "sub_sport": session_info["subsport"],
         "date": times["start_local"].date().isoformat(),
         "start_time": times["start_local"].strftime("%Y-%m-%d %H:%M:%S"),
         "end_time": times["end_local"].strftime("%Y-%m-%d %H:%M:%S"),
@@ -167,8 +159,8 @@ def _build_session_result(  # pylint: disable=too-many-arguments,too-many-positi
         "TSS": format_metric_value(metrics.get("tss", np.nan), 1),
         "TRIMP": round(metrics["trimp"], 1),
         # Keep these for deduplication logic
-        "_original_file": path,
-        "_session_index": session_idx,
+        "_original_file": session_info["path"],
+        "_session_index": session_info["session_idx"],
     }
     result.update(format_all_data_metrics(metrics))
     return result
@@ -228,4 +220,12 @@ def process_session_data(
     sport, subsport = map_sport_names(session)
     file_display = create_file_display(path, session_idx, sport, subsport)
 
-    return _build_session_result(times, metrics, sport, subsport, file_display, path, session_idx)
+    session_info = {
+        "sport": sport,
+        "subsport": subsport,
+        "file_display": file_display,
+        "path": path,
+        "session_idx": session_idx,
+    }
+
+    return _build_session_result(times, metrics, session_info)

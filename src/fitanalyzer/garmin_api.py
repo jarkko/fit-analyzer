@@ -172,9 +172,37 @@ def fetch_exercise_sets_from_api(activity_id: int) -> Optional[Dict[str, Any]]:
         return None
 
 
-def _check_and_update_api_data(  # pylint: disable=too-many-return-statements
-    activity_id: int, directory: str
-) -> bool:
+def _get_update_reason(
+    existing_data: Optional[Dict[str, Any]], fresh_data: Dict[str, Any]
+) -> Optional[str]:
+    """Determine if API data needs updating and return the reason.
+
+    Args:
+        existing_data: Current API data from JSON file, or None if no file exists
+        fresh_data: Fresh API data from Garmin Connect
+
+    Returns:
+        String describing the reason for update, or None if no update needed
+    """
+    if not existing_data:
+        return "no existing data"
+
+    existing_sets = existing_data.get("exerciseSets", [])
+    fresh_sets = fresh_data.get("exerciseSets", [])
+
+    if len(existing_sets) != len(fresh_sets):
+        return f"set count changed ({len(existing_sets)} → {len(fresh_sets)})"
+
+    if _exercise_names_differ(existing_sets, fresh_sets):
+        return "exercise names changed"
+
+    if existing_sets != fresh_sets:
+        return "set values changed (reps/weight/etc)"
+
+    return None
+
+
+def _check_and_update_api_data(activity_id: int, directory: str) -> bool:
     """Check if API exercise data needs updating and update if necessary.
 
     Args:
@@ -197,32 +225,12 @@ def _check_and_update_api_data(  # pylint: disable=too-many-return-statements
         # Load existing API data
         existing_data = load_exercise_sets_from_json(str(filename))
 
-        # Check if no existing data
-        if not existing_data:
-            save_exercise_sets_to_json(str(filename), fresh_data)
-            print("      └─ Reason: no existing data")
-            return True
+        # Determine if update is needed and get reason
+        update_reason = _get_update_reason(existing_data, fresh_data)
 
-        # Compare exercise sets
-        existing_sets = existing_data.get("exerciseSets", [])
-        fresh_sets = fresh_data.get("exerciseSets", [])
-
-        # Check for set count changes
-        if len(existing_sets) != len(fresh_sets):
+        if update_reason:
             save_exercise_sets_to_json(str(filename), fresh_data)
-            print(f"      └─ Reason: set count changed ({len(existing_sets)} → {len(fresh_sets)})")
-            return True
-
-        # Check for exercise name changes
-        if _exercise_names_differ(existing_sets, fresh_sets):
-            save_exercise_sets_to_json(str(filename), fresh_data)
-            print("      └─ Reason: exercise names changed")
-            return True
-
-        # Check for any other set value changes
-        if existing_sets != fresh_sets:
-            save_exercise_sets_to_json(str(filename), fresh_data)
-            print("      └─ Reason: set values changed (reps/weight/etc)")
+            print(f"      └─ Reason: {update_reason}")
             return True
 
         return False

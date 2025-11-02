@@ -34,12 +34,17 @@ select = E,W,F,C
 max-complexity = 10
 
 # Function length limits (flake8-functions plugin - CFQ codes)
-# After v0.4.2 refactoring: longest function is 63 lines
-# Set limit to 70 lines to allow some buffer but prevent regressions
-# Align with pylint settings for consistency
-max-function-length = 70
-max-parameters-amount = 7
-max-returns-amount = 8
+# After v0.4.2 refactoring: 95th percentile = 60 lines, max = 82 lines
+# Using flake8-functions default of 100 (well above our needs)
+# max-function-length = 100  # Using default
+
+# Parameters: 95th percentile = 4, max = 7
+# Match pylint's strict limit of 5 for consistency
+max-parameters-amount = 5
+
+# Returns: 95th percentile = 4, max = 8
+# Match pylint's limit of 6 for consistency
+max-returns-amount = 6
 
 # Per-file ignores
 per-file-ignores =
