@@ -292,7 +292,14 @@ def _generate_strength_summary(
             ~existing_strength["activity_id"].astype(str).isin(new_activity_ids)
         ]
 
-        result = pd.concat([kept_rows, new_strength], ignore_index=True)
+        # Handle concatenation to avoid FutureWarning with empty DataFrames
+        if kept_rows.empty:
+            result = new_strength
+        elif new_strength.empty:
+            result = kept_rows
+        else:
+            result = pd.concat([kept_rows, new_strength], ignore_index=True)
+
         return result.sort_values(["date", "timestamp"], na_position="last")
     if new_strength is not None:
         return new_strength
