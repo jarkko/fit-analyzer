@@ -187,21 +187,21 @@ def run_analysis(
         updated_files: List of file paths that were updated (downloaded or API changed)
         **kwargs: Additional arguments (ftp, hrrest, hrmax)
     """
-    # Extract kwargs with defaults
-    ftp = kwargs.get("ftp", DEFAULT_FTP)
-    hrrest = kwargs.get("hrrest", DEFAULT_HR_REST)
-    hrmax = kwargs.get("hrmax", DEFAULT_HR_MAX)
-
     print("\n📊 Running analysis on all FIT files...")
 
     try:
         # Import cli module (relative import must be inside function)
         from . import cli  # pylint: disable=import-outside-toplevel
 
+        # Check if strength CSV exists - if not, we need to regenerate from all files
+        strength_csv_path = Path(output_dir) / "strength_training_summary.csv"
+        force_full_analysis = not strength_csv_path.exists()
+
+        if force_full_analysis:
+            print("📝 Strength CSV missing - analyzing all files to regenerate")
+
         # Determine which files to analyze
-        # If updated_files is provided (even if empty), use those
-        # If updated_files is None, analyze all FIT files in the directory
-        if updated_files is not None:
+        if updated_files is not None and not force_full_analysis:
             # Only analyze the files that were actually downloaded/updated
             fit_files = [Path(f) for f in updated_files if Path(f).exists()]
             if not fit_files:
@@ -221,20 +221,23 @@ def run_analysis(
 
         # Build arguments list as if calling from command line
         args = [str(f) for f in fit_files]
-        args.extend(["--ftp", str(ftp)])
-        args.extend(["--hrrest", str(hrrest)])
-        args.extend(["--hrmax", str(hrmax)])
-        args.extend(["--output-dir", str(output_dir)])
-        args.append("--dump-sets")  # Always save strength training sets
+        args.extend(
+            [
+                "--ftp",
+                str(kwargs.get("ftp", DEFAULT_FTP)),
+                "--hrrest",
+                str(kwargs.get("hrrest", DEFAULT_HR_REST)),
+                "--hrmax",
+                str(kwargs.get("hrmax", DEFAULT_HR_MAX)),
+                "--output-dir",
+                str(output_dir),
+                "--dump-sets",  # Always save strength training sets
+            ]
+        )
 
-        # Parse arguments using parser's argument parser
+        # Parse arguments and add updated_files for strength aggregation
         parsed_args = cli.parse_arguments(args)
-
-        # Add updated_files to parsed_args for strength aggregation
-        if updated_files:
-            parsed_args.updated_files = updated_files
-        else:
-            parsed_args.updated_files = []
+        parsed_args.updated_files = updated_files if updated_files else []
 
         # Run the parser main logic
         result = cli.main_with_args(parsed_args)
@@ -342,7 +345,11 @@ def _print_sync_results(result: Dict[str, Any]) -> None:
     if result["new_activities"] > 0:
         print(f"   Downloaded {result['new_activities']} new activities")
     print(f"   Summary saved to: {result['csv_path']}")
-    print(f"   Strength sets saved to: {result['strength_csv_path']}")
+
+    # Only mention strength CSV if it was actually created
+    strength_csv_path = Path(result["strength_csv_path"])
+    if strength_csv_path.exists():
+        print(f"   Strength sets saved to: {result['strength_csv_path']}")
 
 
 def main() -> int:
