@@ -281,14 +281,17 @@ def _generate_strength_summary(
 
     # Merge: keep existing rows for unchanged files, add rows for processed files
     if not existing_strength.empty and new_strength is not None:
-        # Get activity IDs from all processed files (including API-updated ones)
-        processed_activity_ids = {
-            Path(f).stem.replace("_ACTIVITY", "") for f in strength_files_to_process
-        }
-        # Keep rows for files that weren't processed
+        # Get activity IDs from NEW strength data (this is what was actually processed)
+        # This ensures we remove old entries for all activities that were re-analyzed
+        # Convert to str to ensure type consistency (CSV loads as int64, new data has str)
+        new_activity_ids = set(str(aid) for aid in new_strength["activity_id"].unique())
+
+        # Keep rows for activities that weren't re-analyzed
+        # Convert existing activity_id to str for comparison (CSV loads as int64, new data has str)
         kept_rows = existing_strength[
-            ~existing_strength["activity_id"].isin(processed_activity_ids)
+            ~existing_strength["activity_id"].astype(str).isin(new_activity_ids)
         ]
+
         result = pd.concat([kept_rows, new_strength], ignore_index=True)
         return result.sort_values(["date", "timestamp"], na_position="last")
     if new_strength is not None:
@@ -344,7 +347,7 @@ def main_with_args(args: argparse.Namespace) -> int:
             except (OSError, pd.errors.ParserError):
                 pass
 
-        # Generate strength summary
+            # Generate strength summary
         df_strength_summary = _generate_strength_summary(args, files_to_process, existing_strength)
 
         if df_strength_summary is not None and not df_strength_summary.empty:
