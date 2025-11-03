@@ -102,7 +102,7 @@ def create_set_record(row: pd.Series, idx: int, metadata: SetMetadata) -> Dict[s
         "repetitions": row.get("repetitions"),
         "weight": row.get("weight"),
         "duration": row.get("duration"),
-        "timestamp": row.get("timestamp"),
+        "timestamp": row.get("start_time"),  # Use start_time for per-set timestamps
     }
 
 
