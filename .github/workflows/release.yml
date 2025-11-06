@@ -16,34 +16,52 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Check if CI passed on this commit
+      - name: Wait for CI to complete
         run: |
           # Get the commit SHA this tag points to
           COMMIT_SHA=$(git rev-parse HEAD)
           echo "Tag points to commit: $COMMIT_SHA"
 
-          # Wait a moment for CI to start (if just pushed)
+          # Wait for CI workflow to start (if just pushed)
+          echo "⏳ Waiting for CI workflow to start..."
           sleep 10
 
-          # Check CI status using GitHub CLI
-          gh run list --commit $COMMIT_SHA --workflow=ci.yml --json conclusion,status,name --limit 1 > ci_status.json
-          cat ci_status.json
+          # Poll for CI completion (max 10 minutes)
+          MAX_WAIT=600
+          WAITED=0
+          POLL_INTERVAL=15
 
-          # Check if CI completed successfully
-          CI_CONCLUSION=$(jq -r '.[0].conclusion // "pending"' ci_status.json)
-          CI_STATUS=$(jq -r '.[0].status // "unknown"' ci_status.json)
+          while [ $WAITED -lt $MAX_WAIT ]; do
+            # Check CI status using GitHub CLI
+            gh run list --commit $COMMIT_SHA --workflow=ci.yml --json conclusion,status,name --limit 1 > ci_status.json
+            
+            CI_CONCLUSION=$(jq -r '.[0].conclusion // "pending"' ci_status.json)
+            CI_STATUS=$(jq -r '.[0].status // "unknown"' ci_status.json)
 
-          echo "CI Status: $CI_STATUS"
-          echo "CI Conclusion: $CI_CONCLUSION"
+            echo "⏱️  CI Status: $CI_STATUS (Conclusion: $CI_CONCLUSION) - Waited ${WAITED}s"
 
-          if [ "$CI_CONCLUSION" != "success" ]; then
-            echo "❌ ERROR: CI has not passed for this commit!"
-            echo "CI must pass before releasing."
-            echo "Current status: $CI_STATUS ($CI_CONCLUSION)"
-            exit 1
-          fi
+            # Check if CI completed
+            if [ "$CI_STATUS" = "completed" ]; then
+              if [ "$CI_CONCLUSION" = "success" ]; then
+                echo "✅ CI passed! Proceeding with release..."
+                exit 0
+              else
+                echo "❌ ERROR: CI failed for this commit!"
+                echo "CI Conclusion: $CI_CONCLUSION"
+                cat ci_status.json
+                exit 1
+              fi
+            fi
 
-          echo "✅ CI passed! Proceeding with release..."
+            # Wait before next check
+            sleep $POLL_INTERVAL
+            WAITED=$((WAITED + POLL_INTERVAL))
+          done
+
+          # Timeout reached
+          echo "❌ ERROR: Timeout waiting for CI to complete (waited ${MAX_WAIT}s)"
+          echo "Current status: $CI_STATUS ($CI_CONCLUSION)"
+          exit 1
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
