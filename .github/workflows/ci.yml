@@ -94,7 +94,7 @@ jobs:
 
       - name: Archive coverage results
         if: matrix.python-version == '3.13'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage-report
           path: htmlcov/
@@ -236,7 +236,7 @@ jobs:
           python -c "from fitanalyzer import summarize_fit_original; print('✅ Main functions importable')"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: dist
           path: dist/
