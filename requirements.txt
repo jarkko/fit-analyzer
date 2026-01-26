@@ -14,4 +14,4 @@ python-dateutil==2.9.0.post0
 pytz==2025.2
 
 # Garmin Connect API
-garth==0.5.18
+garth==0.6.3
