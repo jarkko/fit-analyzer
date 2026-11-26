@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-from dateutil import tz
 from fitparse import FitFile
 
 from fitanalyzer.analysis import calculate_all_data_metrics
@@ -21,6 +20,7 @@ from fitanalyzer.formatting import (
     convert_timestamps_to_utc,
     format_all_data_metrics,
     format_metric_value,
+    to_local_time,
 )
 from fitanalyzer.metrics import np_power, trimp_from_hr
 from fitanalyzer.parser import (
@@ -186,7 +186,7 @@ def summarize_fit_original(
     )
 
     sport, subsport = get_sport_names(extract_sessions_from_fit(ff))
-    start_local = start_utc.astimezone(tz.gettz(config.tz_name))
+    start_local = to_local_time(start_utc, config.tz_name)
 
     result = {
         "file": path,
@@ -194,7 +194,7 @@ def summarize_fit_original(
         "sub_sport": subsport,
         "date": start_local.date().isoformat(),
         "start_time": start_local.strftime("%Y-%m-%d %H:%M:%S"),
-        "end_time": end_utc.astimezone(tz.gettz(config.tz_name)).strftime("%Y-%m-%d %H:%M:%S"),
+        "end_time": to_local_time(end_utc, config.tz_name).strftime("%Y-%m-%d %H:%M:%S"),
         "duration_min": round(metrics["dur_sec"] / 60.0, 1),
         "IF": format_metric_value(metrics["IF"], 3),
         "TSS": format_metric_value(metrics["TSS"], 1),

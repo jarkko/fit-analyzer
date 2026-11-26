@@ -5,11 +5,33 @@ This module provides common formatting functions to avoid code duplication
 between activities and sessions modules.
 """
 
-from typing import Any, Dict, Tuple
+from datetime import datetime, tzinfo
+from typing import Any, Dict, Optional, Tuple
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import numpy as np
 import pandas as pd
 from dateutil import tz
+
+
+def local_zone(tz_name: str) -> Optional[tzinfo]:
+    """Return the tzinfo for an IANA zone name such as "Europe/Helsinki".
+
+    Uses the stdlib zoneinfo database. pandas 2.x cannot convert Timestamps with
+    python-dateutil 3 tzfile objects (it silently returns the UTC wall time), so
+    dateutil is only the fallback for names zoneinfo does not know. Returns None
+    (meaning the system zone) when neither knows the name.
+    """
+    try:
+        return ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        zone: Optional[tzinfo] = tz.gettz(tz_name)
+        return zone
+
+
+def to_local_time(timestamp: datetime, tz_name: str) -> datetime:
+    """Convert a timezone-aware timestamp to the zone ``tz_name``."""
+    return timestamp.astimezone(local_zone(tz_name))
 
 
 def calculate_basic_hr_power_metrics(df: pd.DataFrame) -> Dict[str, float]:
