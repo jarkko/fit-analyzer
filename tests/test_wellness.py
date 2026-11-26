@@ -6,6 +6,7 @@ responses shaped like the real Garmin Connect API.
 """
 
 import csv
+import os
 import tempfile
 import unittest
 from datetime import date
@@ -14,17 +15,30 @@ from typing import Any, Dict, List, Optional
 from unittest.mock import Mock, patch
 
 from requests import ConnectionError as RequestsConnectionError
-from requests import HTTPError
+from requests import HTTPError, Response
 
 from fitanalyzer.garth_utils import GarthHTTPError
-from fitanalyzer.wellness import WELLNESS_FIELDS, fetch_daily_wellness, sync_wellness
+from fitanalyzer.wellness import (
+    WELLNESS_FIELDS,
+    WellnessAuthError,
+    WellnessSyncError,
+    fetch_daily_wellness,
+    sync_wellness,
+)
 
 USERNAME = "test-user"
+SLEEP_PATH = f"/wellness-service/wellness/dailySleepData/{USERNAME}?nonSleepBufferMinutes=60&date="
+RHR_PATH = "/usersummary-service/usersummary/daily/?calendarDate="
+OAUTH_ASSERTION = "OAuth1 token is required for API requests"
 
 
-def _http_error() -> Exception:
-    """Build a GarthHTTPError the way garth raises it."""
-    return GarthHTTPError(msg="Error in request", error=HTTPError("500 Server Error"))
+def _http_error(status: int = 500) -> Exception:
+    """Build a GarthHTTPError the way garth raises it, with an HTTP status code."""
+    response = Response()
+    response.status_code = status
+    return GarthHTTPError(
+        msg="Error in request", error=HTTPError(f"{status} Error", response=response)
+    )
 
 
 def _hrv_summary(
@@ -114,7 +128,7 @@ class TestFetchDailyWellness(unittest.TestCase):
         self, api: FakeGarminApi, start: date, end: date, **kwargs: Any
     ) -> List[Dict[str, Any]]:
         with patch("fitanalyzer.wellness.garth", _mock_garth(api, **kwargs)):
-            return fetch_daily_wellness(start, end)
+            return fetch_daily_wellness(start, end, request_delay=0)
 
     def test_returns_one_row_per_day_with_all_fields(self) -> None:
         rows = self._fetch(_populated_api(), date(2026, 11, 19), date(2026, 11, 20))
@@ -228,41 +242,116 @@ class TestFetchDailyWellness(unittest.TestCase):
             ],
         )
 
-    def test_hrv_api_error_keeps_other_fields(self) -> None:
+    def test_hrv_page_error_keeps_other_pages_and_fields(self) -> None:
         api = _populated_api()
-        api.errors["/hrv-service/"] = _http_error()
-        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
-        self.assertEqual([r["hrv_last_night_avg"] for r in rows], [None, None])
-        self.assertEqual([r["resting_hr"] for r in rows], [51, 55])
-        self.assertEqual([r["sleep_score"] for r in rows], [75, 83])
+        api.errors["/hrv-service/hrv/daily/2026-10-23/"] = _http_error()
+        rows = self._fetch(api, date(2026, 10, 23), date(2026, 11, 20))
+        self.assertIsNone(rows[-2]["hrv_last_night_avg"])
+        self.assertEqual(rows[-1]["hrv_last_night_avg"], 35)
+        self.assertEqual([r["resting_hr"] for r in rows[-2:]], [51, 55])
 
-    def test_resting_hr_api_error_keeps_other_fields(self) -> None:
+    def test_resting_hr_error_on_one_day_keeps_other_days_and_fields(self) -> None:
         api = _populated_api()
-        api.errors["/usersummary-service/"] = _http_error()
-        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 19))
-        self.assertIsNone(rows[0]["resting_hr"])
+        api.errors[RHR_PATH + "2026-11-19"] = _http_error()
+        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+        self.assertEqual([r["resting_hr"] for r in rows], [None, 55])
         self.assertEqual(rows[0]["hrv_last_night_avg"], 46)
         self.assertEqual(rows[0]["sleep_seconds"], 25860)
 
-    def test_sleep_api_error_keeps_other_fields(self) -> None:
+    def test_sleep_error_on_one_day_keeps_other_days_and_fields(self) -> None:
         api = _populated_api()
-        api.errors["/wellness-service/"] = _http_error()
-        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 19))
-        self.assertIsNone(rows[0]["sleep_seconds"])
+        api.errors[SLEEP_PATH + "2026-11-19"] = _http_error()
+        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+        self.assertEqual([r["sleep_seconds"] for r in rows], [None, 27000])
         self.assertIsNone(rows[0]["sleep_score"])
         self.assertEqual(rows[0]["resting_hr"], 51)
 
-    def test_network_error_is_handled(self) -> None:
+    def test_network_error_on_one_day_is_handled(self) -> None:
         api = _populated_api()
-        api.errors["/usersummary-service/"] = RequestsConnectionError("connection reset")
-        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 19))
-        self.assertIsNone(rows[0]["resting_hr"])
+        api.errors[RHR_PATH + "2026-11-19"] = RequestsConnectionError("connection reset")
+        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+        self.assertEqual([r["resting_hr"] for r in rows], [None, 55])
 
-    def test_invalid_json_is_handled(self) -> None:
+    def test_invalid_json_on_one_day_is_handled(self) -> None:
         api = _populated_api()
-        api.errors["/hrv-service/"] = ValueError("Expecting value")
-        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 19))
-        self.assertIsNone(rows[0]["hrv_status"])
+        api.errors[SLEEP_PATH + "2026-11-20"] = ValueError("Expecting value")
+        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+        self.assertEqual([r["sleep_seconds"] for r in rows], [25860, None])
+
+    def test_per_day_miss_is_logged_as_warning(self) -> None:
+        api = _populated_api()
+        api.errors[RHR_PATH + "2026-11-19"] = _http_error()
+        with self.assertLogs("fitanalyzer.wellness", level="WARNING") as logs:
+            self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+        self.assertIn(RHR_PATH + "2026-11-19", "\n".join(logs.output))
+
+    def test_hrv_failing_for_whole_range_raises(self) -> None:
+        api = _populated_api()
+        api.errors["/hrv-service/"] = _http_error()
+        with self.assertRaisesRegex(WellnessSyncError, "HRV"):
+            self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+
+    def test_resting_hr_failing_every_day_raises(self) -> None:
+        api = _populated_api()
+        api.errors["/usersummary-service/"] = _http_error()
+        with self.assertRaisesRegex(WellnessSyncError, "resting HR"):
+            self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+
+    def test_sleep_failing_every_day_raises(self) -> None:
+        api = _populated_api()
+        api.errors["/wellness-service/"] = RequestsConnectionError("offline")
+        with self.assertRaisesRegex(WellnessSyncError, "sleep"):
+            self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+
+    def test_auth_and_rate_limit_errors_are_raised(self) -> None:
+        for status in (401, 403, 429):
+            with self.subTest(status=status):
+                api = _populated_api()
+                api.errors[RHR_PATH + "2026-11-20"] = _http_error(status)
+                with self.assertRaises(GarthHTTPError) as ctx:
+                    self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+                self.assertEqual(ctx.exception.error.response.status_code, status)
+
+    def test_missing_oauth_token_raises_auth_error(self) -> None:
+        api = _populated_api()
+        api.errors["/hrv-service/"] = AssertionError(OAUTH_ASSERTION)
+        with self.assertRaisesRegex(WellnessAuthError, "authenticate_garmin"):
+            self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+
+    def test_other_assertion_from_garth_is_a_request_failure(self) -> None:
+        api = _populated_api()
+        api.errors[RHR_PATH + "2026-11-19"] = AssertionError("Expected dict")
+        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+        self.assertEqual([r["resting_hr"] for r in rows], [None, 55])
+
+    def test_waits_between_per_day_requests(self) -> None:
+        with patch("fitanalyzer.wellness.garth", _mock_garth(_populated_api())):
+            with patch("fitanalyzer.wellness.time.sleep") as sleep:
+                fetch_daily_wellness(date(2026, 11, 18), date(2026, 11, 20), request_delay=0.3)
+        self.assertEqual([c.args for c in sleep.call_args_list], [(0.3,), (0.3,)])
+
+    def test_default_request_delay_is_between_point_two_and_half_second(self) -> None:
+        with patch("fitanalyzer.wellness.garth", _mock_garth(_populated_api())):
+            with patch("fitanalyzer.wellness.time.sleep") as sleep:
+                fetch_daily_wellness(date(2026, 11, 19), date(2026, 11, 20))
+        (delay,) = sleep.call_args.args
+        self.assertTrue(0.2 <= delay <= 0.5)
+
+    def test_zero_delay_does_not_sleep(self) -> None:
+        with patch("fitanalyzer.wellness.garth", _mock_garth(_populated_api())):
+            with patch("fitanalyzer.wellness.time.sleep") as sleep:
+                fetch_daily_wellness(date(2026, 11, 19), date(2026, 11, 20), request_delay=0)
+        sleep.assert_not_called()
+
+    def test_hrv_from_later_pages_lands_in_rows(self) -> None:
+        api = _populated_api()
+        api.hrv["2026-10-15"] = _hrv_summary("2026-10-15", 40, 41, "BALANCED")
+        api.hrv["2026-11-26"] = _hrv_summary("2026-11-26", 55, 42, "BALANCED")
+        rows = {r["date"]: r for r in self._fetch(api, date(2026, 10, 1), date(2026, 11, 26))}
+        self.assertEqual(rows["2026-10-15"]["hrv_last_night_avg"], 40)  # page 1
+        self.assertEqual(rows["2026-11-19"]["hrv_last_night_avg"], 46)  # page 2
+        self.assertEqual(rows["2026-11-20"]["hrv_status"], "UNBALANCED")  # page 2
+        self.assertEqual(rows["2026-11-26"]["hrv_last_night_avg"], 55)  # page 3
 
     def test_unexpected_response_types_are_ignored(self) -> None:
         api = FakeGarminApi()
@@ -278,16 +367,26 @@ class TestFetchDailyWellness(unittest.TestCase):
         rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 19))
         self.assertIsNone(rows[0]["hrv_status"])
 
-    def test_username_lookup_failure_skips_sleep_only(self) -> None:
+    def test_username_lookup_failure_raises_sleep_error(self) -> None:
         def failing_username() -> str:
             raise _http_error()
 
-        rows = self._fetch(
-            _populated_api(), date(2026, 11, 19), date(2026, 11, 19), username=failing_username
-        )
-        self.assertIsNone(rows[0]["sleep_seconds"])
-        self.assertEqual(rows[0]["resting_hr"], 51)
-        self.assertEqual(rows[0]["hrv_last_night_avg"], 46)
+        with self.assertRaisesRegex(WellnessSyncError, "sleep"):
+            self._fetch(
+                _populated_api(), date(2026, 11, 19), date(2026, 11, 19), username=failing_username
+            )
+
+    def test_username_lookup_without_oauth_token_raises_auth_error(self) -> None:
+        def unauthenticated_username() -> str:
+            raise AssertionError(OAUTH_ASSERTION)
+
+        with self.assertRaises(WellnessAuthError):
+            self._fetch(
+                _populated_api(),
+                date(2026, 11, 19),
+                date(2026, 11, 19),
+                username=unauthenticated_username,
+            )
 
     def test_raises_import_error_without_garth(self) -> None:
         with patch("fitanalyzer.wellness.garth", None):
@@ -296,7 +395,7 @@ class TestFetchDailyWellness(unittest.TestCase):
 
 
 def _read_csv(path: Path) -> List[Dict[str, str]]:
-    with path.open(newline="", encoding="utf-8") as f:
+    with path.open(newline="", encoding="utf-8-sig") as f:
         return list(csv.DictReader(f))
 
 
@@ -337,12 +436,14 @@ class TestSyncWellness(unittest.TestCase):
 
     def test_fetch_window_covers_days_ending_at_end(self) -> None:
         fetch, _ = self._sync([], days=14, end=date(2026, 11, 26))
-        fetch.assert_called_once_with(date(2026, 11, 13), date(2026, 11, 26))
+        fetch.assert_called_once()
+        self.assertEqual(fetch.call_args.args, (date(2026, 11, 13), date(2026, 11, 26)))
 
     def test_end_defaults_to_today(self) -> None:
         with patch("fitanalyzer.wellness.fetch_daily_wellness", return_value=[]) as fetch:
             sync_wellness(self.csv_path, 1)
-        fetch.assert_called_once_with(date.today(), date.today())
+        fetch.assert_called_once()
+        self.assertEqual(fetch.call_args.args, (date.today(), date.today()))
 
     def test_accepts_string_path(self) -> None:
         with patch(
@@ -390,11 +491,125 @@ class TestSyncWellness(unittest.TestCase):
         self._sync([self._row("2026-11-19", resting_hr=51)])
         self.assertEqual(len(_read_csv(self.csv_path)), 1)
 
-    def test_existing_rows_without_date_are_dropped(self) -> None:
+    def _write_existing(self, text: str, encoding: str = "utf-8") -> None:
         self.csv_path.parent.mkdir(parents=True)
-        self.csv_path.write_text(",".join(WELLNESS_FIELDS) + "\n,,,,51,,\n", encoding="utf-8")
+        self.csv_path.write_text(text, encoding=encoding)
+
+    def test_existing_rows_without_date_are_dropped(self) -> None:
+        header = ",".join(WELLNESS_FIELDS)
+        self._write_existing(f"{header}\n2026-11-18,,,,50,,\n,,,,51,,\n")
+        self._sync([self._row("2026-11-19", resting_hr=51)])
+        self.assertEqual(
+            [r["date"] for r in _read_csv(self.csv_path)], ["2026-11-18", "2026-11-19"]
+        )
+
+    def test_existing_file_with_bom_keeps_its_rows(self) -> None:
+        header = ",".join(WELLNESS_FIELDS)
+        self._write_existing(f"{header}\n2026-11-18,,,,50,,\n", encoding="utf-8-sig")
+        self._sync([self._row("2026-11-19", resting_hr=51)])
+        self.assertEqual(
+            [(r["date"], r["resting_hr"]) for r in _read_csv(self.csv_path)],
+            [("2026-11-18", "50"), ("2026-11-19", "51")],
+        )
+
+    def test_extra_columns_and_their_values_are_preserved(self) -> None:
+        header = ",".join(WELLNESS_FIELDS + ["notes"])
+        self._write_existing(f"{header}\n2026-11-19,,,,50,,,felt rough\n")
+        self._sync([self._row("2026-11-19", resting_hr=51), self._row("2026-11-20")])
+        with self.csv_path.open(encoding="utf-8") as f:
+            self.assertEqual(f.readline().strip().split(","), WELLNESS_FIELDS + ["notes"])
+        written = _read_csv(self.csv_path)
+        self.assertEqual(written[0]["notes"], "felt rough")
+        self.assertEqual(written[0]["resting_hr"], "51")
+        self.assertEqual(written[1]["notes"], "")
+
+    def test_duplicate_existing_dates_collapse_into_one_row(self) -> None:
+        header = ",".join(WELLNESS_FIELDS)
+        self._write_existing(f"{header}\n2026-11-18,40,,,50,,\n2026-11-18,,,,,,80\n")
+        self._sync([self._row("2026-11-19")])
+        written = _read_csv(self.csv_path)
+        self.assertEqual([r["date"] for r in written], ["2026-11-18", "2026-11-19"])
+        self.assertEqual(
+            (written[0]["hrv_last_night_avg"], written[0]["resting_hr"], written[0]["sleep_score"]),
+            ("40", "50", "80"),
+        )
+
+    def test_non_empty_file_without_date_column_raises_and_is_untouched(self) -> None:
+        original = "this is not\nthe wellness csv\n"
+        self._write_existing(original)
+        with self.assertRaises(WellnessSyncError):
+            self._sync([self._row("2026-11-19", resting_hr=51)])
+        self.assertEqual(self.csv_path.read_text(encoding="utf-8"), original)
+
+    def test_non_empty_file_with_no_dated_rows_raises_and_is_untouched(self) -> None:
+        original = ",".join(WELLNESS_FIELDS) + "\n,,,,51,,\n"
+        self._write_existing(original)
+        with self.assertRaises(WellnessSyncError):
+            self._sync([self._row("2026-11-19", resting_hr=51)])
+        self.assertEqual(self.csv_path.read_text(encoding="utf-8"), original)
+
+    def test_empty_existing_file_is_replaced(self) -> None:
+        self._write_existing("")
         self._sync([self._row("2026-11-19", resting_hr=51)])
         self.assertEqual([r["date"] for r in _read_csv(self.csv_path)], ["2026-11-19"])
+
+    def test_write_is_atomic_via_os_replace(self) -> None:
+        self._sync([self._row("2026-11-18", resting_hr=50)])
+        with patch("fitanalyzer.wellness.os.replace", side_effect=OSError("disk full")):
+            with self.assertRaises(OSError):
+                self._sync([self._row("2026-11-19", resting_hr=51)])
+        self.assertEqual([r["date"] for r in _read_csv(self.csv_path)], ["2026-11-18"])
+        self.assertEqual(os.listdir(self.csv_path.parent), [self.csv_path.name])
+
+    def test_fetch_error_leaves_csv_untouched(self) -> None:
+        self._sync([self._row("2026-11-18", resting_hr=50)])
+        before = self.csv_path.read_text(encoding="utf-8")
+        with patch(
+            "fitanalyzer.wellness.fetch_daily_wellness",
+            side_effect=WellnessSyncError("resting HR failed"),
+        ):
+            with self.assertRaises(WellnessSyncError):
+                sync_wellness(self.csv_path, 2, end=date(2026, 11, 20))
+        self.assertEqual(self.csv_path.read_text(encoding="utf-8"), before)
+
+    def test_request_delay_is_passed_to_fetch(self) -> None:
+        with patch("fitanalyzer.wellness.fetch_daily_wellness", return_value=[]) as fetch:
+            sync_wellness(self.csv_path, 2, end=date(2026, 11, 20), request_delay=0.4)
+        fetch.assert_called_once_with(date(2026, 11, 19), date(2026, 11, 20), request_delay=0.4)
+
+
+class TestSyncWellnessEndToEnd(unittest.TestCase):
+    """fetch + CSV upsert together, through the fake Garmin router."""
+
+    def test_sync_writes_fetched_values_to_csv(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "wellness_daily.csv"
+            with patch("fitanalyzer.wellness.garth", _mock_garth(_populated_api())):
+                sync_wellness(csv_path, 2, end=date(2026, 11, 20), request_delay=0)
+            written = _read_csv(csv_path)
+        self.assertEqual(
+            written,
+            [
+                {
+                    "date": "2026-11-19",
+                    "hrv_last_night_avg": "46",
+                    "hrv_weekly_avg": "43",
+                    "hrv_status": "BALANCED",
+                    "resting_hr": "51",
+                    "sleep_seconds": "25860",
+                    "sleep_score": "75",
+                },
+                {
+                    "date": "2026-11-20",
+                    "hrv_last_night_avg": "35",
+                    "hrv_weekly_avg": "42",
+                    "hrv_status": "UNBALANCED",
+                    "resting_hr": "55",
+                    "sleep_seconds": "27000",
+                    "sleep_score": "83",
+                },
+            ],
+        )
 
 
 if __name__ == "__main__":
