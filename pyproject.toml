@@ -39,6 +39,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "pytest-mock>=3.0.0",
     "pytest-xdist>=3.0.0",
+    "packaging>=24.0",  # tests/test_version.py parses requirement specifiers
     "flake8>=7.0.0",
     "flake8-functions>=0.0.8",  # Enforce function length limits
     "black>=24.0.0",

@@ -60,7 +60,16 @@ def test_local_zone_returns_zoneinfo_for_iana_names() -> None:
 
 @pytest.mark.parametrize(
     "name",
-    ["Europe/Helsenki", "Not/A_Zone", "EST5EDT,M3.2.0,M11.1.0", "", "../etc/passwd"],
+    [
+        "Europe/Helsenki",
+        "Not/A_Zone",
+        "EST5EDT,M3.2.0,M11.1.0",
+        "",
+        "../etc/passwd",
+        "a" * 300,  # OSError "File name too long" from the tz database lookup
+        "Europe/" + "a" * 300,
+        "zone.tab",  # a file in the tz database that is not a zone
+    ],
 )
 def test_local_zone_rejects_names_zoneinfo_does_not_know(name: str) -> None:
     with pytest.raises(ValueError, match="IANA"):

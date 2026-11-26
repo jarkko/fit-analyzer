@@ -26,11 +26,14 @@ def local_zone(tz_name: str) -> ZoneInfo:
 
     Raises:
         ValueError: If ``tz_name`` is not an IANA zone name zoneinfo knows (a typo,
-            a POSIX TZ string such as "EST5EDT,M3.2.0,M11.1.0", or an empty name).
+            a POSIX TZ string such as "EST5EDT,M3.2.0,M11.1.0", an empty name, or one
+            too long for the file system).
     """
     try:
         return ZoneInfo(tz_name)
-    except (ZoneInfoNotFoundError, ValueError) as e:
+    except (ZoneInfoNotFoundError, ValueError, OSError) as e:
+        # OSError: the tz database lookup opens a file named after the key, which fails
+        # with "File name too long" for an over-long name
         raise ValueError(
             f"Unknown time zone {tz_name!r}: use an IANA name such as 'Europe/Helsinki'"
         ) from e
