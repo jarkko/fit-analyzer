@@ -470,6 +470,16 @@ class TestFetchDailyWellness(unittest.TestCase):
                 fetch_daily_wellness(date(2026, 11, 19), date(2026, 11, 19))
 
 
+def _fetch_returning(rows: List[Dict[str, Any]]) -> Any:
+    """Stand-in for fetch_daily_wellness that reports ``rows`` through ``progress``."""
+
+    def fetch(*_args: Any, progress: List[Dict[str, Any]], **_kwargs: Any) -> List[Dict[str, Any]]:
+        progress.extend(rows)
+        return progress
+
+    return fetch
+
+
 def _read_csv(path: Path) -> List[Dict[str, str]]:
     with path.open(newline="", encoding="utf-8-sig") as f:
         return list(csv.DictReader(f))
@@ -488,7 +498,9 @@ class TestSyncWellness(unittest.TestCase):
     def _sync(
         self, rows: List[Dict[str, Any]], days: int = 2, end: date = date(2026, 11, 20)
     ) -> Any:
-        with patch("fitanalyzer.wellness.fetch_daily_wellness", return_value=rows) as fetch:
+        with patch(
+            "fitanalyzer.wellness.fetch_daily_wellness", side_effect=_fetch_returning(rows)
+        ) as fetch:
             result = sync_wellness(self.csv_path, days, end=end)
         return fetch, result
 
@@ -516,14 +528,17 @@ class TestSyncWellness(unittest.TestCase):
         self.assertEqual(fetch.call_args.args, (date(2026, 11, 13), date(2026, 11, 26)))
 
     def test_end_defaults_to_today(self) -> None:
-        with patch("fitanalyzer.wellness.fetch_daily_wellness", return_value=[]) as fetch:
+        with patch(
+            "fitanalyzer.wellness.fetch_daily_wellness", side_effect=_fetch_returning([])
+        ) as fetch:
             sync_wellness(self.csv_path, 1)
         fetch.assert_called_once()
         self.assertEqual(fetch.call_args.args, (date.today(), date.today()))
 
     def test_accepts_string_path(self) -> None:
         with patch(
-            "fitanalyzer.wellness.fetch_daily_wellness", return_value=[self._row("2026-11-19")]
+            "fitanalyzer.wellness.fetch_daily_wellness",
+            side_effect=_fetch_returning([self._row("2026-11-19")]),
         ):
             sync_wellness(str(self.csv_path), 1, end=date(2026, 11, 19))
         self.assertTrue(self.csv_path.exists())
@@ -702,7 +717,9 @@ class TestSyncWellness(unittest.TestCase):
         )
 
     def test_request_delay_is_passed_to_fetch(self) -> None:
-        with patch("fitanalyzer.wellness.fetch_daily_wellness", return_value=[]) as fetch:
+        with patch(
+            "fitanalyzer.wellness.fetch_daily_wellness", side_effect=_fetch_returning([])
+        ) as fetch:
             sync_wellness(self.csv_path, 2, end=date(2026, 11, 20), request_delay=0.4)
         fetch.assert_called_once_with(
             date(2026, 11, 19), date(2026, 11, 20), request_delay=0.4, progress=ANY

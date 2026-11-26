@@ -13,11 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `fetch_daily_wellness(start, end)` returns one row per day with overnight HRV
     (last-night and weekly average, status), resting heart rate, sleep duration and sleep score
   - `sync_wellness(csv_path, days)` upserts those rows by date into a CSV. Missing values never
-    overwrite stored ones, extra columns are kept, and the file is written atomically
+    overwrite stored ones, extra columns are kept, and the file is written atomically (through
+    a symlink, if the CSV is one; a new file gets the usual umask-based permissions)
   - A missing day or a failed request for one day yields empty values (logged as a warning)
   - Raises `WellnessSyncError` when a whole source (HRV, resting HR or sleep) fails for every
     day, or when an existing CSV is unreadable; `WellnessAuthError` when the garth session is
-    not authenticated; 401/403/429 responses are re-raised
+    not authenticated or its token refresh is rejected; 429 responses are re-raised. Days
+    fetched before the error are written to the CSV first (`fetch_daily_wellness` reports them
+    through its `progress` list)
   - Waits 0.3 s between per-day requests (`request_delay`) to avoid rate limiting
 
 ## [0.2.0] - 2025-11-01

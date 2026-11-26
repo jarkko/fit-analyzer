@@ -140,6 +140,9 @@ Each row has `date`, `hrv_last_night_avg`, `hrv_weekly_avg`, `hrv_status`, `rest
 `sleep_seconds` and `sleep_score`. A value is empty (None) when Garmin has no data for it or
 the request failed. Re-syncing never erases a stored value with an empty one.
 
+If a sync stops part way (a source failed for every day, or Garmin answered 401, 403 or 429),
+the days fetched so far are still written to the CSV before the error is raised.
+
 ### Extract Strength Training Data
 
 FIT Analyzer can extract detailed strength training sets including weights, repetitions, and exercise categories:

@@ -18,6 +18,8 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
+from requests import HTTPError as RequestsHTTPError
+
 from .garth_utils import GarthHTTPError, garth
 
 __all__ = [
@@ -47,7 +49,8 @@ HRV_PAGE_DAYS = 28
 REQUEST_DELAY_SECONDS = 0.3
 
 # Auth and rate-limit responses mean every later request will fail too: stop at once.
-FATAL_HTTP_STATUSES = frozenset({401, 403, 429})
+AUTH_HTTP_STATUSES = frozenset({401, 403})
+FATAL_HTTP_STATUSES = AUTH_HTTP_STATUSES | {429}
 
 SOURCE_HRV = "HRV"
 SOURCE_RESTING_HR = "resting HR"
@@ -69,7 +72,8 @@ class _RequestFailed(Exception):
 
 
 def _http_status(error: Exception) -> Optional[int]:
-    response = getattr(getattr(error, "error", None), "response", None)
+    """Status code of a GarthHTTPError (wraps ``.error``) or a bare requests.HTTPError."""
+    response = getattr(getattr(error, "error", error), "response", None)
     status = getattr(response, "status_code", None)
     return status if isinstance(status, int) else None
 
@@ -83,8 +87,9 @@ def _guarded(call: Callable[[], Any], what: str) -> Any:
     """Run a garth call, turning recoverable errors into ``_RequestFailed``.
 
     Raises:
-        WellnessAuthError: garth has no OAuth token (not authenticated).
+        WellnessAuthError: garth has no OAuth token, or refreshing it was rejected.
         GarthHTTPError: on 401, 403 or 429, which no retry of another day would fix.
+        requests.HTTPError: on 429 while garth refreshes its token.
         _RequestFailed: on any other HTTP, network or JSON error.
     """
     try:
@@ -94,6 +99,17 @@ def _guarded(call: Callable[[], Any], what: str) -> Any:
             raise WellnessAuthError(
                 f"Garmin session is not authenticated ({e}); call authenticate_garmin() first"
             ) from e
+        raise _request_failed(what, e) from e
+    except RequestsHTTPError as e:
+        # garth refreshes an expired OAuth2 token before its GarthHTTPError wrapper, so
+        # sso.exchange's HTTPError arrives bare. It must be checked before OSError.
+        status = _http_status(e)
+        if status in AUTH_HTTP_STATUSES:
+            raise WellnessAuthError(
+                f"Garmin rejected the session token ({e}); call authenticate_garmin() again"
+            ) from e
+        if status in FATAL_HTTP_STATUSES:
+            raise
         raise _request_failed(what, e) from e
     except (OSError, ValueError, KeyError) as e:
         raise _request_failed(what, e) from e
@@ -163,10 +179,10 @@ def _username() -> Optional[str]:
         return None
 
 
-def _source_failed(source: str, start: date, end: date) -> WellnessSyncError:
+def _sources_failed(sources: List[str], start: date, end: date) -> WellnessSyncError:
     return WellnessSyncError(
-        f"Garmin {source} requests failed for every day {start}..{end}; "
-        "not writing empty rows (see the warnings above)"
+        f"Garmin {' and '.join(sources)} requests failed for every day {start}..{end} "
+        "(see the warnings above)"
     )
 
 
@@ -178,19 +194,25 @@ def _try_source(fetch: Callable[[], Row], source: str, failures: "Counter[str]")
         return {}
 
 
-def _fetch_day(day: date, hrv: Row, username: str, failures: "Counter[str]") -> Row:
+def _fetch_day(day: date, hrv: Row, username: Optional[str], failures: "Counter[str]") -> Row:
     row: Row = {field: None for field in WELLNESS_FIELDS}
     row["date"] = day.isoformat()
     row["hrv_last_night_avg"] = hrv.get("lastNightAvg")
     row["hrv_weekly_avg"] = hrv.get("weeklyAvg")
     row["hrv_status"] = hrv.get("status")
     row.update(_try_source(partial(_fetch_resting_hr, day), SOURCE_RESTING_HR, failures))
-    row.update(_try_source(partial(_fetch_sleep, day, username), SOURCE_SLEEP, failures))
+    if username is None:
+        failures[SOURCE_SLEEP] += 1  # the sleep endpoint needs the username
+    else:
+        row.update(_try_source(partial(_fetch_sleep, day, username), SOURCE_SLEEP, failures))
     return row
 
 
 def fetch_daily_wellness(
-    start: date, end: date, request_delay: float = REQUEST_DELAY_SECONDS
+    start: date,
+    end: date,
+    request_delay: float = REQUEST_DELAY_SECONDS,
+    progress: Optional[List[Row]] = None,
 ) -> List[Row]:
     """Fetch daily wellness metrics from Garmin Connect for ``start``..``end`` (inclusive).
 
@@ -200,6 +222,8 @@ def fetch_daily_wellness(
         start: First calendar day to fetch.
         end: Last calendar day to fetch.
         request_delay: Seconds to wait between per-day requests (0 disables the wait).
+        progress: Optional list that each day's row is appended to as soon as it is
+            fetched, so the caller keeps the finished days when this function raises.
 
     Returns:
         One dict per day, in date order, with the keys in ``WELLNESS_FIELDS``:
@@ -213,30 +237,30 @@ def fetch_daily_wellness(
         ValueError: If ``start`` is after ``end``.
         WellnessAuthError: If the garth session is not authenticated.
         WellnessSyncError: If one source (HRV, resting HR or sleep) failed for every day.
+            Raised after every day was fetched; the rows are in ``progress``.
         GarthHTTPError: On a 401, 403 or 429 response from Garmin.
+        requests.HTTPError: On a 429 while garth refreshes its OAuth token.
     """
     if garth is None:
         raise ImportError("garth library not available")
     if start > end:
         raise ValueError(f"start ({start}) must not be after end ({end})")
 
-    hrv_by_day = _fetch_hrv(start, end)
-    if hrv_by_day is None:
-        raise _source_failed(SOURCE_HRV, start, end)
-    username = _username()
-    if username is None:
-        raise _source_failed(SOURCE_SLEEP, start, end)
-
+    rows: List[Row] = [] if progress is None else progress
     days = _date_range(start, end)
     failures: "Counter[str]" = Counter()
-    rows = []
+    hrv_by_day = _fetch_hrv(start, end)
+    if hrv_by_day is None:
+        failures[SOURCE_HRV] = len(days)
+    username = _username()
     for i, day in enumerate(days):
         if i and request_delay > 0:
             time.sleep(request_delay)
-        rows.append(_fetch_day(day, hrv_by_day.get(day.isoformat(), {}), username, failures))
-    for source in (SOURCE_RESTING_HR, SOURCE_SLEEP):
-        if failures[source] == len(days):
-            raise _source_failed(source, start, end)
+        hrv = (hrv_by_day or {}).get(day.isoformat(), {})
+        rows.append(_fetch_day(day, hrv, username, failures))
+    failed = [s for s in (SOURCE_HRV, SOURCE_RESTING_HR, SOURCE_SLEEP) if failures[s] == len(days)]
+    if failed:
+        raise _sources_failed(failed, start, end)
     return rows
 
 
@@ -277,8 +301,20 @@ def _read_csv_rows(path: Path) -> Tuple[List[str], Dict[str, Row]]:
     return header, rows
 
 
+def _default_file_mode() -> int:
+    """Mode a plain ``open(path, "w")`` would give a new file: 0o666 minus the umask."""
+    umask = os.umask(0)
+    os.umask(umask)
+    return 0o666 & ~umask
+
+
 def _write_csv_rows(path: Path, header: List[str], rows: Dict[str, Row]) -> None:
-    """Write rows sorted by date, atomically (temp file in the same directory + os.replace)."""
+    """Write rows sorted by date, atomically (temp file in the same directory + os.replace).
+
+    A symlinked ``path`` is resolved first, so the link's target is updated and the
+    link stays. A new file gets the usual umask-based mode; an existing one keeps its mode.
+    """
+    path = Path(os.path.realpath(path))
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
     try:
@@ -289,6 +325,8 @@ def _write_csv_rows(path: Path, header: List[str], rows: Dict[str, Row]) -> None
                 writer.writerow(rows[day])
         if path.exists():
             shutil.copymode(path, tmp_name)
+        else:
+            os.chmod(tmp_name, _default_file_mode())
         os.replace(tmp_name, path)
     finally:
         if os.path.exists(tmp_name):
@@ -312,7 +350,9 @@ def sync_wellness(
     does not wipe what an earlier sync stored. The flip side is that a value Garmin
     later deletes stays in the CSV until it is edited by hand.
 
-    The file is written atomically, and nothing is written if the fetch raises.
+    The file is written atomically. If the fetch fails part way (a source failed for
+    every day, or Garmin answered 401/403/429), the days fetched so far are written
+    first and the error is raised after that.
 
     Args:
         csv_path: CSV file to create or update (parent directories are created).
@@ -334,9 +374,17 @@ def sync_wellness(
     path = Path(csv_path)
     header, rows = _read_csv_rows(path)
 
-    fetched = fetch_daily_wellness(end - timedelta(days=days - 1), end, request_delay=request_delay)
-    for row in fetched:
-        rows[row["date"]] = _merge_row(rows.get(row["date"]), row)
-    extra_columns = [column for column in header if column not in WELLNESS_FIELDS]
-    _write_csv_rows(path, WELLNESS_FIELDS + extra_columns, rows)
+    fetched: List[Row] = []
+    try:
+        fetch_daily_wellness(
+            end - timedelta(days=days - 1), end, request_delay=request_delay, progress=fetched
+        )
+    finally:
+        if fetched:
+            for row in fetched:
+                rows[row["date"]] = _merge_row(rows.get(row["date"]), row)
+            extra_columns = [
+                column for column in dict.fromkeys(header) if column not in WELLNESS_FIELDS
+            ]
+            _write_csv_rows(path, WELLNESS_FIELDS + extra_columns, rows)
     return fetched
