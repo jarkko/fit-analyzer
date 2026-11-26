@@ -311,14 +311,24 @@ class TestFetchDailyWellness(unittest.TestCase):
         with self.assertRaisesRegex(WellnessSyncError, "sleep"):
             self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
 
-    def test_auth_and_rate_limit_errors_are_raised(self) -> None:
-        for status in (401, 403, 429):
+    def test_auth_errors_from_api_raise_auth_error(self) -> None:
+        # One auth exception for callers, whether garth wrapped the HTTPError or not
+        for status in (401, 403):
             with self.subTest(status=status):
                 api = _populated_api()
                 api.errors[RHR_PATH + "2026-11-20"] = _http_error(status)
-                with self.assertRaises(GarthHTTPError) as ctx:
+                with self.assertRaisesRegex(WellnessAuthError, "authenticate_garmin") as ctx:
                     self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
-                self.assertEqual(ctx.exception.error.response.status_code, status)
+                cause = ctx.exception.__cause__
+                self.assertIsInstance(cause, GarthHTTPError)
+                self.assertEqual(cause.error.response.status_code, status)
+
+    def test_rate_limit_error_from_api_is_raised(self) -> None:
+        api = _populated_api()
+        api.errors[RHR_PATH + "2026-11-20"] = _http_error(429)
+        with self.assertRaises(GarthHTTPError) as ctx:
+            self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+        self.assertEqual(ctx.exception.error.response.status_code, 429)
 
     def test_missing_oauth_token_raises_auth_error(self) -> None:
         api = _populated_api()
@@ -670,6 +680,23 @@ class TestSyncWellness(unittest.TestCase):
         finally:
             os.umask(old_umask)
         self.assertEqual(stat.S_IMODE(self.csv_path.stat().st_mode), 0o644)
+
+    def test_write_does_not_change_the_process_umask(self) -> None:
+        # Toggling os.umask is process-wide and races with other threads creating files
+        with patch("fitanalyzer.wellness.os.umask", side_effect=AssertionError("umask touched")):
+            self._sync([self._row("2026-11-19", resting_hr=51)])
+        self.assertEqual([r["date"] for r in _read_csv(self.csv_path)], ["2026-11-19"])
+
+    def test_failed_final_write_supersedes_the_fetch_error(self) -> None:
+        def fail_after_one_day(*_args: Any, progress: List[Dict[str, Any]], **_kw: Any) -> None:
+            progress.append(self._row("2026-11-19", resting_hr=51))
+            raise WellnessSyncError("sleep failed")
+
+        with patch("fitanalyzer.wellness.fetch_daily_wellness", side_effect=fail_after_one_day):
+            with patch("fitanalyzer.wellness.os.replace", side_effect=OSError("disk full")):
+                with self.assertRaises(OSError) as ctx:
+                    sync_wellness(self.csv_path, 2, end=date(2026, 11, 20))
+        self.assertIsInstance(ctx.exception.__context__, WellnessSyncError)
 
     def test_existing_csv_keeps_its_permissions(self) -> None:
         self._sync([self._row("2026-11-18", resting_hr=50)])
