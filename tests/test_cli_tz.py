@@ -19,7 +19,8 @@ def test_default_zone_is_valid() -> None:
 
 
 @pytest.mark.parametrize(
-    "name", ["Europe/Helsenki", "EST5EDT,M3.2.0,M11.1.0", "UTC+3", "", "../etc/passwd"]
+    "name",
+    ["Europe/Helsenki", "EST5EDT,M3.2.0,M11.1.0", "UTC+3", "", "../etc/passwd", "a" * 300],
 )
 def test_rejects_unknown_zone_with_usage_error(
     name: str, capsys: pytest.CaptureFixture[str]

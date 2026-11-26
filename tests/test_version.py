@@ -63,3 +63,12 @@ def test_setup_py_install_requires_matches_pyproject_dependencies() -> None:
     assert _requirement_specs(ast.literal_eval(install_requires)) == _requirement_specs(
         pyproject_deps
     )
+
+
+def test_packaging_is_a_declared_dev_dependency() -> None:
+    # This module imports packaging directly; don't rely on pytest pulling it in
+    dev_requirements = (ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
+    assert re.search(r"^packaging\b", dev_requirements, re.M)
+    dev_extras = re.search(r"^dev = \[(.*?)\]", PYPROJECT.read_text(encoding="utf-8"), re.M | re.S)
+    assert dev_extras is not None
+    assert re.search(r'"packaging\b', dev_extras.group(1))
