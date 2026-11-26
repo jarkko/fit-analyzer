@@ -6,7 +6,7 @@ Tests FIT file analysis, multisport handling, and data processing.
 import shutil
 import tempfile
 import unittest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, Mock, patch
 
@@ -826,23 +826,28 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
 
     def test_timezone_aware_timestamps_tz_convert(self):
         """Test _process_timestamps with already timezone-aware timestamps (lines 183-184)"""
-        import pytz
+        from zoneinfo import ZoneInfo
 
         from fitanalyzer.sessions import process_timestamps
 
-        # Create timezone-aware timestamps (not UTC)
-        eastern = pytz.timezone("US/Eastern")
+        # Timezone-aware timestamps (not UTC). Uses the stdlib zoneinfo database, not
+        # pytz (pandas 3 no longer installs it) and not the machine's local timezone.
+        eastern = ZoneInfo("America/New_York")
         times = pd.DatetimeIndex(
             [datetime(2025, 1, 1, 12, 0, 0), datetime(2025, 1, 1, 12, 1, 0)]
         ).tz_localize(eastern)
 
         df = pd.DataFrame({"time": times, "power": [200, 210]})
 
-        result = process_timestamps(df, "UTC")
+        result = process_timestamps(df, "Europe/Helsinki")
 
-        # Should use tz_convert to convert to UTC (line 183-184)
-        self.assertIsNotNone(result["start_utc"])
-        self.assertEqual(str(result["start_utc"].tzinfo), "UTC")
+        # Converted to UTC: 12:00 EST (UTC-5) is 17:00 UTC
+        self.assertEqual(result["start_utc"], datetime(2025, 1, 1, 17, 0, tzinfo=timezone.utc))
+        self.assertEqual(result["end_utc"], datetime(2025, 1, 1, 17, 1, tzinfo=timezone.utc))
+        self.assertEqual(result["start_utc"].utcoffset(), timedelta(0))
+        # ...and shown in the requested zone, whatever the machine's TZ: 19:00 EET (UTC+2)
+        self.assertEqual(result["start_local"].replace(tzinfo=None), datetime(2025, 1, 1, 19, 0))
+        self.assertEqual(result["dur_sec"], 61)
 
     def test_timezone_naive_to_utc(self):
         """Test _process_timestamps with naive timestamps (lines 179-180)"""
@@ -861,12 +866,12 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
 
     def test_prepare_timezone_aware_index_with_tz_aware_timestamps(self):
         """Test _prepare_timezone_aware_index with timezone-aware timestamps (lines 543-544)"""
-        import pytz
+        from zoneinfo import ZoneInfo
 
         from fitanalyzer.activities import _prepare_timezone_aware_index
 
-        # Create timezone-aware timestamps (not UTC)
-        eastern = pytz.timezone("US/Eastern")
+        # Timezone-aware timestamps (not UTC), from the stdlib zoneinfo database
+        eastern = ZoneInfo("America/New_York")
         times = pd.DatetimeIndex(
             [datetime(2025, 1, 1, 12, 0, 0), datetime(2025, 1, 1, 12, 1, 0)]
         ).tz_localize(eastern)
@@ -875,11 +880,18 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
 
         start_utc, end_utc, time_index = _prepare_timezone_aware_index(df)
 
-        # Should use tz_convert to convert to UTC (lines 543-544)
-        self.assertIsNotNone(start_utc)
-        self.assertEqual(str(start_utc.tzinfo), "UTC")
-        # time_index should also be converted (line 551)
-        self.assertIsNotNone(time_index)
+        # Converted to UTC: 12:00 EST (UTC-5) is 17:00 UTC
+        self.assertEqual(start_utc, datetime(2025, 1, 1, 17, 0, tzinfo=timezone.utc))
+        self.assertEqual(end_utc, datetime(2025, 1, 1, 17, 1, tzinfo=timezone.utc))
+        # The time index is converted too
+        self.assertEqual(str(time_index.dt.tz), "UTC")
+        self.assertEqual(
+            list(time_index),
+            [
+                pd.Timestamp("2025-01-01 17:00", tz="UTC"),
+                pd.Timestamp("2025-01-01 17:01", tz="UTC"),
+            ],
+        )
 
     def test_prepare_timezone_aware_index_with_naive_timestamps(self):
         """Test _prepare_timezone_aware_index with naive timestamps (line 549)"""
@@ -1614,3 +1626,36 @@ class TestFTPExtraction(unittest.TestCase):
 if __name__ == "__main__":
     # Run tests with verbose output
     unittest.main(verbosity=2)
+
+
+class TestLocalTimeConversion(unittest.TestCase):
+    """Local times come from config.tz_name, not the machine's timezone or library quirks.
+
+    pandas 2.x cannot convert a Timestamp with a dateutil 3 tzfile: it logs an
+    ignored exception and returns the UTC wall time without a zone.
+    """
+
+    FIXTURE = str(Path(__file__).parent / "fixtures" / "20794985860_ACTIVITY.fit")
+
+    def test_summary_start_and_end_are_in_configured_zone(self):
+        from fitanalyzer.activities import summarize_fit_original
+        from fitanalyzer.config import AnalysisConfig
+
+        config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Europe/Helsinki")
+        result = summarize_fit_original(self.FIXTURE, config)
+
+        # Recorded 15:26:56-16:14:28 UTC on 2025-10-25; Helsinki is UTC+3 (EEST) that day
+        self.assertEqual(result["date"], "2025-10-25")
+        self.assertEqual(result["start_time"], "2025-10-25 18:26:56")
+        self.assertEqual(result["end_time"], "2025-10-25 19:14:28")
+
+    def test_summary_date_follows_configured_zone_across_midnight(self):
+        from fitanalyzer.activities import summarize_fit_original
+        from fitanalyzer.config import AnalysisConfig
+
+        # 15:26 UTC is 04:26 the next day in Kiritimati (UTC+14)
+        config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Pacific/Kiritimati")
+        result = summarize_fit_original(self.FIXTURE, config)
+
+        self.assertEqual(result["date"], "2025-10-26")
+        self.assertEqual(result["start_time"], "2025-10-26 05:26:56")
