@@ -109,7 +109,8 @@ def load_existing_rows(csv_path: Path, existing_analysis: Dict[str, float]) -> L
 
         existing_rows = []
         for _, row in existing_df.iterrows():
-            row_dict = row.to_dict()
+            # CSV column labels are strings; pandas-stubs types them as Hashable
+            row_dict = {str(key): value for key, value in row.to_dict().items()}
             # Add _file_mtime from existing_analysis
             fit_file = row_dict.get("file")
             if fit_file and fit_file in existing_analysis:
