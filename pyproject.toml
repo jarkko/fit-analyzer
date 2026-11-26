@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fitanalyzer"
-version = "0.4.4"
+version = "0.4.5"
 description = "A Python library for analyzing Garmin FIT files and calculating training metrics"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -29,6 +29,7 @@ dependencies = [
     "numpy>=1.24.0",
     "garth>=0.5.0",
     "python-dateutil>=2.8.0",
+    "requests>=2.0.0",  # already required by garth; imported directly by fitanalyzer.wellness
     "tzdata",  # IANA zones for zoneinfo where the OS has no tz database
 ]
 

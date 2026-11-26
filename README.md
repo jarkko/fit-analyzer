@@ -120,6 +120,29 @@ setup_garmin_client()
 sync_activities(output_dir="./activities", days=30)
 ```
 
+### Sync Daily Wellness (HRV, Resting HR, Sleep)
+
+```python
+from datetime import date
+
+from fitanalyzer import authenticate_garmin, fetch_daily_wellness, sync_wellness
+
+authenticate_garmin()  # reuses the saved garth session
+
+# Upsert the last 14 days into a CSV, one row per date
+sync_wellness("data/wellness_daily.csv", days=14)
+
+# Or fetch rows directly
+rows = fetch_daily_wellness(date(2026, 11, 19), date(2026, 11, 26))
+```
+
+Each row has `date`, `hrv_last_night_avg`, `hrv_weekly_avg`, `hrv_status`, `resting_hr`,
+`sleep_seconds` and `sleep_score`. A value is empty (None) when Garmin has no data for it or
+the request failed. Re-syncing never erases a stored value with an empty one.
+
+If a sync stops part way (a source failed for every day, or Garmin answered 401, 403 or 429),
+the days fetched so far are still written to the CSV before the error is raised.
+
 ### Extract Strength Training Data
 
 FIT Analyzer can extract detailed strength training sets including weights, repetitions, and exercise categories:

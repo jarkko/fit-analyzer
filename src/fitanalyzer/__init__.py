@@ -5,6 +5,7 @@ This package provides tools for:
 - Parsing FIT files and extracting training metrics
 - Syncing activities from Garmin Connect
 - Calculating performance metrics (NP, TSS, TRIMP, IF)
+- Syncing daily wellness data (overnight HRV, resting HR, sleep)
 """
 
 from .activities import summarize_fit_original, summarize_fit_sessions
@@ -18,8 +19,14 @@ from .sync import (
     run_analysis,
     sync_activities,
 )
+from .wellness import (
+    WellnessAuthError,
+    WellnessSyncError,
+    fetch_daily_wellness,
+    sync_wellness,
+)
 
-__version__ = "0.4.2"
+__version__ = "0.4.5"
 __author__ = "FIT Analyzer Contributors"
 
 __all__ = [
@@ -34,4 +41,8 @@ __all__ = [
     "get_existing_activity_ids",
     "run_analysis",
     "sync_activities",
+    "fetch_daily_wellness",
+    "sync_wellness",
+    "WellnessSyncError",
+    "WellnessAuthError",
 ]
