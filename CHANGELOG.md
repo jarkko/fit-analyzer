@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - A missing day or a failed request for one day yields empty values (logged as a warning)
   - Raises `WellnessSyncError` when a whole source (HRV, resting HR or sleep) fails for every
     day, or when an existing CSV is unreadable; `WellnessAuthError` when the garth session is
-    not authenticated or its token refresh is rejected; 429 responses are re-raised. Days
+    not authenticated or Garmin answers 401/403; 429 responses are re-raised. Days
     fetched before the error are written to the CSV first (`fetch_daily_wellness` reports them
     through its `progress` list)
   - Waits 0.3 s between per-day requests (`request_delay`) to avoid rate limiting

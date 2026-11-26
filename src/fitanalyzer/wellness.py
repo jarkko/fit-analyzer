@@ -9,8 +9,8 @@ missing or partial day yields ``None`` values instead of a validation error.
 import csv
 import logging
 import os
+import secrets
 import shutil
-import tempfile
 import time
 from collections import Counter
 from datetime import date, timedelta
@@ -83,12 +83,27 @@ def _request_failed(what: str, error: Exception) -> _RequestFailed:
     return _RequestFailed(what)
 
 
+def _http_failure(error: Exception, what: str) -> Exception:
+    """Map an HTTP error to the exception to raise: auth, the error itself (429) or a miss."""
+    status = _http_status(error)
+    if status in AUTH_HTTP_STATUSES:
+        auth_error = WellnessAuthError(
+            f"Garmin rejected the session (HTTP {status}); call authenticate_garmin() again"
+        )
+        auth_error.__cause__ = error
+        return auth_error
+    if status in FATAL_HTTP_STATUSES:
+        return error
+    return _request_failed(what, error)
+
+
 def _guarded(call: Callable[[], Any], what: str) -> Any:
     """Run a garth call, turning recoverable errors into ``_RequestFailed``.
 
     Raises:
-        WellnessAuthError: garth has no OAuth token, or refreshing it was rejected.
-        GarthHTTPError: on 401, 403 or 429, which no retry of another day would fix.
+        WellnessAuthError: garth has no OAuth token, or Garmin answered 401/403 (to an
+            API call or to garth's token refresh).
+        GarthHTTPError: on 429, which no retry of another day would fix.
         requests.HTTPError: on 429 while garth refreshes its token.
         _RequestFailed: on any other HTTP, network or JSON error.
     """
@@ -103,20 +118,17 @@ def _guarded(call: Callable[[], Any], what: str) -> Any:
     except RequestsHTTPError as e:
         # garth refreshes an expired OAuth2 token before its GarthHTTPError wrapper, so
         # sso.exchange's HTTPError arrives bare. It must be checked before OSError.
-        status = _http_status(e)
-        if status in AUTH_HTTP_STATUSES:
-            raise WellnessAuthError(
-                f"Garmin rejected the session token ({e}); call authenticate_garmin() again"
-            ) from e
-        if status in FATAL_HTTP_STATUSES:
+        failure = _http_failure(e, what)
+        if failure is e:
             raise
-        raise _request_failed(what, e) from e
+        raise failure from e
     except (OSError, ValueError, KeyError) as e:
         raise _request_failed(what, e) from e
     except GarthHTTPError as e:
-        if _http_status(e) in FATAL_HTTP_STATUSES:
+        failure = _http_failure(e, what)
+        if failure is e:
             raise
-        raise _request_failed(what, e) from e
+        raise failure from e
 
 
 def _connectapi(path: str) -> Any:
@@ -235,10 +247,11 @@ def fetch_daily_wellness(
     Raises:
         ImportError: If garth is not installed.
         ValueError: If ``start`` is after ``end``.
-        WellnessAuthError: If the garth session is not authenticated.
+        WellnessAuthError: If the garth session is not authenticated, or Garmin answers
+            401 or 403 (the original error is the ``__cause__``).
         WellnessSyncError: If one source (HRV, resting HR or sleep) failed for every day.
             Raised after every day was fetched; the rows are in ``progress``.
-        GarthHTTPError: On a 401, 403 or 429 response from Garmin.
+        GarthHTTPError: On a 429 response from Garmin.
         requests.HTTPError: On a 429 while garth refreshes its OAuth token.
     """
     if garth is None:
@@ -301,11 +314,20 @@ def _read_csv_rows(path: Path) -> Tuple[List[str], Dict[str, Row]]:
     return header, rows
 
 
-def _default_file_mode() -> int:
-    """Mode a plain ``open(path, "w")`` would give a new file: 0o666 minus the umask."""
-    umask = os.umask(0)
-    os.umask(umask)
-    return 0o666 & ~umask
+def _create_temp_file(directory: Path, name: str) -> Tuple[int, str]:
+    """Create a unique temp file next to the target, mode 0o666 minus the umask.
+
+    Unlike ``tempfile.mkstemp`` (always 0600), the system applies the umask, as for a
+    plain ``open(path, "w")``; no process-wide ``os.umask`` toggling is needed.
+    """
+    flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_BINARY", 0)
+    for _ in range(100):
+        tmp_name = str(directory / f".{name}.{secrets.token_hex(8)}.tmp")
+        try:
+            return os.open(tmp_name, flags, 0o666), tmp_name
+        except FileExistsError:
+            continue
+    raise FileExistsError(f"could not create a unique temp file in {directory}")
 
 
 def _write_csv_rows(path: Path, header: List[str], rows: Dict[str, Row]) -> None:
@@ -316,7 +338,7 @@ def _write_csv_rows(path: Path, header: List[str], rows: Dict[str, Row]) -> None
     """
     path = Path(os.path.realpath(path))
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".tmp")
+    fd, tmp_name = _create_temp_file(path.parent, path.name)
     try:
         with os.fdopen(fd, "w", newline="", encoding="utf-8") as f:
             writer = csv.DictWriter(f, fieldnames=header, extrasaction="ignore")
@@ -325,8 +347,6 @@ def _write_csv_rows(path: Path, header: List[str], rows: Dict[str, Row]) -> None
                 writer.writerow(rows[day])
         if path.exists():
             shutil.copymode(path, tmp_name)
-        else:
-            os.chmod(tmp_name, _default_file_mode())
         os.replace(tmp_name, path)
     finally:
         if os.path.exists(tmp_name):
@@ -352,7 +372,8 @@ def sync_wellness(
 
     The file is written atomically. If the fetch fails part way (a source failed for
     every day, or Garmin answered 401/403/429), the days fetched so far are written
-    first and the error is raised after that.
+    first and the fetch error is raised after that. If that final write itself fails,
+    its ``OSError`` is raised instead, with the fetch error as its ``__context__``.
 
     Args:
         csv_path: CSV file to create or update (parent directories are created).
@@ -365,8 +386,15 @@ def sync_wellness(
 
     Raises:
         ValueError: If ``days`` is less than 1.
+        ImportError: If garth is not installed.
         WellnessSyncError: If the existing CSV is unusable (see ``_read_csv_rows``)
-            or a whole source failed (see ``fetch_daily_wellness``).
+            or a whole source failed for every day (see ``fetch_daily_wellness``).
+        WellnessAuthError: If the garth session is not authenticated or Garmin
+            answers 401/403.
+        GarthHTTPError: On a 429 response from Garmin.
+        requests.HTTPError: On a 429 while garth refreshes its OAuth token.
+        OSError: If the CSV cannot be read or written. A failed final write supersedes
+            any fetch error above (which stays available as ``__context__``).
     """
     if days < 1:
         raise ValueError(f"days must be >= 1, got {days}")

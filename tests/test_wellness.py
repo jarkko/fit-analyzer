@@ -687,6 +687,24 @@ class TestSyncWellness(unittest.TestCase):
             self._sync([self._row("2026-11-19", resting_hr=51)])
         self.assertEqual([r["date"] for r in _read_csv(self.csv_path)], ["2026-11-19"])
 
+    def test_temp_file_name_collision_is_retried(self) -> None:
+        self.csv_path.parent.mkdir(parents=True)
+        taken = self.csv_path.parent / f".{self.csv_path.name}.taken.tmp"
+        taken.write_text("someone else's", encoding="utf-8")
+        with patch("fitanalyzer.wellness.secrets.token_hex", side_effect=["taken", "free"]):
+            self._sync([self._row("2026-11-19", resting_hr=51)])
+        self.assertEqual(taken.read_text(encoding="utf-8"), "someone else's")
+        self.assertEqual([r["date"] for r in _read_csv(self.csv_path)], ["2026-11-19"])
+
+    def test_no_free_temp_file_name_raises_and_leaves_csv_untouched(self) -> None:
+        self._sync([self._row("2026-11-18", resting_hr=50)])
+        before = self.csv_path.read_text(encoding="utf-8")
+        (self.csv_path.parent / f".{self.csv_path.name}.taken.tmp").touch()
+        with patch("fitanalyzer.wellness.secrets.token_hex", return_value="taken"):
+            with self.assertRaises(FileExistsError):
+                self._sync([self._row("2026-11-19", resting_hr=51)])
+        self.assertEqual(self.csv_path.read_text(encoding="utf-8"), before)
+
     def test_failed_final_write_supersedes_the_fetch_error(self) -> None:
         def fail_after_one_day(*_args: Any, progress: List[Dict[str, Any]], **_kw: Any) -> None:
             progress.append(self._row("2026-11-19", resting_hr=51))
