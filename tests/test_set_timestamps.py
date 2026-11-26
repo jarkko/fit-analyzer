@@ -8,19 +8,23 @@ import pytest
 from fitanalyzer.aggregation import aggregate_strength_sets
 from fitanalyzer.config import AnalysisConfig
 
+FIXTURES = Path(__file__).parent / "fixtures"
+
 
 @pytest.fixture
 def sample_fit_file():
-    """Return path to a sample FIT file with multiple active sets."""
-    # Use a file with multiple active sets (has 2 active + 1 rest = 3 total)
-    return Path("data/samples/10344918253_ACTIVITY.fit")
+    """Return a fixture FIT file with many strength sets (14 aggregated sets).
+
+    Resolved relative to this file, not the working directory, so the tests run
+    in CI instead of being skipped.
+    """
+    path = FIXTURES / "20748058539_ACTIVITY.fit"
+    assert path.exists(), f"Fixture missing: {path}"
+    return path
 
 
 def test_aggregate_sets_preserves_unique_timestamps(sample_fit_file):
     """Test that aggregate_strength_sets preserves unique timestamps for each set."""
-    if not sample_fit_file.exists():
-        pytest.skip(f"Sample file not found: {sample_fit_file}")
-
     config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="UTC")
     df = aggregate_strength_sets([str(sample_fit_file)], config)
 
@@ -45,9 +49,6 @@ def test_aggregate_sets_preserves_unique_timestamps(sample_fit_file):
 
 def test_csv_has_unique_timestamps_for_multiple_sets(sample_fit_file, tmp_path):
     """Test that the final CSV written to disk has unique timestamps for sets."""
-    if not sample_fit_file.exists():
-        pytest.skip(f"Sample file not found: {sample_fit_file}")
-
     config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="UTC")
 
     # Generate strength summary DataFrame

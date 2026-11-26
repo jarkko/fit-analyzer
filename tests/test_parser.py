@@ -883,6 +883,9 @@ class TestEdgeCasesForFullCoverage(unittest.TestCase):
         # Converted to UTC: 12:00 EST (UTC-5) is 17:00 UTC
         self.assertEqual(start_utc, datetime(2025, 1, 1, 17, 0, tzinfo=timezone.utc))
         self.assertEqual(end_utc, datetime(2025, 1, 1, 17, 1, tzinfo=timezone.utc))
+        # Same instant is not enough: the timestamps must be expressed in UTC
+        self.assertEqual(str(start_utc.tz), "UTC")
+        self.assertEqual(str(end_utc.tz), "UTC")
         # The time index is converted too
         self.assertEqual(str(time_index.dt.tz), "UTC")
         self.assertEqual(
@@ -1623,11 +1626,6 @@ class TestFTPExtraction(unittest.TestCase):
         self.assertIsNone(ftp, "Should return None when FTP field is missing")
 
 
-if __name__ == "__main__":
-    # Run tests with verbose output
-    unittest.main(verbosity=2)
-
-
 class TestLocalTimeConversion(unittest.TestCase):
     """Local times come from config.tz_name, not the machine's timezone or library quirks.
 
@@ -1653,9 +1651,14 @@ class TestLocalTimeConversion(unittest.TestCase):
         from fitanalyzer.activities import summarize_fit_original
         from fitanalyzer.config import AnalysisConfig
 
-        # 15:26 UTC is 04:26 the next day in Kiritimati (UTC+14)
+        # 15:26 UTC is 05:26 the next day in Kiritimati (UTC+14)
         config = AnalysisConfig(ftp=300, hr_rest=50, hr_max=190, tz_name="Pacific/Kiritimati")
         result = summarize_fit_original(self.FIXTURE, config)
 
         self.assertEqual(result["date"], "2025-10-26")
         self.assertEqual(result["start_time"], "2025-10-26 05:26:56")
+
+
+if __name__ == "__main__":
+    # Run tests with verbose output
+    unittest.main(verbosity=2)
