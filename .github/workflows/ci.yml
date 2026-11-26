@@ -3,13 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # No paths-ignore: branch protection requires these checks, so a PR that skips
+  # the workflow (docs only, say) could never report them and never merge.
   pull_request:
     branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "docs/**"
-      - ".gitignore"
-      - "LICENSE"
   schedule:
     - cron: "0 0 * * 0" # Weekly full test on all Python versions
 
