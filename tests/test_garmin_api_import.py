@@ -40,6 +40,14 @@ class TestGarthImportFallback(unittest.TestCase):
             if garmin_api_module is not None:
                 sys.modules["fitanalyzer.garmin_api"] = garmin_api_module
 
+        # The package attribute must point at the module tests patch. On Python 3.10,
+        # mock.patch("fitanalyzer.garmin_api.garth") resolves through the attribute,
+        # so a stale one sends later patches to the throwaway garth-less module.
+        import fitanalyzer
+
+        self.assertIs(fitanalyzer.garmin_api, sys.modules["fitanalyzer.garmin_api"])
+        self.assertIs(fitanalyzer.garth_utils, sys.modules["fitanalyzer.garth_utils"])
+
 
 if __name__ == "__main__":
     unittest.main()

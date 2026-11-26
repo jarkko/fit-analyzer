@@ -68,6 +68,13 @@ class TestActivityDownloadImport(unittest.TestCase):
             if original_activity_download is not None:
                 reload(original_activity_download)
 
+        # The package attribute must point at the module tests patch (see
+        # test_garmin_api_import): mock.patch resolves through it on Python 3.10.
+        import fitanalyzer
+
+        self.assertIs(fitanalyzer.activity_download, sys.modules["fitanalyzer.activity_download"])
+        self.assertIs(fitanalyzer.garth_utils, sys.modules["fitanalyzer.garth_utils"])
+
 
 if __name__ == "__main__":
     unittest.main()
