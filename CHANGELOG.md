@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `fitanalyzer.wellness`: daily wellness sync from Garmin Connect
+  - `fetch_daily_wellness(start, end)` returns one row per day with overnight HRV
+    (last-night and weekly average, status), resting heart rate, sleep duration and sleep score
+  - `sync_wellness(csv_path, days)` upserts those rows by date into a CSV; missing values
+    never overwrite stored ones
+  - Missing days and API or network errors yield empty values instead of failing the sync
+
 ## [0.2.0] - 2025-11-01
 
 ### Added
