@@ -7,12 +7,13 @@ responses shaped like the real Garmin Connect API.
 
 import csv
 import os
+import stat
 import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
 from typing import Any, Dict, List, Optional
-from unittest.mock import Mock, patch
+from unittest.mock import ANY, Mock, patch
 
 from requests import ConnectionError as RequestsConnectionError
 from requests import HTTPError, Response
@@ -39,6 +40,13 @@ def _http_error(status: int = 500) -> Exception:
     return GarthHTTPError(
         msg="Error in request", error=HTTPError(f"{status} Error", response=response)
     )
+
+
+def _raw_http_error(status: int) -> HTTPError:
+    """Build the bare requests.HTTPError garth's token refresh (sso.exchange) raises."""
+    response = Response()
+    response.status_code = status
+    return HTTPError(f"{status} Client Error", response=response)
 
 
 def _hrv_summary(
@@ -388,6 +396,74 @@ class TestFetchDailyWellness(unittest.TestCase):
                 username=unauthenticated_username,
             )
 
+    def test_raw_http_auth_error_from_token_refresh_raises_auth_error(self) -> None:
+        # garth refreshes an expired OAuth2 token outside its GarthHTTPError wrapper,
+        # so sso.exchange's requests.HTTPError (an OSError) reaches us unwrapped.
+        for status in (401, 403):
+            with self.subTest(status=status):
+                api = _populated_api()
+                api.errors["/hrv-service/"] = _raw_http_error(status)
+                with self.assertRaisesRegex(WellnessAuthError, "authenticate_garmin"):
+                    self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+
+    def test_raw_http_rate_limit_from_token_refresh_is_raised(self) -> None:
+        api = _populated_api()
+        api.errors[RHR_PATH + "2026-11-19"] = _raw_http_error(429)
+        with self.assertRaises(HTTPError) as ctx:
+            self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+        self.assertEqual(ctx.exception.response.status_code, 429)
+
+    def test_raw_http_server_error_is_a_per_day_failure(self) -> None:
+        api = _populated_api()
+        api.errors[RHR_PATH + "2026-11-19"] = _raw_http_error(503)
+        rows = self._fetch(api, date(2026, 11, 19), date(2026, 11, 20))
+        self.assertEqual([r["resting_hr"] for r in rows], [None, 55])
+
+    def test_progress_gets_each_finished_day(self) -> None:
+        progress: List[Dict[str, Any]] = []
+        with patch("fitanalyzer.wellness.garth", _mock_garth(_populated_api())):
+            rows = fetch_daily_wellness(
+                date(2026, 11, 19), date(2026, 11, 20), request_delay=0, progress=progress
+            )
+        self.assertEqual(progress, rows)
+
+    def test_progress_keeps_rows_when_a_source_fails_for_every_day(self) -> None:
+        api = _populated_api()
+        api.errors[RHR_PATH + "2026-11-19"] = _http_error()
+        progress: List[Dict[str, Any]] = []
+        with patch("fitanalyzer.wellness.garth", _mock_garth(api)):
+            with self.assertRaisesRegex(WellnessSyncError, "resting HR"):
+                fetch_daily_wellness(
+                    date(2026, 11, 19), date(2026, 11, 19), request_delay=0, progress=progress
+                )
+        self.assertEqual(len(progress), 1)
+        self.assertEqual(progress[0]["hrv_last_night_avg"], 46)
+        self.assertEqual(progress[0]["sleep_score"], 75)
+        self.assertIsNone(progress[0]["resting_hr"])
+
+    def test_hrv_failing_for_whole_range_still_fetches_other_sources(self) -> None:
+        api = _populated_api()
+        api.errors["/hrv-service/"] = _http_error()
+        progress: List[Dict[str, Any]] = []
+        with patch("fitanalyzer.wellness.garth", _mock_garth(api)):
+            with self.assertRaisesRegex(WellnessSyncError, "HRV"):
+                fetch_daily_wellness(
+                    date(2026, 11, 19), date(2026, 11, 20), request_delay=0, progress=progress
+                )
+        self.assertEqual([r["resting_hr"] for r in progress], [51, 55])
+        self.assertEqual([r["sleep_score"] for r in progress], [75, 83])
+
+    def test_progress_keeps_days_before_a_rate_limit(self) -> None:
+        api = _populated_api()
+        api.errors[RHR_PATH + "2026-11-20"] = _http_error(429)
+        progress: List[Dict[str, Any]] = []
+        with patch("fitanalyzer.wellness.garth", _mock_garth(api)):
+            with self.assertRaises(GarthHTTPError):
+                fetch_daily_wellness(
+                    date(2026, 11, 19), date(2026, 11, 20), request_delay=0, progress=progress
+                )
+        self.assertEqual([r["date"] for r in progress], ["2026-11-19"])
+
     def test_raises_import_error_without_garth(self) -> None:
         with patch("fitanalyzer.wellness.garth", None):
             with self.assertRaises(ImportError):
@@ -572,10 +648,65 @@ class TestSyncWellness(unittest.TestCase):
                 sync_wellness(self.csv_path, 2, end=date(2026, 11, 20))
         self.assertEqual(self.csv_path.read_text(encoding="utf-8"), before)
 
+    def test_new_csv_gets_default_permissions_from_umask(self) -> None:
+        old_umask = os.umask(0o022)
+        try:
+            self._sync([self._row("2026-11-19", resting_hr=51)])
+        finally:
+            os.umask(old_umask)
+        self.assertEqual(stat.S_IMODE(self.csv_path.stat().st_mode), 0o644)
+
+    def test_existing_csv_keeps_its_permissions(self) -> None:
+        self._sync([self._row("2026-11-18", resting_hr=50)])
+        os.chmod(self.csv_path, 0o640)
+        self._sync([self._row("2026-11-19", resting_hr=51)])
+        self.assertEqual(stat.S_IMODE(self.csv_path.stat().st_mode), 0o640)
+
+    def test_symlinked_csv_is_updated_through_the_link(self) -> None:
+        real = Path(self._tmp.name) / "real" / "wellness.csv"
+        real.parent.mkdir()
+        header = ",".join(WELLNESS_FIELDS)
+        real.write_text(f"{header}\n2026-11-18,,,,50,,\n", encoding="utf-8")
+        self.csv_path.parent.mkdir(parents=True)
+        self.csv_path.symlink_to(real)
+        self._sync([self._row("2026-11-19", resting_hr=51)])
+        self.assertTrue(self.csv_path.is_symlink())
+        self.assertEqual(
+            [(r["date"], r["resting_hr"]) for r in _read_csv(real)],
+            [("2026-11-18", "50"), ("2026-11-19", "51")],
+        )
+        self.assertEqual(os.listdir(real.parent), [real.name])
+
+    def test_duplicate_extra_column_names_are_written_once(self) -> None:
+        header = ",".join(WELLNESS_FIELDS + ["note", "note"])
+        self._write_existing(f"{header}\n2026-11-18,,,,50,,,a,b\n")
+        self._sync([self._row("2026-11-19", resting_hr=51)])
+        with self.csv_path.open(encoding="utf-8") as f:
+            written_header = f.readline().strip().split(",")
+        self.assertEqual(written_header, WELLNESS_FIELDS + ["note"])
+        self.assertEqual(_read_csv(self.csv_path)[0]["note"], "b")
+
+    def test_rows_fetched_before_a_failure_are_written_then_error_is_raised(self) -> None:
+        self._sync([self._row("2026-11-18", resting_hr=50)])
+
+        def fail_after_one_day(*_args: Any, progress: List[Dict[str, Any]], **_kw: Any) -> None:
+            progress.append(self._row("2026-11-19", resting_hr=51))
+            raise WellnessSyncError("sleep failed")
+
+        with patch("fitanalyzer.wellness.fetch_daily_wellness", side_effect=fail_after_one_day):
+            with self.assertRaises(WellnessSyncError):
+                sync_wellness(self.csv_path, 2, end=date(2026, 11, 20))
+        self.assertEqual(
+            [(r["date"], r["resting_hr"]) for r in _read_csv(self.csv_path)],
+            [("2026-11-18", "50"), ("2026-11-19", "51")],
+        )
+
     def test_request_delay_is_passed_to_fetch(self) -> None:
         with patch("fitanalyzer.wellness.fetch_daily_wellness", return_value=[]) as fetch:
             sync_wellness(self.csv_path, 2, end=date(2026, 11, 20), request_delay=0.4)
-        fetch.assert_called_once_with(date(2026, 11, 19), date(2026, 11, 20), request_delay=0.4)
+        fetch.assert_called_once_with(
+            date(2026, 11, 19), date(2026, 11, 20), request_delay=0.4, progress=ANY
+        )
 
 
 class TestSyncWellnessEndToEnd(unittest.TestCase):
@@ -610,6 +741,45 @@ class TestSyncWellnessEndToEnd(unittest.TestCase):
                 },
             ],
         )
+
+    def _sync_through_api(self, api: FakeGarminApi, csv_path: Path, days: int) -> None:
+        with patch("fitanalyzer.wellness.garth", _mock_garth(api)):
+            sync_wellness(csv_path, days, end=date(2026, 11, 20), request_delay=0)
+
+    def test_one_day_with_one_failed_request_writes_the_rest(self) -> None:
+        api = _populated_api()
+        api.errors[RHR_PATH + "2026-11-20"] = _http_error()
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "wellness_daily.csv"
+            with self.assertRaisesRegex(WellnessSyncError, "resting HR"):
+                self._sync_through_api(api, csv_path, 1)
+            written = _read_csv(csv_path)
+        self.assertEqual(
+            [
+                (r["date"], r["hrv_last_night_avg"], r["resting_hr"], r["sleep_score"])
+                for r in written
+            ],
+            [("2026-11-20", "35", "", "83")],
+        )
+
+    def test_rate_limit_late_in_backfill_keeps_earlier_days(self) -> None:
+        api = _populated_api()
+        api.errors[SLEEP_PATH + "2026-11-20"] = _http_error(429)
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "wellness_daily.csv"
+            with self.assertRaises(GarthHTTPError):
+                self._sync_through_api(api, csv_path, 2)
+            written = _read_csv(csv_path)
+        self.assertEqual([(r["date"], r["resting_hr"]) for r in written], [("2026-11-19", "51")])
+
+    def test_auth_failure_before_any_day_leaves_no_file(self) -> None:
+        api = _populated_api()
+        api.errors["/hrv-service/"] = AssertionError(OAUTH_ASSERTION)
+        with tempfile.TemporaryDirectory() as tmp:
+            csv_path = Path(tmp) / "wellness_daily.csv"
+            with self.assertRaises(WellnessAuthError):
+                self._sync_through_api(api, csv_path, 2)
+            self.assertFalse(csv_path.exists())
 
 
 if __name__ == "__main__":
