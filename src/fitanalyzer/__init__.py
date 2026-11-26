@@ -19,9 +19,14 @@ from .sync import (
     run_analysis,
     sync_activities,
 )
-from .wellness import fetch_daily_wellness, sync_wellness
+from .wellness import (
+    WellnessAuthError,
+    WellnessSyncError,
+    fetch_daily_wellness,
+    sync_wellness,
+)
 
-__version__ = "0.4.2"
+__version__ = "0.4.5"
 __author__ = "FIT Analyzer Contributors"
 
 __all__ = [
@@ -38,4 +43,6 @@ __all__ = [
     "sync_activities",
     "fetch_daily_wellness",
     "sync_wellness",
+    "WellnessSyncError",
+    "WellnessAuthError",
 ]

@@ -5,16 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.4.5] - 2026-11-26
 
 ### Added
 
 - `fitanalyzer.wellness`: daily wellness sync from Garmin Connect
   - `fetch_daily_wellness(start, end)` returns one row per day with overnight HRV
     (last-night and weekly average, status), resting heart rate, sleep duration and sleep score
-  - `sync_wellness(csv_path, days)` upserts those rows by date into a CSV; missing values
-    never overwrite stored ones
-  - Missing days and API or network errors yield empty values instead of failing the sync
+  - `sync_wellness(csv_path, days)` upserts those rows by date into a CSV. Missing values never
+    overwrite stored ones, extra columns are kept, and the file is written atomically
+  - A missing day or a failed request for one day yields empty values (logged as a warning)
+  - Raises `WellnessSyncError` when a whole source (HRV, resting HR or sleep) fails for every
+    day, or when an existing CSV is unreadable; `WellnessAuthError` when the garth session is
+    not authenticated; 401/403/429 responses are re-raised
+  - Waits 0.3 s between per-day requests (`request_delay`) to avoid rate limiting
 
 ## [0.2.0] - 2025-11-01
 
