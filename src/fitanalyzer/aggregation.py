@@ -9,10 +9,10 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import pandas as pd
-from dateutil import tz as dateutil_tz
 from fitparse import FitFile
 
 from fitanalyzer.config import SetMetadata
+from fitanalyzer.formatting import to_local_time
 from fitanalyzer.parser import extract_sessions_from_fit, get_sport_names
 from fitanalyzer.strength import extract_sets_from_fit
 
@@ -47,10 +47,7 @@ def process_file_for_sets(
         start_time = sessions[0].get("start_time")
         if start_time:
             # Convert to local timezone for date
-            tz_name = config.tz_name
-            local_tz = dateutil_tz.gettz(tz_name)
-            local_time = start_time.astimezone(local_tz)
-            date = local_time.date().isoformat()
+            date = to_local_time(start_time, config.tz_name).date().isoformat()
 
     # Create simple session dict with sport info and date
     df_sessions = {"sport": sport, "sub_sport": sub_sport, "date": date}
@@ -76,7 +73,8 @@ def extract_session_metadata(
     elif isinstance(df_sessions, list) and df_sessions:
         first_session = df_sessions[0]
     elif isinstance(df_sessions, pd.DataFrame) and not df_sessions.empty:
-        first_session = df_sessions.iloc[0].to_dict()  # Convert Series to dict
+        # Convert Series to dict; column labels are strings (pandas-stubs says Hashable)
+        first_session = {str(key): value for key, value in df_sessions.iloc[0].to_dict().items()}
 
     if first_session is not None:
         sport = first_session.get("sport", "unknown")

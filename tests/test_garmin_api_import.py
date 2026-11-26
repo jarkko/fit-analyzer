@@ -5,6 +5,16 @@ import unittest
 from unittest.mock import patch
 
 
+def _restore_package_attributes(names: tuple[str, ...]) -> None:
+    """Point fitanalyzer.<name> back at the module in sys.modules (re-imports rebind it)."""
+    import fitanalyzer
+
+    for name in names:
+        module = sys.modules.get(f"fitanalyzer.{name}")
+        if module is not None:
+            setattr(fitanalyzer, name, module)
+
+
 class TestGarthImportFallback(unittest.TestCase):
     """Test import behavior when garth library is unavailable."""
 
@@ -39,6 +49,15 @@ class TestGarthImportFallback(unittest.TestCase):
                 sys.modules["fitanalyzer.garth_utils"] = garth_utils_module
             if garmin_api_module is not None:
                 sys.modules["fitanalyzer.garmin_api"] = garmin_api_module
+            _restore_package_attributes(("garth_utils", "garmin_api"))
+
+        # The package attribute must point at the module tests patch. On Python 3.10,
+        # mock.patch("fitanalyzer.garmin_api.garth") resolves through the attribute,
+        # so a stale one sends later patches to the throwaway garth-less module.
+        import fitanalyzer
+
+        self.assertIs(fitanalyzer.garmin_api, sys.modules["fitanalyzer.garmin_api"])
+        self.assertIs(fitanalyzer.garth_utils, sys.modules["fitanalyzer.garth_utils"])
 
 
 if __name__ == "__main__":

@@ -9,10 +9,12 @@ Function Signature:
     ) -> bool
 
 Parameter Contracts:
-    updated_files:
+    updated_files (when output_dir already has strength_training_summary.csv):
         - None: Analyze all FIT files in directory (default behavior)
         - []: Skip analysis (no files to process, early return)
         - [...files]: Analyze only specified files
+    updated_files (when strength_training_summary.csv is missing from output_dir):
+        - Any value: Analyze all FIT files so the strength CSV is regenerated
 
     directory:
         - Valid directory: Glob for FIT files
@@ -29,6 +31,7 @@ Side Effects:
     - May print status messages
 """
 
+import importlib
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -38,6 +41,8 @@ import pytest
 @pytest.fixture
 def mock_cli():
     """Mock the CLI module to avoid actual file processing."""
+    # patch() needs the submodule imported, or it fails when this file runs on its own.
+    importlib.import_module("fitanalyzer.cli")
     # Mock the import of cli module inside run_analysis
     with patch("fitanalyzer.cli") as mock:
         mock.parse_arguments.return_value = MagicMock(
@@ -49,6 +54,20 @@ def mock_cli():
         )
         mock.main_with_args.return_value = 0
         yield mock
+
+
+@pytest.fixture
+def output_dir(tmp_path):
+    """An output dir that already has the strength CSV, so updated_files is honoured.
+
+    Without it run_analysis falls back to the default "data" relative to the
+    working directory, and the result depends on whether that happens to hold
+    a strength_training_summary.csv.
+    """
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "strength_training_summary.csv").write_text("date\n", encoding="utf-8")
+    return str(out)
 
 
 class TestRunAnalysisUpdatedFilesContract:
@@ -74,7 +93,7 @@ class TestRunAnalysisUpdatedFilesContract:
         fit_files = [arg for arg in args if arg.endswith("_ACTIVITY.fit")]
         assert len(fit_files) == 2
 
-    def test_updated_files_empty_list_skips_analysis(self, tmp_path, mock_cli):
+    def test_updated_files_empty_list_skips_analysis(self, tmp_path, mock_cli, output_dir):
         """When updated_files=[], should skip analysis entirely."""
         from fitanalyzer.sync import run_analysis
 
@@ -83,14 +102,16 @@ class TestRunAnalysisUpdatedFilesContract:
         fit_dir.mkdir()
         (fit_dir / "activity_ACTIVITY.fit").write_bytes(b"fake")
 
-        result = run_analysis(directory=str(fit_dir), updated_files=[])  # Empty list: skip analysis
+        result = run_analysis(
+            directory=str(fit_dir), output_dir=output_dir, updated_files=[]
+        )  # Empty list: skip analysis
 
         assert result is True
         # Verify CLI was NOT called
         mock_cli.parse_arguments.assert_not_called()
         mock_cli.main_with_args.assert_not_called()
 
-    def test_updated_files_single_file_analyzes_only_that(self, tmp_path, mock_cli):
+    def test_updated_files_single_file_analyzes_only_that(self, tmp_path, mock_cli, output_dir):
         """When updated_files has one file, should analyze only that file."""
         from fitanalyzer.sync import run_analysis
 
@@ -103,7 +124,9 @@ class TestRunAnalysisUpdatedFilesContract:
         file2.write_bytes(b"fake")
 
         result = run_analysis(
-            directory=str(fit_dir), updated_files=[str(file1)]  # Only analyze file1
+            directory=str(fit_dir),
+            output_dir=output_dir,
+            updated_files=[str(file1)],  # Only analyze file1
         )
 
         assert result is True
@@ -114,7 +137,9 @@ class TestRunAnalysisUpdatedFilesContract:
         assert str(file1) in fit_files
         assert str(file2) not in fit_files
 
-    def test_updated_files_multiple_files_analyzes_all_specified(self, tmp_path, mock_cli):
+    def test_updated_files_multiple_files_analyzes_all_specified(
+        self, tmp_path, mock_cli, output_dir
+    ):
         """When updated_files has multiple files, should analyze all of them."""
         from fitanalyzer.sync import run_analysis
 
@@ -129,7 +154,9 @@ class TestRunAnalysisUpdatedFilesContract:
         file3.write_bytes(b"fake")
 
         result = run_analysis(
-            directory=str(fit_dir), updated_files=[str(file1), str(file2)]  # Two files
+            directory=str(fit_dir),
+            output_dir=output_dir,
+            updated_files=[str(file1), str(file2)],  # Two files
         )
 
         assert result is True
@@ -141,19 +168,48 @@ class TestRunAnalysisUpdatedFilesContract:
         assert str(file2) in fit_files
         assert str(file3) not in fit_files
 
-    def test_updated_files_nonexistent_files_skips_gracefully(self, tmp_path, mock_cli):
+    def test_updated_files_nonexistent_files_skips_gracefully(self, tmp_path, mock_cli, output_dir):
         """When updated_files contains non-existent files, should skip them."""
         from fitanalyzer.sync import run_analysis
 
         fit_dir = tmp_path / "fits"
         fit_dir.mkdir()
 
-        result = run_analysis(directory=str(fit_dir), updated_files=[str(fit_dir / "missing.fit")])
+        result = run_analysis(
+            directory=str(fit_dir),
+            output_dir=output_dir,
+            updated_files=[str(fit_dir / "missing.fit")],
+        )
 
         # Should return True (success, just nothing to do)
         assert result is True
         # CLI should not be called since no files exist
         mock_cli.parse_arguments.assert_not_called()
+
+    @pytest.mark.parametrize("updated", [[], ["activity1"]])
+    def test_missing_strength_csv_analyzes_all_files(self, tmp_path, mock_cli, updated):
+        """Without strength_training_summary.csv, every FIT file is analyzed to rebuild it."""
+        from fitanalyzer.sync import run_analysis
+
+        fit_dir = tmp_path / "fits"
+        fit_dir.mkdir()
+        files = [fit_dir / f"activity{i}_ACTIVITY.fit" for i in (1, 2)]
+        for f in files:
+            f.write_bytes(b"fake")
+        empty_out = tmp_path / "empty_out"
+        empty_out.mkdir()
+
+        result = run_analysis(
+            directory=str(fit_dir),
+            output_dir=str(empty_out),
+            updated_files=[str(fit_dir / f"{name}_ACTIVITY.fit") for name in updated],
+        )
+
+        assert result is True
+        args = mock_cli.parse_arguments.call_args[0][0]
+        assert sorted(arg for arg in args if arg.endswith("_ACTIVITY.fit")) == sorted(
+            str(f) for f in files
+        )
 
 
 class TestRunAnalysisDirectoryContract:

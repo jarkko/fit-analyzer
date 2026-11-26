@@ -10,7 +10,6 @@ from typing import Any, Dict, Optional
 
 import numpy as np
 import pandas as pd
-from dateutil import tz
 
 from fitanalyzer.analysis import calculate_all_data_metrics
 from fitanalyzer.config import AnalysisConfig
@@ -20,6 +19,7 @@ from fitanalyzer.formatting import (
     convert_timestamps_to_utc,
     format_all_data_metrics,
     format_metric_value,
+    to_local_time,
 )
 from fitanalyzer.metrics import np_power, trimp_from_hr
 
@@ -29,15 +29,14 @@ def process_timestamps(df: pd.DataFrame, tz_name: str) -> Dict[str, Any]:
 
     Returns dict with start_utc, end_utc, start_local, end_local, dur_sec, dur_hr
     """
-    local = tz.gettz(tz_name)
     start_utc, end_utc = convert_timestamps_to_utc(df)
     dur_sec = int((end_utc - start_utc).total_seconds()) + 1
 
     return {
         "start_utc": start_utc,
         "end_utc": end_utc,
-        "start_local": start_utc.astimezone(local),
-        "end_local": end_utc.astimezone(local),
+        "start_local": to_local_time(start_utc, tz_name),
+        "end_local": to_local_time(end_utc, tz_name),
         "dur_sec": dur_sec,
         "dur_hr": dur_sec / 3600.0,
     }

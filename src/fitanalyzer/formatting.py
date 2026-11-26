@@ -5,11 +5,51 @@ This module provides common formatting functions to avoid code duplication
 between activities and sessions modules.
 """
 
-from typing import Any, Dict, Tuple
+from datetime import datetime, timezone
+from typing import Any, Dict, Tuple, TypeVar
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import numpy as np
 import pandas as pd
 from dateutil import tz
+
+_Moment = TypeVar("_Moment", bound=datetime)
+
+
+def local_zone(tz_name: str) -> ZoneInfo:
+    """Return the zone for an IANA name such as "Europe/Helsinki".
+
+    Only IANA keys are accepted, read from the system tz database or, where the OS
+    has none, from the ``tzdata`` package. dateutil is deliberately not used:
+    pandas 2.x silently returns the UTC wall time for a Timestamp converted to a
+    python-dateutil 3 zone, and pandas 3.x raises AttributeError.
+
+    Raises:
+        ValueError: If ``tz_name`` is not an IANA zone name zoneinfo knows (a typo,
+            a POSIX TZ string such as "EST5EDT,M3.2.0,M11.1.0", or an empty name).
+    """
+    try:
+        return ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError) as e:
+        raise ValueError(
+            f"Unknown time zone {tz_name!r}: use an IANA name such as 'Europe/Helsinki'"
+        ) from e
+
+
+def to_local_time(timestamp: _Moment, tz_name: str) -> _Moment:
+    """Convert ``timestamp`` to the IANA zone ``tz_name``.
+
+    Works for stdlib datetimes and pandas Timestamps and returns the same type.
+    An aware timestamp keeps its instant. A naive one is taken to be UTC (FIT
+    timestamps are), never the machine's local time.
+
+    Raises:
+        ValueError: If ``tz_name`` is not a known IANA zone name (see ``local_zone``).
+    """
+    zone = local_zone(tz_name)
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.astimezone(zone)
 
 
 def calculate_basic_hr_power_metrics(df: pd.DataFrame) -> Dict[str, float]:
