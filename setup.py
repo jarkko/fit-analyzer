@@ -35,6 +35,7 @@ setup(
         "numpy>=1.24.0",
         "garth>=0.5.0",
         "python-dateutil>=2.8.0",
+        "tzdata",
     ],
     extras_require={
         "dev": [

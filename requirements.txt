@@ -11,6 +11,7 @@ numpy==2.3.4
 
 # Date/time handling
 python-dateutil==2.9.0.post0
+tzdata==2026.6  # IANA zones for zoneinfo where the OS has none
 pytz==2025.2
 
 # Garmin Connect API
