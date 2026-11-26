@@ -43,6 +43,7 @@ setup(
             "pytest>=8.0.0",
             "pytest-cov>=4.0.0",
             "pytest-mock>=3.0.0",
+            "packaging>=24.0",
             "flake8>=7.0.0",
             "black>=24.0.0",
             "mypy>=1.8.0",

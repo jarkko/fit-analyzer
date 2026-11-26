@@ -6,6 +6,7 @@ pytest>=8.0.0
 pytest-cov>=5.0.0
 pytest-mock>=3.14.0
 pytest-xdist>=3.8.0  # Parallel test execution for test isolation
+packaging>=24.0  # tests/test_version.py parses requirement specifiers
 coverage>=7.6.0
 
 # Code Quality
