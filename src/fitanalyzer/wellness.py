@@ -64,7 +64,11 @@ class WellnessSyncError(RuntimeError):
 
 
 class WellnessAuthError(WellnessSyncError):
-    """The garth session is not authenticated."""
+    """The garth session is not authenticated, or Garmin rejected it.
+
+    Raised when garth has no OAuth token, and when Garmin answers 401 or 403 to an API
+    call or to garth's token refresh. Call ``authenticate_garmin()`` again.
+    """
 
 
 class _RequestFailed(Exception):
@@ -87,11 +91,10 @@ def _http_failure(error: Exception, what: str) -> Exception:
     """Map an HTTP error to the exception to raise: auth, the error itself (429) or a miss."""
     status = _http_status(error)
     if status in AUTH_HTTP_STATUSES:
-        auth_error = WellnessAuthError(
+        # The callers raise this ``from error``, which sets __cause__
+        return WellnessAuthError(
             f"Garmin rejected the session (HTTP {status}); call authenticate_garmin() again"
         )
-        auth_error.__cause__ = error
-        return auth_error
     if status in FATAL_HTTP_STATUSES:
         return error
     return _request_failed(what, error)

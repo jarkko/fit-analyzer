@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- `--tz` and `AnalysisConfig.tz_name` take IANA zone names only (`Europe/Helsinki`,
+  `Etc/GMT-3`). A misspelled name, a POSIX TZ string such as `EST5EDT,M3.2.0,M11.1.0`,
+  `UTC+3` or an empty `--tz` is now rejected: the CLI exits with a usage error (code 2)
+  before reading any file, and `to_local_time()`/`local_zone()` raise `ValueError`.
+  Before, such names silently gave UTC times or went through dateutil, which pandas
+  converts wrongly
+- `to_local_time()` treats a naive timestamp as UTC, not the machine's local time
+- `tzdata` is a new dependency, so IANA zones work where the OS has no tz database
+
 ## [0.4.5] - 2026-11-26
 
 ### Added

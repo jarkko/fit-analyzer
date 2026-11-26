@@ -16,6 +16,7 @@ from fitanalyzer.activities import summarize_fit_original, summarize_fit_session
 from fitanalyzer.aggregation import aggregate_strength_sets
 from fitanalyzer.config import AnalysisConfig
 from fitanalyzer.constants import DEFAULT_FTP
+from fitanalyzer.formatting import local_zone
 from fitanalyzer.incremental import (
     determine_files_to_process,
     load_existing_analysis,
@@ -55,6 +56,20 @@ def _get_ftp_for_file(fit_file: str, cli_ftp: float | None) -> float:
     return DEFAULT_FTP
 
 
+def _zone_name(value: str) -> str:
+    """argparse type for --tz: an IANA zone name, checked before any file is read.
+
+    Raises:
+        argparse.ArgumentTypeError: If zoneinfo does not know ``value``; argparse then
+            prints the usage error and exits with code 2.
+    """
+    try:
+        local_zone(value)
+    except ValueError as e:
+        raise argparse.ArgumentTypeError(str(e)) from e
+    return value
+
+
 def parse_arguments(args: list[str] | None = None) -> argparse.Namespace:
     """Parse command line arguments"""
     ap = argparse.ArgumentParser()
@@ -67,7 +82,12 @@ def parse_arguments(args: list[str] | None = None) -> argparse.Namespace:
     )
     ap.add_argument("--hrrest", type=int, default=50)
     ap.add_argument("--hrmax", type=int, default=190)
-    ap.add_argument("--tz", type=str, default="Europe/Helsinki")
+    ap.add_argument(
+        "--tz",
+        type=_zone_name,
+        default="Europe/Helsinki",
+        help="IANA time zone for local times, such as Europe/Helsinki (default)",
+    )
     ap.add_argument("--dump-sets", action="store_true", help="Save strength training sets to CSV")
     ap.add_argument("--output-dir", type=str, default="data", help="Directory for output CSV files")
     ap.add_argument(
